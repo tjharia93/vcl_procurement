@@ -41,7 +41,7 @@
   "fieldname": "custom_qbo_sync_status",
   "label": "QBO Sync Status",
   "fieldtype": "Select",
-  "options": "\nNot Synced\nPushed\nDrift",
+  "options": "\nNot Synced\nQueued\nBlocked\nPushed\nDrift\nSkipped",
   "default": "Not Synced",
   "insert_after": "custom_qbo_synced_at",
   "read_only": 1,

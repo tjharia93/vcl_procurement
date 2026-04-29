@@ -1,4 +1,11 @@
-"""Push Queue + Drift Log helpers for the runner."""
+"""Push Queue + Drift Log helpers for the runner.
+
+Idempotency: queue rows are keyed per `pi` (one row per Purchase Invoice
+across the lifetime of the queue, not per staging cycle). The `run_id`
+field is retained for audit but is no longer part of the unique key.
+This matches the event-driven staging model where each PI has exactly
+one queue row, kept in sync with each amendment / re-stage.
+"""
 
 from __future__ import annotations
 
@@ -8,24 +15,37 @@ from typing import Any
 import frappe
 from frappe.utils import now_datetime
 
+from vcl_procurement.api import todos
+
 
 _QUEUE_DOCTYPE = "QBO Bill Push Queue"
 _DRIFT_DOCTYPE = "QBO Drift Log"
 
+_RUNNER_OWNED_FIELDS = {
+    "approved",
+    "approved_by",
+    "approved_at",
+    "qbo_bill_id",
+    "qbo_sync_token",
+    "pushed_at",
+    "attempts",
+    "last_attempt_at",
+    "error_message",
+}
+
 
 @frappe.whitelist(methods=["POST"])
 def upsert_queue_row(payload: Any) -> dict:
-    """Idempotent per (run_id, pi). Runner sends one of these per PI per staging cycle."""
+    """Idempotent per `pi`. One queue row per PI across the lifetime of the queue."""
     parsed = payload if isinstance(payload, dict) else json.loads(payload)
 
     pi_name = parsed.get("pi")
-    run_id = parsed.get("run_id")
-    if not pi_name or not run_id:
-        frappe.throw("`pi` and `run_id` are required.")
+    if not pi_name:
+        frappe.throw("`pi` is required.")
 
     existing = frappe.get_all(
         _QUEUE_DOCTYPE,
-        filters={"pi": pi_name, "run_id": run_id},
+        filters={"pi": pi_name},
         pluck="name",
         limit=1,
     )
@@ -33,7 +53,7 @@ def upsert_queue_row(payload: Any) -> dict:
     if existing:
         doc = frappe.get_doc(_QUEUE_DOCTYPE, existing[0])
         for field, value in parsed.items():
-            if field in {"approved", "approved_by", "approved_at", "qbo_bill_id", "qbo_sync_token", "pushed_at", "attempts", "last_attempt_at", "error_message"}:
+            if field in _RUNNER_OWNED_FIELDS:
                 continue
             doc.set(field, value)
         doc.save(ignore_permissions=True)
@@ -86,6 +106,7 @@ def mark_pushed(name: str, qbo_bill_id: str, qbo_sync_token: str, last_updated_t
             "custom_qbo_sync_status": "Pushed",
         }, update_modified=False)
 
+    todos.close_queue_todo(name)
     frappe.db.commit()
     return {"name": name, "qbo_bill_id": qbo_bill_id, "pushed_at": str(pushed_at)}
 

@@ -48,7 +48,7 @@
         {"fieldname": "exchange_rate", "fieldtype": "Float", "label": "Exchange Rate", "precision": "6", "read_only": 1},
         {"fieldname": "total_amt", "fieldtype": "Float", "label": "Total (doc currency)", "precision": "2", "read_only": 1, "in_list_view": 1},
         {"fieldname": "section_break_status", "fieldtype": "Section Break", "label": "Status"},
-        {"fieldname": "category", "fieldtype": "Select", "label": "Category", "options": "\nNEW\nUPDATE\nALREADY_SYNCED\nBLOCKED\nDRIFT", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
+        {"fieldname": "category", "fieldtype": "Select", "label": "Category", "options": "\nNEW\nUPDATE\nALREADY_SYNCED\nBLOCKED\nDRIFT\nCANCELLED", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
         {"fieldname": "block_reason", "fieldtype": "Small Text", "label": "Block Reason", "read_only": 1, "depends_on": "eval:doc.category=='BLOCKED'"},
         {"fieldname": "line_routing_summary", "fieldtype": "Data", "label": "Line Routing Summary", "read_only": 1, "description": "e.g. '3 Item-based, 1 Account-based'"},
         {"fieldname": "column_break_status", "fieldtype": "Column Break"},

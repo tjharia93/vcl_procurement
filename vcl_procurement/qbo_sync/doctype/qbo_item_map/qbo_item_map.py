@@ -2,6 +2,8 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
+from vcl_procurement.api import todos
+
 
 class QBOItemMap(Document):
     def before_save(self):
@@ -13,3 +15,7 @@ class QBOItemMap(Document):
             self.approved_by = frappe.session.user
         if not self.approved_at:
             self.approved_at = now_datetime()
+
+    def on_update(self):
+        if self.approved:
+            todos.close_map_todo(self.doctype, self.name)
