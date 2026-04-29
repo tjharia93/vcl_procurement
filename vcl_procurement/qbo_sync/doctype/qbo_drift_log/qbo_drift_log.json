@@ -1,0 +1,53 @@
+{
+    "actions": [],
+    "autoname": "format:DRIFT-{YYYY}-{#####}",
+    "creation": "2026-04-29 00:00:00.000000",
+    "description": "QBO-side edits detected on previously-pushed Bills. Drift is reported only, never auto-resolved.",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "pi",
+        "qbo_bill_id",
+        "drift_kind",
+        "detected_at",
+        "column_break_1",
+        "resolved",
+        "resolved_by",
+        "resolved_at",
+        "section_break_diff",
+        "diff_json",
+        "section_break_resolution",
+        "resolution_notes"
+    ],
+    "fields": [
+        {"fieldname": "pi", "fieldtype": "Link", "label": "Purchase Invoice", "options": "Purchase Invoice", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1},
+        {"fieldname": "qbo_bill_id", "fieldtype": "Data", "label": "QBO Bill Id", "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
+        {"fieldname": "drift_kind", "fieldtype": "Select", "label": "Drift Kind", "options": "\nTIMESTAMP\nFIELD\nDELETED", "reqd": 1, "in_list_view": 1, "in_standard_filter": 1, "read_only": 1, "description": "TIMESTAMP = LastUpdatedTime newer than at push. FIELD = specific field changed. DELETED = Bill no longer exists in QBO."},
+        {"fieldname": "detected_at", "fieldtype": "Datetime", "label": "Detected At", "in_list_view": 1, "read_only": 1},
+        {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+        {"fieldname": "resolved", "fieldtype": "Check", "label": "Resolved", "default": "0", "in_list_view": 1, "in_standard_filter": 1, "description": "Tick after reviewing the QBO-side change and deciding the action (accept, re-push, escalate)."},
+        {"fieldname": "resolved_by", "fieldtype": "Link", "label": "Resolved By", "options": "User", "read_only": 1},
+        {"fieldname": "resolved_at", "fieldtype": "Datetime", "label": "Resolved At", "read_only": 1},
+        {"fieldname": "section_break_diff", "fieldtype": "Section Break", "label": "Diff", "collapsible": 1},
+        {"fieldname": "diff_json", "fieldtype": "Long Text", "label": "Diff (JSON)", "read_only": 1},
+        {"fieldname": "section_break_resolution", "fieldtype": "Section Break", "label": "Resolution"},
+        {"fieldname": "resolution_notes", "fieldtype": "Small Text", "label": "Resolution Notes"}
+    ],
+    "links": [
+        {"link_doctype": "Purchase Invoice", "link_fieldname": "name", "parent_doctype": "QBO Drift Log", "table_fieldname": "pi"}
+    ],
+    "modified": "2026-04-29 00:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "QBO Sync",
+    "name": "QBO Drift Log",
+    "owner": "Administrator",
+    "permissions": [
+        {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1, "print": 1, "share": 1, "email": 1},
+        {"role": "Accounts Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1, "print": 1, "share": 1, "email": 1},
+        {"role": "Accounts User", "read": 1, "report": 1}
+    ],
+    "sort_field": "detected_at",
+    "sort_order": "DESC",
+    "track_changes": 1,
+    "search_fields": "pi,qbo_bill_id"
+}

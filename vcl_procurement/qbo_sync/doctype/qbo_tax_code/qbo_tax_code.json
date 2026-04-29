@@ -1,0 +1,48 @@
+{
+    "actions": [],
+    "autoname": "field:qbo_id",
+    "creation": "2026-04-29 00:00:00.000000",
+    "description": "QBO Tax Code master cache. Refreshed weekly. Used by QBO Purchase Tax Map to resolve per-line TaxCodeRef.",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "qbo_id",
+        "tax_code_name",
+        "rate_value",
+        "column_break_1",
+        "taxable",
+        "active",
+        "description",
+        "section_break_meta",
+        "last_synced_at",
+        "raw_json"
+    ],
+    "fields": [
+        {"fieldname": "qbo_id", "fieldtype": "Data", "label": "QBO Tax Code Id", "reqd": 1, "unique": 1, "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
+        {"fieldname": "tax_code_name", "fieldtype": "Data", "label": "Tax Code Name", "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
+        {"fieldname": "rate_value", "fieldtype": "Float", "label": "Rate (%)", "precision": "4", "in_list_view": 1, "read_only": 1},
+        {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+        {"fieldname": "taxable", "fieldtype": "Check", "label": "Taxable", "default": "1", "read_only": 1},
+        {"fieldname": "active", "fieldtype": "Check", "label": "Active", "default": "1", "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
+        {"fieldname": "description", "fieldtype": "Small Text", "label": "Description", "read_only": 1},
+        {"fieldname": "section_break_meta", "fieldtype": "Section Break", "label": "Sync Metadata", "collapsible": 1},
+        {"fieldname": "last_synced_at", "fieldtype": "Datetime", "label": "Last Synced At", "read_only": 1},
+        {"fieldname": "raw_json", "fieldtype": "Long Text", "label": "Raw JSON from QBO", "read_only": 1}
+    ],
+    "links": [],
+    "modified": "2026-04-29 00:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "QBO Sync",
+    "name": "QBO Tax Code",
+    "naming_rule": "By fieldname",
+    "owner": "Administrator",
+    "permissions": [
+        {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1, "print": 1, "share": 1, "email": 1},
+        {"role": "Accounts Manager", "read": 1, "report": 1, "export": 1, "print": 1, "share": 1, "email": 1},
+        {"role": "Accounts User", "read": 1, "report": 1}
+    ],
+    "sort_field": "tax_code_name",
+    "sort_order": "ASC",
+    "track_changes": 1,
+    "search_fields": "tax_code_name,qbo_id"
+}

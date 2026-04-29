@@ -1,0 +1,48 @@
+{
+    "actions": [],
+    "autoname": "field:qbo_id",
+    "creation": "2026-04-29 00:00:00.000000",
+    "description": "QBO Vendor master cache. Refreshed weekly by the external runner via the upsert_qbo_masters API. Read-only to users.",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "qbo_id",
+        "display_name",
+        "active",
+        "column_break_1",
+        "email",
+        "phone",
+        "tax_identifier",
+        "section_break_meta",
+        "last_synced_at",
+        "raw_json"
+    ],
+    "fields": [
+        {"fieldname": "qbo_id", "fieldtype": "Data", "label": "QBO Vendor Id", "reqd": 1, "unique": 1, "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
+        {"fieldname": "display_name", "fieldtype": "Data", "label": "Display Name", "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
+        {"fieldname": "active", "fieldtype": "Check", "label": "Active", "default": "1", "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
+        {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+        {"fieldname": "email", "fieldtype": "Data", "label": "Primary Email", "read_only": 1},
+        {"fieldname": "phone", "fieldtype": "Data", "label": "Primary Phone", "read_only": 1},
+        {"fieldname": "tax_identifier", "fieldtype": "Data", "label": "Tax Identifier (KRA PIN)", "read_only": 1},
+        {"fieldname": "section_break_meta", "fieldtype": "Section Break", "label": "Sync Metadata", "collapsible": 1},
+        {"fieldname": "last_synced_at", "fieldtype": "Datetime", "label": "Last Synced At", "read_only": 1},
+        {"fieldname": "raw_json", "fieldtype": "Long Text", "label": "Raw JSON from QBO", "read_only": 1}
+    ],
+    "links": [],
+    "modified": "2026-04-29 00:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "QBO Sync",
+    "name": "QBO Vendor",
+    "naming_rule": "By fieldname",
+    "owner": "Administrator",
+    "permissions": [
+        {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1, "print": 1, "share": 1, "email": 1},
+        {"role": "Accounts Manager", "read": 1, "report": 1, "export": 1, "print": 1, "share": 1, "email": 1},
+        {"role": "Accounts User", "read": 1, "report": 1}
+    ],
+    "sort_field": "display_name",
+    "sort_order": "ASC",
+    "track_changes": 1,
+    "search_fields": "display_name,qbo_id,tax_identifier"
+}

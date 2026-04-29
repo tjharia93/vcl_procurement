@@ -1,0 +1,15 @@
+include MANIFEST.in
+include requirements.txt
+include vcl_procurement/*.json
+include vcl_procurement/*.txt
+recursive-include vcl_procurement *.css
+recursive-include vcl_procurement *.csv
+recursive-include vcl_procurement *.html
+recursive-include vcl_procurement *.ico
+recursive-include vcl_procurement *.js
+recursive-include vcl_procurement *.json
+recursive-include vcl_procurement *.md
+recursive-include vcl_procurement *.png
+recursive-include vcl_procurement *.py
+recursive-include vcl_procurement *.svg
+recursive-include vcl_procurement *.txt

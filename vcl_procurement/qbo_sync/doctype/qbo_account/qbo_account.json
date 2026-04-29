@@ -1,0 +1,50 @@
+{
+    "actions": [],
+    "autoname": "field:qbo_id",
+    "creation": "2026-04-29 00:00:00.000000",
+    "description": "QBO Chart of Accounts cache. Refreshed weekly by the external runner. Read-only to users.",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "qbo_id",
+        "fully_qualified_name",
+        "account_type",
+        "account_sub_type",
+        "column_break_1",
+        "classification",
+        "currency",
+        "active",
+        "section_break_meta",
+        "last_synced_at",
+        "raw_json"
+    ],
+    "fields": [
+        {"fieldname": "qbo_id", "fieldtype": "Data", "label": "QBO Account Id", "reqd": 1, "unique": 1, "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
+        {"fieldname": "fully_qualified_name", "fieldtype": "Data", "label": "Fully Qualified Name", "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
+        {"fieldname": "account_type", "fieldtype": "Data", "label": "Account Type", "in_list_view": 1, "in_standard_filter": 1, "read_only": 1, "description": "Bank / Accounts Receivable / Other Current Asset / Fixed Asset / Other Asset / Accounts Payable / Credit Card / Other Current Liability / Long Term Liability / Equity / Income / Cost of Goods Sold / Expense / Other Income / Other Expense"},
+        {"fieldname": "account_sub_type", "fieldtype": "Data", "label": "Account Sub Type", "read_only": 1},
+        {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+        {"fieldname": "classification", "fieldtype": "Data", "label": "Classification", "in_standard_filter": 1, "read_only": 1, "description": "Asset / Liability / Equity / Revenue / Expense"},
+        {"fieldname": "currency", "fieldtype": "Data", "label": "Currency", "read_only": 1},
+        {"fieldname": "active", "fieldtype": "Check", "label": "Active", "default": "1", "in_list_view": 1, "in_standard_filter": 1, "read_only": 1},
+        {"fieldname": "section_break_meta", "fieldtype": "Section Break", "label": "Sync Metadata", "collapsible": 1},
+        {"fieldname": "last_synced_at", "fieldtype": "Datetime", "label": "Last Synced At", "read_only": 1},
+        {"fieldname": "raw_json", "fieldtype": "Long Text", "label": "Raw JSON from QBO", "read_only": 1}
+    ],
+    "links": [],
+    "modified": "2026-04-29 00:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "QBO Sync",
+    "name": "QBO Account",
+    "naming_rule": "By fieldname",
+    "owner": "Administrator",
+    "permissions": [
+        {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1, "print": 1, "share": 1, "email": 1},
+        {"role": "Accounts Manager", "read": 1, "report": 1, "export": 1, "print": 1, "share": 1, "email": 1},
+        {"role": "Accounts User", "read": 1, "report": 1}
+    ],
+    "sort_field": "fully_qualified_name",
+    "sort_order": "ASC",
+    "track_changes": 1,
+    "search_fields": "fully_qualified_name,qbo_id,account_type"
+}

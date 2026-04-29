@@ -1,0 +1,5 @@
+[project]
+name = "vcl_procurement"
+version = "1.0.0"
+description = "VCL Procurement App"
+requires-python = ">=3.10"

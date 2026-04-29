@@ -1,0 +1,52 @@
+[
+ {
+  "doctype": "Custom Field",
+  "name": "Purchase Invoice-custom_qbo_section_break",
+  "dt": "Purchase Invoice",
+  "fieldname": "custom_qbo_section_break",
+  "label": "QBO Sync",
+  "fieldtype": "Section Break",
+  "insert_after": "remarks",
+  "collapsible": 1,
+  "module": "QBO Sync"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Purchase Invoice-custom_qbo_bill_id",
+  "dt": "Purchase Invoice",
+  "fieldname": "custom_qbo_bill_id",
+  "label": "QBO Bill ID",
+  "fieldtype": "Data",
+  "insert_after": "custom_qbo_section_break",
+  "read_only": 1,
+  "in_standard_filter": 1,
+  "description": "QBO Bill Id written back after a successful push.",
+  "module": "QBO Sync"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Purchase Invoice-custom_qbo_synced_at",
+  "dt": "Purchase Invoice",
+  "fieldname": "custom_qbo_synced_at",
+  "label": "QBO Last Synced At",
+  "fieldtype": "Datetime",
+  "insert_after": "custom_qbo_bill_id",
+  "read_only": 1,
+  "module": "QBO Sync"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Purchase Invoice-custom_qbo_sync_status",
+  "dt": "Purchase Invoice",
+  "fieldname": "custom_qbo_sync_status",
+  "label": "QBO Sync Status",
+  "fieldtype": "Select",
+  "options": "\nNot Synced\nPushed\nDrift",
+  "default": "Not Synced",
+  "insert_after": "custom_qbo_synced_at",
+  "read_only": 1,
+  "in_standard_filter": 1,
+  "in_list_view": 0,
+  "module": "QBO Sync"
+ }
+]
