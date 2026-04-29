@@ -8,7 +8,12 @@ required_apps = ["frappe", "erpnext"]
 
 # Document Events
 # ----------------
-doc_events = {}
+doc_events = {
+    "Purchase Invoice": {
+        "on_submit": "vcl_procurement.api.staging.on_submit_purchase_invoice",
+        "on_cancel": "vcl_procurement.api.staging.on_cancel_purchase_invoice",
+    },
+}
 
 # Fixtures
 # --------

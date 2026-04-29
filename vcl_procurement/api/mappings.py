@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import frappe
 
+from vcl_procurement.api import todos
+
 
 _MAP_DOCTYPES = (
     "QBO Vendor Map",
@@ -47,6 +49,7 @@ def upsert_unapproved_map_row(doctype: str, payload: dict) -> dict:
         doc.set(key, value)
     doc.approved = 0
     doc.insert(ignore_permissions=True)
+    todos.assign_unapproved_map_row(doctype, doc.name, str(primary_value))
     frappe.db.commit()
     return {"doctype": doctype, "name": doc.name, "action": "created_unapproved"}
 

@@ -1,0 +1,46 @@
+{
+    "actions": [],
+    "creation": "2026-04-29 00:00:00.000000",
+    "description": "Runtime config for the QBO sync pipeline. Holds the Local/Import field name, cutoff date, and ToDo assignee. Single doctype.",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "issingle": 1,
+    "field_order": [
+        "section_break_filters",
+        "staging_enabled",
+        "earliest_posting_date",
+        "column_break_filters",
+        "import_or_local_fieldname",
+        "import_or_local_local_value",
+        "section_break_assignment",
+        "assignee_user",
+        "column_break_assignment",
+        "auto_push_polling_minutes"
+    ],
+    "fields": [
+        {"fieldname": "section_break_filters", "fieldtype": "Section Break", "label": "Filters"},
+        {"fieldname": "staging_enabled", "fieldtype": "Check", "label": "Staging Enabled", "default": "0", "description": "Master switch for the on_submit hook. Off by default — turn on once filters are confirmed correct."},
+        {"fieldname": "earliest_posting_date", "fieldtype": "Date", "label": "Earliest Posting Date", "default": "2026-04-01", "reqd": 1, "description": "PIs with posting_date before this date are skipped entirely (never enter the queue)."},
+        {"fieldname": "column_break_filters", "fieldtype": "Column Break"},
+        {"fieldname": "import_or_local_fieldname", "fieldtype": "Data", "label": "Import/Local Fieldname", "default": "custom_import_or_local", "reqd": 1, "description": "The fieldname on Purchase Invoice that holds Local vs Import classification."},
+        {"fieldname": "import_or_local_local_value", "fieldtype": "Data", "label": "Local Value", "default": "Local", "reqd": 1, "description": "The exact value of the Import/Local field that means 'this PI should be pushed to QBO'. Anything else is skipped."},
+        {"fieldname": "section_break_assignment", "fieldtype": "Section Break", "label": "ToDo Assignment"},
+        {"fieldname": "assignee_user", "fieldtype": "Link", "label": "Assignee User", "options": "User", "default": "tanuj.haria@vimit.com", "reqd": 1, "description": "Who gets the ToDo sidebar items when queue rows or unapproved maps need attention."},
+        {"fieldname": "column_break_assignment", "fieldtype": "Column Break"},
+        {"fieldname": "auto_push_polling_minutes", "fieldtype": "Int", "label": "Runner Push Poll Interval (min)", "default": "5", "description": "Informational. The external runner reads this to size its push-poll cron cadence."}
+    ],
+    "links": [],
+    "modified": "2026-04-29 00:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "QBO Sync",
+    "name": "QBO Sync Settings",
+    "owner": "Administrator",
+    "permissions": [
+        {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1, "report": 1, "export": 1, "print": 1, "share": 1, "email": 1},
+        {"role": "Accounts Manager", "read": 1, "write": 1, "report": 1, "export": 1, "print": 1, "share": 1, "email": 1},
+        {"role": "Accounts User", "read": 1}
+    ],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "track_changes": 1
+}
