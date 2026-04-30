@@ -78,7 +78,7 @@ def stage_pi(pi_name: str) -> dict:
 
 @frappe.whitelist(methods=["POST"])
 def backfill(start_date: str | None = None, end_date: str | None = None, dry_run: int | bool = 1) -> dict:
-    """One-time backfill of submitted Local PIs in the date window.
+    """One-time backfill of submitted PIs in the date window.
 
     Idempotent: re-runs upsert by `pi`, so calling it twice with the same
     window doesn't duplicate queue rows.
@@ -101,7 +101,6 @@ def backfill(start_date: str | None = None, end_date: str | None = None, dry_run
     summary = {
         "considered": len(pi_names),
         "staged": 0,
-        "skipped_import": 0,
         "skipped_pre_cutoff": 0,
         "skipped_other": 0,
         "errored": 0,
@@ -115,9 +114,7 @@ def backfill(start_date: str | None = None, end_date: str | None = None, dry_run
             pi_doc = frappe.get_doc(_PI_DOCTYPE, pi_name)
             decision = _evaluate_filters(pi_doc, settings)
             if decision != "PASS":
-                if decision == "SKIP_IMPORT":
-                    summary["skipped_import"] += 1
-                elif decision == "SKIP_PRE_CUTOFF":
+                if decision == "SKIP_PRE_CUTOFF":
                     summary["skipped_pre_cutoff"] += 1
                 else:
                     summary["skipped_other"] += 1
@@ -159,9 +156,6 @@ def stage_pi_to_queue(pi_doc, *, run_id: str | None = None) -> dict:
         return {"action": "skipped", "reason": "staging_disabled"}
 
     decision = _evaluate_filters(pi_doc, settings)
-    if decision == "SKIP_IMPORT":
-        _set_pi_status(pi_doc.name, _PI_STATUS_SKIPPED)
-        return {"action": "skipped", "reason": "not_local"}
     if decision == "SKIP_PRE_CUTOFF":
         _set_pi_status(pi_doc.name, _PI_STATUS_SKIPPED)
         return {"action": "skipped", "reason": "before_cutoff"}
@@ -243,15 +237,6 @@ def _evaluate_filters(pi_doc, settings) -> str:
     posting = getdate(pi_doc.posting_date) if pi_doc.posting_date else None
     if not posting or posting < cutoff:
         return "SKIP_PRE_CUTOFF"
-
-    fieldname = (settings.import_or_local_fieldname or "").strip()
-    expected = (settings.import_or_local_local_value or "").strip()
-    if fieldname:
-        actual = pi_doc.get(fieldname)
-        if actual is None:
-            return "SKIP_IMPORT"
-        if str(actual).strip().lower() != expected.lower():
-            return "SKIP_IMPORT"
 
     return "PASS"
 

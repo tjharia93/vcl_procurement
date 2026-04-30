@@ -4,10 +4,6 @@ from frappe.model.document import Document
 
 class QBOSyncSettings(Document):
     def validate(self):
-        if not (self.import_or_local_fieldname or "").strip():
-            frappe.throw("Import/Local Fieldname is required.")
-        if not (self.import_or_local_local_value or "").strip():
-            frappe.throw("Local Value is required.")
         if not self.earliest_posting_date:
             frappe.throw("Earliest Posting Date is required.")
         if not self.assignee_user:
