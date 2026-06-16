@@ -1,0 +1,10 @@
+{
+  "name": "qbo-push-queue",
+  "route": "qbo-push",
+  "title": "QBO Push Queue",
+  "content_type": "HTML",
+  "published": 1,
+  "show_title": 0,
+  "full_width": 1,
+  "_note": "Live Web Page on vimitconverters.frappe.cloud (route /qbo-push). content_type=HTML so main_section_html is the rendered source (main_section mirrors it). To deploy: edit qbo-push-queue.html, then PUT it back onto Web Page/qbo-push-queue main_section_html (and main_section)."
+}

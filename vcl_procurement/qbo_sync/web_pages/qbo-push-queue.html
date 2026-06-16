@@ -1,0 +1,2471 @@
+<!--
+QBO Bill Push Queue — Frappe Web Page UI
+Aesthetic: Financial broadsheet. VCL Brand v1.0.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Carlito = open-source Calibri-metric equivalent. Brand v1.1 mandates Calibri/Carlito + Courier New. -->
+<link href="https://fonts.googleapis.com/css2?family=Carlito:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   QBO Push Queue — VCL Brand v1.1
+   ============================================================ */
+:root {
+  /* === VCL Brand v1.1 palette (mandated tokens) === */
+  --vcl-navy:        #1D2766;   /* H1, document titles */
+  --vcl-blue:        #2B3990;   /* PRIMARY: H2, headers, buttons, links */
+  --vcl-blue-deep:   #1F2A6B;   /* hover */
+  --vcl-blue-mid:    #5C6DBE;   /* dividers, secondary icons */
+  --vcl-blue-light:  #D6DBF5;   /* callout fills */
+  --vcl-blue-pale:   #EEF0FB;   /* page tints, hover bg */
+  --vcl-sage:        #5A9367;   /* brand accent — logo, nav active */
+  --vcl-sage-tint:   rgba(90,147,103,0.22);
+  --vcl-green:       #1B7A45;   /* pricing, Complete, positive KPIs */
+  --vcl-green-light: #D4EDE0;   /* Complete row fills */
+  --vcl-amber:       #B86B00;   /* warnings, In Progress (replaces red) */
+  --vcl-amber-light: #FFF0CC;
+  --vcl-red:         #C0392B;   /* RESTRICTED: hard errors only */
+  --vcl-red-light:   #FADBD8;
+  --ink:             #1C1C1E;   /* body text */
+  --mid-grey:        #4A4F5C;   /* secondary text */
+  --muted:           #8A909E;   /* footnotes, metadata */
+  --rule:            #CBD2E0;   /* borders, dividers */
+  --surface:         #F4F5F8;   /* page tint, alt rows */
+  --white:           #FFFFFF;
+
+  /* === Functional aliases used throughout the stylesheet === */
+  --bg:           var(--surface);
+  --paper:        var(--white);
+  --hairline:     var(--rule);
+  --hairline-2:   #E5E8F1;
+  --accent:       var(--vcl-blue);
+  --accent-soft:  var(--vcl-blue-light);
+  --ok:           var(--vcl-green);
+  --ok-soft:      var(--vcl-green-light);
+  --warn:         var(--vcl-amber);
+  --warn-soft:    var(--vcl-amber-light);
+  --err:          var(--vcl-red);
+  --err-soft:     var(--vcl-red-light);
+  --grey:         var(--muted);
+  --grey-soft:    #ECEEF4;
+  --ink-soft:     var(--mid-grey);  /* alias used in some rules */
+
+  /* === Type stack === */
+  --font-sans: 'Carlito', Calibri, 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Courier New', Courier, monospace;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: 'tnum' 1;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Hide Frappe website wrapper bits that don't fit our chrome */
+.web-footer, footer.web-footer, .navbar.navbar-default { display: none !important; }
+.page_content, .container, body.frappe-rtl { padding: 0 !important; max-width: none !important; }
+.web-form-container, .page-content { padding: 0 !important; }
+.qbo-app *, .qbo-app *::before, .qbo-app *::after { box-sizing: border-box; }
+
+/* ============ Top masthead ============ */
+.qbo-app {
+  min-height: 100vh;
+  background: var(--bg);
+}
+.masthead {
+  background: var(--paper);
+  border-bottom: 1px solid var(--hairline);
+  padding: 28px 48px 22px;
+}
+.masthead-row1 {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 18px;
+}
+.masthead-brand { display: flex; align-items: baseline; gap: 14px; }
+.masthead-brand .mark {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  color: var(--vcl-sage);
+  text-transform: uppercase;
+}
+.masthead-brand .divider {
+  width: 1px; height: 18px; background: var(--hairline);
+}
+.masthead-brand .date {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+.masthead-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.masthead-meta .dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ok); margin-right: 6px; vertical-align: middle;
+  box-shadow: 0 0 0 2px var(--ok-soft);
+}
+.masthead-title {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--vcl-navy);
+  margin: 0 0 6px;
+}
+.masthead-title em {
+  font-style: italic;
+  color: var(--vcl-blue);
+  font-weight: 700;
+}
+.masthead-lede {
+  font-size: 15px;
+  color: var(--ink-soft);
+  max-width: 720px;
+  margin: 0;
+}
+
+/* ============ Toolbar ============ */
+.toolbar {
+  background: var(--paper);
+  border-bottom: 1px solid var(--hairline);
+  padding: 14px 48px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 30;
+}
+.toolbar .search {
+  flex: 1; min-width: 280px;
+  position: relative;
+}
+.toolbar .search input {
+  width: 100%;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 14px 10px 38px;
+  border: 1px solid var(--hairline);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 2px;
+  outline: none;
+  transition: border-color .15s, background .15s;
+}
+.toolbar .search input:focus {
+  border-color: var(--accent);
+  background: var(--paper);
+}
+.toolbar .search::before {
+  content: "⌕"; position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  color: var(--muted); font-size: 18px; pointer-events: none;
+}
+.btn {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 9px 16px;
+  border: 1px solid var(--hairline);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all .15s;
+  display: inline-flex; align-items: center; gap: 8px;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn-primary {
+  background: var(--vcl-blue); color: white; border-color: var(--vcl-blue);
+  font-weight: 700;
+}
+.btn-primary:hover { background: var(--vcl-blue-deep); border-color: var(--vcl-blue-deep); }
+.btn-ghost { border-color: transparent; background: transparent; }
+.btn-ghost:hover { background: var(--hairline-2); color: var(--accent); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn .kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--hairline-2);
+  padding: 1px 5px;
+  border-radius: 2px;
+  color: var(--muted);
+}
+
+/* ============ Tabs ============ */
+.tabs {
+  background: var(--paper);
+  border-bottom: 1px solid var(--hairline);
+  padding: 0 48px;
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+}
+.tab {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 14px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.tab:hover { color: var(--ink); }
+.tab.active {
+  color: var(--vcl-blue);
+  border-bottom-color: var(--vcl-blue);
+  font-weight: 700;
+}
+.tab .counter {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 9px;
+  background: var(--hairline-2);
+  color: var(--ink-soft);
+  min-width: 22px;
+  text-align: center;
+}
+.tab.active .counter { background: var(--vcl-blue); color: white; }
+.tab[data-status="failed"] .counter:not(:empty):not([data-zero]) { background: var(--err-soft); color: var(--err); }
+.tab[data-status="failed"].active .counter { background: var(--err); color: white; }
+
+/* ============ Queue list ============ */
+.queue {
+  padding: 28px 48px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.queue-empty {
+  background: var(--paper);
+  border: 1px dashed var(--hairline);
+  border-radius: 2px;
+  padding: 64px 32px;
+  text-align: center;
+  color: var(--muted);
+}
+.queue-empty .mark {
+  font-family: var(--font-sans);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--vcl-navy);
+  margin: 0 0 8px;
+}
+.queue-empty .sub { font-size: 14px; }
+
+.row {
+  background: var(--paper);
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
+  display: grid;
+  grid-template-columns: 4px minmax(0, 1fr);
+  cursor: pointer;
+  transition: box-shadow .15s, border-color .15s;
+  overflow: hidden;
+}
+.row:hover {
+  border-color: var(--ink);
+  box-shadow: 0 2px 8px -4px rgba(15,30,61,0.15);
+}
+.row.expanded {
+  border-color: var(--vcl-blue);
+  box-shadow: 0 2px 12px -4px rgba(43,57,144,0.18);
+}
+.row .lane { background: var(--grey); }
+.row.draft   .lane { background: var(--warn); }
+.row.pending .lane { background: var(--accent); }
+.row.pushed  .lane { background: var(--ok); }
+.row.failed  .lane { background: var(--err); }
+.row.cancelled .lane { background: var(--grey); }
+
+.row-body { padding: 14px 18px; }
+.row-head {
+  display: grid;
+  grid-template-columns: 220px 1fr 180px 140px 130px 28px;
+  gap: 18px;
+  align-items: center;
+}
+.field-overline {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 3px;
+  display: block;
+}
+.field-pi .pi-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.field-supplier .supplier-name {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--vcl-navy);
+  display: block;
+  line-height: 1.25;
+}
+.field-supplier .qbo-vendor {
+  font-size: 11px;
+  color: var(--muted);
+  display: block;
+  margin-top: 1px;
+}
+.field-supplier .qbo-vendor::before { content: "→ "; }
+.field-bill .value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.field-total .value {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+  text-align: right;
+}
+.field-total .ccy {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 400;
+  margin-right: 3px;
+}
+.field-routing .value {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.field-routing .blockers {
+  font-size: 11px;
+  color: var(--warn);
+  margin-top: 2px;
+}
+.row-chevron {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  color: var(--muted);
+  transition: transform .2s;
+  justify-self: center;
+}
+.row.expanded .row-chevron { transform: rotate(90deg); color: var(--accent); }
+
+.status-pill {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 2px;
+  display: inline-block;
+  margin-bottom: 4px;
+}
+.status-pill.draft { background: var(--warn-soft); color: var(--warn); }
+.status-pill.pending { background: var(--accent-soft); color: var(--accent); }
+.status-pill.pushed { background: var(--ok-soft); color: var(--ok); }
+.status-pill.failed { background: var(--err-soft); color: var(--err); }
+.status-pill.cancelled { background: var(--grey-soft); color: var(--grey); }
+
+/* ============ Expanded detail ============ */
+.row-detail {
+  border-top: 1px solid var(--hairline);
+  padding: 22px 24px 24px;
+  background: var(--bg);
+  animation: slideDown .25s ease-out;
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px 24px;
+  margin-bottom: 22px;
+}
+.detail-grid .field { }
+.detail-grid .value-mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+}
+.detail-grid .value-text { font-size: 13px; color: var(--ink); }
+
+.detail-section-title {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  font-style: normal;
+  color: var(--vcl-blue);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--hairline);
+}
+.lines-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 22px;
+  background: var(--paper);
+}
+.lines-table th {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--bg);
+}
+.lines-table td {
+  padding: 10px;
+  font-size: 13px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--hairline-2);
+  vertical-align: top;
+}
+.lines-table tr:last-child td { border-bottom: none; }
+.lines-table .mono { font-family: var(--font-mono); font-size: 12px; }
+.lines-table .num { text-align: right; font-family: var(--font-mono); }
+.lines-table .routing-tag {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.lines-table .routing-tag.item    { background: #EFF6FF; color: var(--accent); }
+.lines-table .routing-tag.account { background: #F0FDF4; color: var(--ok); }
+.lines-table .routing-tag.unrouted { background: var(--warn-soft); color: var(--warn); }
+
+/* Stacked Item + Account override pickers per line */
+.override-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.override-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.override-row .editable { flex: 1; min-width: 0; }
+.override-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 5px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  width: 38px;
+  text-align: center;
+}
+.override-tag.item    { background: #EFF6FF; color: var(--accent); }
+.override-tag.account { background: #F0FDF4; color: var(--ok); }
+
+/* Action bar at bottom of detail */
+.detail-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--hairline);
+  padding-top: 18px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.detail-actions .left, .detail-actions .right {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.detail-actions .meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ============ Toast ============ */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(120%);
+  background: var(--ink);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 2px;
+  font-size: 13px;
+  z-index: 100;
+  transition: transform .25s;
+  max-width: 480px;
+  box-shadow: 0 8px 32px -8px rgba(15,30,61,0.4);
+  display: flex; align-items: center; gap: 10px;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.ok::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.toast.err { background: var(--err); }
+.toast.err::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: white; }
+.toast.warn { background: var(--warn); }
+
+/* ============ Loading overlay ============ */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(250, 250, 247, 0.85);
+  backdrop-filter: blur(3px);
+  display: none;
+  align-items: center; justify-content: center;
+  z-index: 50;
+  flex-direction: column;
+  gap: 14px;
+}
+.overlay.show { display: flex; }
+.overlay .spinner {
+  width: 32px; height: 32px;
+  border: 2px solid var(--hairline);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.overlay .msg {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--vcl-navy);
+}
+.overlay .sub {
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+/* ============ Footer status bar ============ */
+.statusbar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--vcl-navy);
+  color: rgba(255,255,255,0.85);
+  padding: 8px 48px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  display: flex; justify-content: space-between; align-items: center;
+  z-index: 20;
+}
+.statusbar .group { display: flex; gap: 18px; }
+.statusbar .stat .key { color: rgba(255,255,255,0.5); margin-right: 6px; text-transform: uppercase; }
+.statusbar .stat .val { color: white; font-weight: 500; }
+.statusbar .pulse {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--ok); margin-right: 6px;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: 0.4; } }
+
+/* ============ Animations ============ */
+.fade-in {
+  animation: fadeIn .4s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============ Click-to-edit ============ */
+.editable {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  border-radius: 3px;
+  cursor: pointer;
+  min-height: 28px;
+  transition: background .12s, box-shadow .12s;
+  position: relative;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+.editable[data-disabled="1"] { cursor: default; }
+.editable[data-disabled="1"]:hover { background: transparent; }
+.editable:hover { background: var(--vcl-blue-pale); }
+.editable .ed-pencil {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--vcl-blue-mid);
+  letter-spacing: .04em;
+  opacity: 0;
+  transition: opacity .12s;
+  flex-shrink: 0;
+}
+.editable:hover .ed-pencil,
+.editable.editing .ed-pencil { opacity: 1; }
+.editable .ed-display {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.editable .ed-placeholder {
+  color: var(--muted); font-style: italic; font-size: 12px;
+}
+.editable.dirty { background: #FFF8DD; box-shadow: inset 2px 0 0 0 var(--warn); }
+.editable.saving { background: var(--vcl-blue-pale); opacity: .6; }
+
+.field-value-link {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+  max-width: 100%;
+}
+.field-value-link .name {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vcl-navy);
+  line-height: 1.25;
+  white-space: normal;
+  word-break: break-word;
+}
+.field-value-link .id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: .02em;
+}
+.field-value-link.no-name .id {
+  color: var(--vcl-blue);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Inline text editor (Data, Small Text) */
+.ed-input {
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  border: 1px solid var(--vcl-blue);
+  padding: 6px 8px;
+  background: white;
+  outline: none;
+  width: 100%;
+  border-radius: 2px;
+  box-sizing: border-box;
+}
+.ed-textarea {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  border: 1px solid var(--vcl-blue);
+  padding: 8px 10px;
+  background: white;
+  outline: none;
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  border-radius: 2px;
+  box-sizing: border-box;
+}
+
+/* ============ Lookup popover ============ */
+.lookup-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(15,30,61,0.18);
+  backdrop-filter: blur(2px);
+  z-index: 70;
+  display: none;
+}
+.lookup-backdrop.show { display: block; }
+.lookup-popover {
+  position: fixed;
+  z-index: 80;
+  background: white;
+  border: 1px solid var(--rule);
+  box-shadow: 0 16px 40px -8px rgba(15,30,61,0.32);
+  width: min(440px, calc(100vw - 24px));
+  max-height: 70vh;
+  display: none;
+  flex-direction: column;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.lookup-popover.show { display: flex; }
+.lookup-popover .lp-head {
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--vcl-blue-pale);
+}
+.lookup-popover .lp-title {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--vcl-blue);
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  margin: 0 0 8px;
+}
+.lookup-popover .lp-search {
+  width: 100%;
+  font: 14px var(--font-mono);
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  outline: none;
+  background: white;
+  box-sizing: border-box;
+}
+.lookup-popover .lp-search:focus { border-color: var(--vcl-blue); box-shadow: 0 0 0 2px var(--vcl-blue-light); }
+.lookup-popover .lp-results {
+  overflow-y: auto;
+  flex: 1;
+  -webkit-overflow-scrolling: touch;
+}
+.lookup-popover .lp-result {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--hairline-2);
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 48px;
+  justify-content: center;
+}
+.lookup-popover .lp-result:active,
+.lookup-popover .lp-result:hover,
+.lookup-popover .lp-result.active { background: var(--vcl-blue-pale); }
+.lookup-popover .lp-result .lp-name {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vcl-navy);
+  line-height: 1.3;
+  word-break: break-word;
+}
+.lookup-popover .lp-result .lp-code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: .02em;
+}
+.lookup-popover .lp-result.no-name .lp-code {
+  color: var(--vcl-blue);
+  font-size: 13px;
+  font-weight: 600;
+}
+.lookup-popover .lp-empty {
+  padding: 22px 14px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+.lookup-popover .lp-foot {
+  padding: 8px 14px;
+  border-top: 1px solid var(--hairline);
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.lookup-popover .lp-clear {
+  background: none; border: none; padding: 4px 8px;
+  color: var(--warn); font-size: 11px; cursor: pointer;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.lookup-popover .lp-cancel {
+  background: none; border: 1px solid var(--rule);
+  padding: 6px 12px; border-radius: 2px;
+  font-size: 11px; cursor: pointer;
+  color: var(--ink);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+
+/* ============ Mobile line cards ============ */
+.lines-cards { display: none; }
+.line-card {
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  padding: 14px;
+  margin-bottom: 12px;
+  background: var(--paper);
+}
+.line-card .lc-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 8px; margin-bottom: 10px;
+}
+.line-card .lc-idx {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--bg);
+  padding: 2px 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.line-card .lc-desc {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.4;
+  flex: 1;
+  min-width: 0;
+}
+.line-card .lc-src {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.line-card .lc-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+  font-size: 12px;
+}
+.line-card .lc-field { display: flex; flex-direction: column; gap: 4px; }
+.line-card .lc-field .lc-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.line-card .lc-field .lc-val {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+}
+.line-card .lc-routing { grid-column: 1 / -1; }
+.line-card .lc-override { grid-column: 1 / -1; }
+.line-card .lc-amount {
+  grid-column: 1 / -1;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--vcl-navy);
+  text-align: right;
+  border-top: 1px dashed var(--hairline);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+/* ============ Responsive ============ */
+@media (max-width: 1100px) {
+  .row-head { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field-bill, .field-routing { display: none; }
+  .masthead, .toolbar, .tabs, .queue, .statusbar { padding-left: 24px; padding-right: 24px; }
+  .masthead-title { font-size: 32px; }
+}
+
+@media (max-width: 720px) {
+  /* Hide things that don't fit / aren't load-bearing on phones */
+  .statusbar { font-size: 10px; padding: 6px 14px; }
+  .statusbar .group { gap: 10px; }
+  .statusbar .stat:nth-child(n+3) { display: none; }
+
+  .masthead { padding: 14px 16px !important; }
+  .masthead-title { font-size: 26px !important; line-height: 1.15; }
+  .masthead-row1, .masthead-row2 { flex-direction: column; align-items: flex-start; gap: 8px; }
+
+  .toolbar { padding: 12px 16px !important; flex-direction: column; align-items: stretch; gap: 10px; }
+  .toolbar .search, .toolbar input[type="search"] { width: 100%; min-height: 44px; }
+  .toolbar .btn { min-height: 44px; }
+
+  .tabs { padding: 0 12px !important; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; gap: 4px; }
+  .tab { white-space: nowrap; flex-shrink: 0; min-height: 44px; padding: 12px 14px !important; font-size: 12px !important; }
+
+  .queue { padding: 12px 12px 80px !important; }
+  .row { margin-bottom: 10px; }
+  .row-head { grid-template-columns: 1fr !important; padding: 14px !important; gap: 6px; }
+  .row-head .field-supplier, .row-head .field-pi { font-size: 13px; }
+  .row-head .field-status, .row-head .field-total { font-size: 12px; }
+  .row-head .caret { display: none; }
+
+  .row-detail { padding: 14px !important; }
+  .detail-grid { grid-template-columns: 1fr !important; gap: 12px !important; margin-bottom: 18px; }
+  .detail-grid .field { padding: 8px 10px; background: var(--bg); border-radius: 3px; }
+  .field-overline { font-size: 10px !important; }
+
+  /* Swap table for cards */
+  .lines-table { display: none; }
+  .lines-cards { display: block; }
+
+  /* Action buttons stack and stretch */
+  .detail-actions { flex-direction: column; align-items: stretch; gap: 8px; padding-top: 14px; }
+  .detail-actions .left, .detail-actions .right {
+    flex-direction: column; align-items: stretch; width: 100%; gap: 8px;
+  }
+  .detail-actions .meta {
+    order: -1;
+    text-align: center;
+    padding-bottom: 4px;
+    border-bottom: 1px dashed var(--hairline);
+  }
+  .detail-actions .btn {
+    width: 100%; min-height: 44px; justify-content: center;
+    font-size: 13px; padding: 10px 14px;
+  }
+  .detail-actions .btn-link {
+    background: none; border: none;
+    color: var(--vcl-blue); text-decoration: underline;
+    font-size: 11px; min-height: 32px;
+    text-transform: none; letter-spacing: 0;
+    padding: 6px;
+  }
+
+  /* Toast bigger touch target */
+  .toast { bottom: 84px; max-width: calc(100vw - 32px); font-size: 14px; }
+
+  /* Editable on touch */
+  .editable .ed-pencil { opacity: 1; font-size: 11px; }
+}
+
+@media (max-width: 420px) {
+  .line-card .lc-body { grid-template-columns: 1fr; }
+  .masthead-title { font-size: 22px !important; }
+}
+
+/* ============================================================
+   Detail page (full-screen takeover when ?row=NAME)
+   ============================================================ */
+body.detail-mode .masthead,
+body.detail-mode .toolbar,
+body.detail-mode .tabs,
+body.detail-mode .queue,
+body.detail-mode #qboDebug,
+body.detail-mode .statusbar { display: none !important; }
+
+.detail-page { display: none; min-height: 100vh; background: var(--paper); }
+.detail-page.show { display: block; }
+.dp-header {
+  background: var(--paper);
+  border-bottom: 1px solid var(--hairline);
+  padding: 18px 48px;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.dp-back {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--vcl-blue);
+  background: none;
+  border: 1px solid var(--hairline);
+  padding: 8px 16px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.dp-back:hover { background: var(--vcl-blue-pale); border-color: var(--vcl-blue); }
+.dp-titles { flex: 1; min-width: 0; }
+.dp-name {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--vcl-navy);
+  line-height: 1.1;
+}
+.dp-sub {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.dp-sub .dp-supplier { color: var(--ink); font-weight: 700; }
+
+.dp-body {
+  padding: 32px 48px 96px;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: var(--bg);
+}
+
+/* The renderDetail content lives inside dp-body. Give it room to breathe. */
+.dp-body .detail-grid { grid-template-columns: repeat(4, 1fr); gap: 22px 28px; margin-bottom: 30px; }
+.dp-body .detail-section-title { font-size: 12px; margin-bottom: 14px; padding-bottom: 8px; }
+.dp-body .lines-table { background: var(--paper); border: 1px solid var(--hairline); }
+.dp-body .lines-table th { padding: 12px 14px; font-size: 11px; }
+.dp-body .lines-table td { padding: 14px 14px; font-size: 13px; }
+.dp-body .detail-actions {
+  margin-top: 24px;
+  padding-top: 24px;
+  background: var(--paper);
+  border: 1px solid var(--hairline);
+  padding: 18px 22px;
+  border-radius: 2px;
+}
+
+.detail-loading {
+  padding: 100px 32px;
+  text-align: center;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .dp-header { padding: 12px 16px; gap: 12px; }
+  .dp-body { padding: 18px 14px 80px; }
+  .dp-name { font-size: 16px; }
+  .dp-body .detail-grid { grid-template-columns: 1fr; gap: 12px; }
+  .dp-body .lines-table { display: none; }
+}
+
+</style>
+
+<div class="lookup-backdrop" id="lookupBackdrop"></div>
+<div class="lookup-popover" id="lookupPopover" role="dialog" aria-modal="true">
+  <div class="lp-head">
+    <p class="lp-title" id="lpTitle">Pick a value</p>
+    <input type="text" id="lpSearch" class="lp-search" placeholder="Type to search…" autocomplete="off" autocorrect="off" spellcheck="false">
+  </div>
+  <div class="lp-results" id="lpResults"></div>
+  <div class="lp-foot">
+    <button class="lp-clear" id="lpClear">Clear value</button>
+    <button class="lp-cancel" id="lpCancel">Cancel</button>
+  </div>
+</div>
+
+<div class="qbo-app">
+<div id="qboDebug" style="background:var(--vcl-blue-pale); border-bottom:1px solid var(--rule); padding:6px 16px; font-family:var(--font-mono); font-size:11px; color:var(--vcl-blue-deep); display:flex; gap:14px; align-items:center; flex-wrap:wrap; line-height:1.4;">
+  <strong style="color:var(--vcl-sage); letter-spacing:.06em;">VCL &middot; QBO PORTAL</strong>
+  <span>v 2026-05-17 14:40</span>
+  <span id="qboDebugStep" style="color:var(--mid-grey);">init&hellip;</span>
+  <span id="qboDebugErr" style="color:#C0392B; font-weight:700;"></span>
+  <a href="#" id="qboDebugToggle" style="margin-left:auto; color:var(--vcl-blue-deep); text-decoration:underline; font-size:11px;">show full log</a>
+</div>
+<pre id="qboDebugFull" style="display:none; margin:0; padding:8px 16px; background:#0E1B33; color:#A6E3C0; font-family:var(--font-mono); font-size:11px; line-height:1.5; max-height:240px; overflow:auto; white-space:pre-wrap; border-bottom:1px solid var(--rule);"></pre>
+<script>
+// Top-level error capture: runs BEFORE the IIFE so even a parse error in the
+// main script body gets surfaced into the visible debug strip.
+(function(){
+  var fullEl = null, errEl = null, lines = [];
+  function ready(){
+    fullEl = document.getElementById('qboDebugFull');
+    errEl  = document.getElementById('qboDebugErr');
+    var tg = document.getElementById('qboDebugToggle');
+    if (tg) tg.addEventListener('click', function(ev){
+      ev.preventDefault();
+      if (!fullEl) return;
+      var shown = fullEl.style.display === 'block';
+      fullEl.style.display = shown ? 'none' : 'block';
+      tg.textContent = shown ? 'show full log' : 'hide full log';
+    });
+    flush();
+  }
+  function flush(){
+    if (!fullEl) return;
+    fullEl.textContent = lines.join('\n');
+  }
+  window.__qboLog = function(label, payload){
+    var t = new Date().toLocaleTimeString('en-GB');
+    var s = '[' + t + '] ' + label;
+    if (payload !== undefined) s += '  ' + (typeof payload === 'string' ? payload : JSON.stringify(payload));
+    lines.push(s);
+    if (lines.length > 500) lines = lines.slice(-500);
+    flush();
+  };
+  window.addEventListener('error', function(ev){
+    var msg = (ev && ev.message) || 'unknown error';
+    var src = (ev && ev.filename) ? (ev.filename + ':' + ev.lineno + ':' + ev.colno) : '';
+    var stk = (ev && ev.error && ev.error.stack) ? String(ev.error.stack) : '';
+    if (errEl) errEl.textContent = 'JS ERROR: ' + msg.slice(0, 220);
+    window.__qboLog('JS ERROR', msg + (src ? ' @ ' + src : '') + (stk ? '\n' + stk : ''));
+  });
+  window.addEventListener('unhandledrejection', function(ev){
+    var r = ev && ev.reason;
+    var msg = (r && (r.message || r.toString())) || 'unhandled rejection';
+    if (errEl) errEl.textContent = 'PROMISE: ' + String(msg).slice(0, 220);
+    window.__qboLog('UNHANDLED REJECTION', String(msg));
+  });
+  if (document.readyState !== 'loading') ready();
+  else document.addEventListener('DOMContentLoaded', ready);
+  window.__qboLog('error handler installed');
+})();
+</script>
+
+<header class="masthead">
+  <div class="masthead-row1">
+    <div class="masthead-brand">
+      <span class="mark">VCL · Accounts</span>
+      <span class="divider"></span>
+      <span class="date" id="todayDate"></span>
+    </div>
+    <div class="masthead-meta">
+      <span class="dot"></span> Connected to QuickBooks · Vimit Converters Ltd
+    </div>
+  </div>
+  <h1 class="masthead-title">QuickBooks <em>Push Queue</em></h1>
+  <p class="masthead-lede">
+    Purchase invoices staged for review and push to QuickBooks Online. Drafts are pre-resolved
+    against your vendor, item and account maps; submit a row to push it through.
+  </p>
+</header>
+
+<div class="toolbar">
+  <div class="search"><input id="search" type="text" placeholder="Search PI, supplier, bill no, or QBO id…" autocomplete="off"></div>
+  <div class="date-filter" style="display:inline-flex;gap:4px;align-items:center;">
+    <span style="color:var(--muted);font-size:11px;">Date:</span>
+    <input id="dateFrom" type="date" title="From posting date" style="font:inherit;padding:4px 6px;border:1px solid var(--hairline);border-radius:6px;background:var(--paper);">
+    <span style="color:var(--muted);">–</span>
+    <input id="dateTo" type="date" title="To posting date" style="font:inherit;padding:4px 6px;border:1px solid var(--hairline);border-radius:6px;background:var(--paper);">
+    <button class="btn btn-ghost" id="dateClear" title="Clear date filter">✕</button>
+  </div>
+  <button class="btn" id="btnQuickSync">⚡ Quick Sync <span style="color:var(--muted);font-size:11px">·10s</span></button>
+  <button class="btn" id="btnFullRefresh">↻ Full Refresh <span style="color:var(--muted);font-size:11px">·6m</span></button>
+  <span style="color:var(--muted);font-size:11px;margin-left:6px;">Refresh:</span>
+  <button class="btn btn-ghost" data-refresh-entity="vendor">Vendors</button>
+  <button class="btn btn-ghost" data-refresh-entity="account">Accounts</button>
+  <button class="btn btn-ghost" data-refresh-entity="item">Items</button>
+  <button class="btn btn-ghost" data-refresh-entity="tax_code">Tax</button>
+  <button class="btn btn-ghost" id="btnReload">↻ Reload</button>
+</div>
+
+<nav class="tabs">
+  <button class="tab active" data-status="draft">Drafts <span class="counter" id="cnt-draft">·</span></button>
+  <button class="tab" data-status="pending">Pending Push <span class="counter" id="cnt-pending">·</span></button>
+  <button class="tab" data-status="pushed">Pushed <span class="counter" id="cnt-pushed">·</span></button>
+  <button class="tab" data-status="failed">Failed <span class="counter" id="cnt-failed">·</span></button>
+  <button class="tab" data-status="cancelled">Cancelled <span class="counter" id="cnt-cancelled">·</span></button>
+  <button class="tab" data-status="all">All <span class="counter" id="cnt-all">·</span></button>
+</nav>
+
+<main class="queue" id="queue">
+  <div class="queue-empty">
+    <p class="mark">Loading queue…</p>
+    <p class="sub">Reading rows from ERPNext.</p>
+  </div>
+</main>
+
+<section class="detail-page" id="detailPage" aria-hidden="true"></section>
+
+<div class="overlay" id="overlay">
+  <div class="spinner"></div>
+  <div class="msg" id="overlayMsg">Working…</div>
+  <div class="sub" id="overlaySub"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer class="statusbar">
+  <div class="group">
+    <span class="stat"><span class="key">SITE</span><span class="val">vimitconverters.frappe.cloud</span></span>
+    <span class="stat"><span class="key">REALM</span><span class="val">9341453756551378</span></span>
+    <span class="stat"><span class="key">USER</span><span class="val" id="curUser">…</span></span>
+  </div>
+  <div class="group">
+    <span class="stat"><span class="pulse"></span> Live</span>
+    <span class="stat"><span class="key">LAST SYNC</span><span class="val" id="lastSync">—</span></span>
+  </div>
+</footer>
+
+</div>
+
+<script>
+(function() {
+'use strict';
+
+// ============================================================
+// Config + helpers
+// ============================================================
+const STATUS_MAP = {
+  draft:     { label: 'Draft',          filter: [['docstatus','=',0]], lane: 'draft' },
+  pending:   { label: 'Pending Push',   filter: [['docstatus','=',1],['push_status','=','Pending']], lane: 'pending' },
+  pushed:    { label: 'Pushed',         filter: [['push_status','=','Pushed']], lane: 'pushed' },
+  failed:    { label: 'Failed',         filter: [['push_status','=','Failed']], lane: 'failed' },
+  cancelled: { label: 'Cancelled',      filter: [['docstatus','=',2]], lane: 'cancelled' },
+  all:       { label: 'All',            filter: [], lane: 'pending' },
+};
+const FUNNEL_BASE = 'https://vcl-intranet.tailb2b755.ts.net/webhook';
+
+const fmtKes = (n) => {
+  if (n == null) return '—';
+  return Number(n).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+const today = () => {
+  const d = new Date();
+  return d.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+};
+
+// ============================================================
+// State
+// ============================================================
+const state = {
+  dateFrom: '', dateTo: '',
+  status: 'draft',
+  search: '',
+  rows: [],
+  counters: {},
+};
+
+// ============================================================
+// Frappe API wrappers
+// ============================================================
+async function frappeList(filters, fields, limit) {
+  const params = new URLSearchParams({
+    fields: JSON.stringify(fields),
+    filters: JSON.stringify(filters || []),
+    limit_page_length: String(limit || 200),
+    order_by: 'supplier asc',
+  });
+  const url = '/api/resource/' + encodeURIComponent('QBO Bill Push Queue') + '?' + params.toString();
+  const r = await fetch(url, {
+    credentials: 'include',
+    headers: { 'X-Frappe-CSRF-Token': (typeof frappe !== 'undefined' && frappe.csrf_token) || '' },
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error('list HTTP ' + r.status + ': ' + t.slice(0, 200));
+  }
+  const j = await r.json();
+  return j.data || [];
+}
+
+async function frappeGet(doctype, name) {
+  const params = new URLSearchParams({ doctype, name });
+  const r = await fetch(`/api/method/frappe.client.get?${params}`, {
+    credentials: 'include',
+    headers: { 'X-Frappe-CSRF-Token': (typeof frappe !== 'undefined' && frappe.csrf_token) || '' },
+  });
+  if (!r.ok) throw new Error(`get failed: ${r.status}`);
+  const j = await r.json();
+  return j.message || null;
+}
+
+async function frappeSubmit(doctype, name) {
+  // frappe.client.submit takes a full doc dict; passing just {doctype,name,docstatus:1}
+  // builds an empty Document that fails mandatory validation. Load the saved doc first.
+  const full = await frappeGet(doctype, name);
+  if (!full) throw new Error(`submit failed: doc ${name} not found`);
+  full.docstatus = 1;
+  const fd = new FormData();
+  fd.append('doc', JSON.stringify(full));
+  const r = await fetch('/api/method/frappe.client.submit', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'X-Frappe-CSRF-Token': (typeof frappe !== 'undefined' && frappe.csrf_token) || '' },
+    body: fd,
+  });
+  if (!r.ok) throw new Error(`submit failed: ${r.status} ${await r.text().then(t => t.slice(0,200))}`);
+  return await r.json();
+}
+
+async function frappeCall(method, args) {
+  const fd = new FormData();
+  Object.entries(args || {}).forEach(([k, v]) => fd.append(k, typeof v === 'string' ? v : JSON.stringify(v)));
+  const r = await fetch(`/api/method/${method}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'X-Frappe-CSRF-Token': (typeof frappe !== 'undefined' && frappe.csrf_token) || '' },
+    body: fd,
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error(`${method}: ${r.status} ${text.slice(0,300)}`);
+  try { return JSON.parse(text); } catch (e) { return { raw: text }; }
+}
+
+async function callTunnel(path, payload, timeoutMs = 300000) {
+  // text/plain bypasses CORS preflight (the receiver's CORS allowlist permits all).
+  return new Promise((resolve, reject) => {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+    fetch(`${FUNNEL_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    }).then(async (r) => {
+      clearTimeout(tid);
+      const t = await r.text();
+      try { resolve(JSON.parse(t)); } catch (e) { resolve({ ok: r.ok, stdout_tail: t || ('HTTP ' + r.status) }); }
+    }).catch((e) => { clearTimeout(tid); reject(e); });
+  });
+}
+
+// ============================================================
+// Toast + overlay
+// ============================================================
+function toast(msg, kind) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast show ${kind || 'ok'}`;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('show'), kind === 'err' ? 6000 : 3500);
+}
+function overlay(show, msg, sub) {
+  const o = document.getElementById('overlay');
+  document.getElementById('overlayMsg').textContent = msg || 'Working…';
+  document.getElementById('overlaySub').textContent = sub || '';
+  o.classList.toggle('show', !!show);
+}
+
+// ============================================================
+// Render — list rows
+// ============================================================
+function statusOf(r) {
+  if (r.docstatus === 2) return 'cancelled';
+  if (r.docstatus === 0) return 'draft';
+  if (r.push_status === 'Pushed') return 'pushed';
+  if (r.push_status === 'Failed') return 'failed';
+  return 'pending';
+}
+
+function renderQueue() {
+  const queueEl = document.getElementById('queue');
+  const tabFilter = STATUS_MAP[state.status];
+  const term = state.search.trim().toLowerCase();
+
+  let rows = state.rows.filter((r) => {
+    // status filter
+    if (state.status !== 'all') {
+      if (statusOf(r) !== state.status) return false;
+    }
+    // text search
+    if (term) {
+      const hay = [r.name, r.pi, r.supplier, r.bill_no, r.qbo_bill_id, r.vendor_qbo_name, r.qbo_docnumber_override]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(term)) return false;
+    }
+    // posting-date range filter
+    if (state.dateFrom && (!r.posting_date || r.posting_date < state.dateFrom)) return false;
+    if (state.dateTo && (!r.posting_date || r.posting_date > state.dateTo)) return false;
+    return true;
+  });
+
+  if (!rows.length) {
+    queueEl.innerHTML = `<div class="queue-empty fade-in">
+      <p class="mark">No ${tabFilter.label.toLowerCase()} rows${term ? ` matching "${escapeHtml(term)}"` : ''}</p>
+      <p class="sub">${term ? 'Try a different search.' : 'You&rsquo;re all caught up here.'}</p>
+    </div>`;
+    return;
+  }
+
+  queueEl.innerHTML = rows.map(renderRow).join('');
+}
+
+function renderRow(r) {
+  const status = statusOf(r);
+  const supplier = escapeHtml(r.supplier || '—');
+  const vendor = r.vendor_qbo_name ? `<span class="qbo-vendor">${escapeHtml(r.vendor_qbo_name)}</span>` : '';
+  const billNo = r.qbo_docnumber_override || r.bill_no || '—';
+  const total = r.total_amt != null ? `<span class="ccy">${escapeHtml(r.currency || 'KES')}</span>${fmtKes(r.total_amt)}` : '—';
+  const routing = r.routing_summary || r.line_routing_summary || '—';
+  const blocker = r.blocker_reasons ? `<div class="blockers">⚠ ${escapeHtml((r.blocker_reasons || '').split('\\n')[0]).slice(0,80)}</div>` : '';
+
+  return `
+  <article class="row ${status} fade-in" data-name="${escapeHtml(r.name)}" data-status="${status}">
+    <span class="lane"></span>
+    <div class="row-body">
+      <div class="row-head">
+        <div class="field field-pi">
+          <span class="status-pill ${status}">${STATUS_MAP[status].label}</span>
+          <div class="pi-name">${escapeHtml(r.name)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:1px;">${escapeHtml(r.pi || '—')}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:1px;">${r.posting_date || ''}</div>
+        </div>
+        <div class="field field-supplier">
+          <span class="supplier-name">${supplier}</span>
+          ${vendor}
+        </div>
+        <div class="field field-bill">
+          <span class="field-overline">QBO Doc №</span>
+          <span class="value">${escapeHtml(billNo)}</span>
+        </div>
+        <div class="field field-total">
+          <span class="field-overline">Total</span>
+          <span class="value">${total}</span>
+        </div>
+        <div class="field field-routing">
+          <span class="field-overline">Routing</span>
+          <span class="value">${escapeHtml(routing)}</span>
+          ${blocker}
+        </div>
+        <span class="row-chevron">›</span>
+      </div>
+    </div>
+  </article>`;
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ============================================================
+// Row interactions
+// ============================================================
+// View routing — list ↔ detail page (full-screen takeover, deep-linkable via ?row=NAME)
+const _view = { mode: 'list', detailName: null };
+
+function _readUrlRow() {
+  try { return new URL(window.location).searchParams.get('row'); } catch (e) { return null; }
+}
+function _writeUrlRow(name, replace) {
+  try {
+    const u = new URL(window.location);
+    if (name) u.searchParams.set('row', name); else u.searchParams.delete('row');
+    const fn = replace ? 'replaceState' : 'pushState';
+    history[fn]({ row: name || null }, '', u.toString());
+  } catch (e) {}
+}
+
+async function showDetail(name, opts) {
+  opts = opts || {};
+  _view.mode = 'detail'; _view.detailName = name;
+  if (!opts.skipUrl) _writeUrlRow(name, !!opts.replaceUrl);
+  document.body.classList.add('detail-mode');
+  const page = document.getElementById('detailPage');
+  page.setAttribute('aria-hidden', 'false');
+  page.classList.add('show');
+  page.innerHTML = '<div class="detail-loading">Loading ' + escapeHtml(name) + '&hellip;</div>';
+  window.scrollTo(0, 0);
+  await refreshDetailPage();
+}
+
+async function refreshDetailPage() {
+  const name = _view.detailName;
+  if (!name) return;
+  const page = document.getElementById('detailPage');
+  try {
+    const doc = await frappeGet('QBO Bill Push Queue', name);
+    page.innerHTML = renderDetailPage(doc);
+    wireDetailActions(page, doc);
+    wireInlineEdits(page, doc);
+    const back = document.getElementById('detailBack');
+    if (back) back.addEventListener('click', () => history.back());
+  } catch (e) {
+    page.innerHTML = `<div class="detail-loading" style="color:var(--err)">Failed to load ${escapeHtml(name)}<br>${escapeHtml(e.message)}</div>`;
+    const back = document.getElementById('detailBack');
+    if (back) back.addEventListener('click', () => history.back());
+  }
+}
+
+function showList(opts) {
+  opts = opts || {};
+  _view.mode = 'list'; _view.detailName = null;
+  if (!opts.skipUrl) _writeUrlRow(null, !!opts.replaceUrl);
+  document.body.classList.remove('detail-mode');
+  const page = document.getElementById('detailPage');
+  page.classList.remove('show');
+  page.setAttribute('aria-hidden', 'true');
+  page.innerHTML = '';
+  // Re-fetch list state so any inline edits made on the detail page show in the queue.
+  reload();
+}
+
+window.addEventListener('popstate', () => {
+  const row = _readUrlRow();
+  if (row) showDetail(row, { skipUrl: true });
+  else showList({ skipUrl: true });
+});
+
+function renderDetailPage(d) {
+  const status = statusOf(d);
+  return `
+    <header class="dp-header">
+      <button class="dp-back" id="detailBack" type="button">&larr; Queue</button>
+      <div class="dp-titles">
+        <h2 class="dp-name">${escapeHtml(d.name)}</h2>
+        <div class="dp-sub">
+          <span class="dp-supplier">${escapeHtml(d.supplier || '—')}</span>
+          ${d.pi ? ' &middot; <span style="font-family:var(--font-mono)">' + escapeHtml(d.pi) + '</span>' : ''}
+        </div>
+      </div>
+      <span class="status-pill ${status}">${STATUS_MAP[status].label}</span>
+    </header>
+    <div class="dp-body">
+      ${renderDetail(d)}
+    </div>
+  `;
+}
+
+// Editability rules:
+//   - Drafts (docstatus=0): all fields editable
+//   - Submitted (docstatus=1): only fields with allow_on_submit=1 on the doctype
+// The lists below mirror Property Setters in Frappe; keep them in sync.
+const ALLOW_ON_SUBMIT_PARENT = new Set([
+  'vendor_override', 'qbo_docnumber_override', 'qbo_memo',
+  'tax_qbo_taxcode', 'tax_calculation',
+]);
+const ALLOW_ON_SUBMIT_LINE = new Set([
+  'qbo_item_override', 'qbo_account_override', 'routing_kind', 'qbo_taxcode_override',
+]);
+function canEditField(d, field, opts) {
+  if (Number(d.docstatus) === 0) return true;
+  if (Number(d.docstatus) !== 1) return false;
+  const isLine = (opts && opts.docDoctype === 'QBO Bill Push Queue Line');
+  return (isLine ? ALLOW_ON_SUBMIT_LINE : ALLOW_ON_SUBMIT_PARENT).has(field);
+}
+// Legacy: many call sites still check the row-wide flag. True when ANY field is editable.
+function canEdit(d) { return Number(d.docstatus) === 0 || Number(d.docstatus) === 1; }
+
+// Editable cell builder. Renders a span you click to edit.
+// kind: 'link' | 'text' | 'longtext'
+// linkDoctype: required for 'link' (e.g. 'QBO Vendor')
+function editable(d, fieldKind, opts) {
+  const editing = canEditField(d, opts.field, opts) && !opts.locked;
+  const ph = opts.placeholder || '—';
+  const display = opts.displayHtml != null
+    ? opts.displayHtml
+    : (opts.value
+        ? `<span class="ed-display">${escapeHtml(String(opts.value))}</span>`
+        : `<span class="ed-display ed-placeholder">${escapeHtml(ph)}</span>`);
+  const dataAttrs = [
+    `data-editable="1"`,
+    `data-kind="${fieldKind}"`,
+    `data-doctype="${escapeHtml(opts.docDoctype || 'QBO Bill Push Queue')}"`,
+    `data-docname="${escapeHtml(opts.docName)}"`,
+    `data-field="${escapeHtml(opts.field)}"`,
+    opts.linkDoctype ? `data-link-doctype="${escapeHtml(opts.linkDoctype)}"` : '',
+    opts.companionField ? `data-companion-field="${escapeHtml(opts.companionField)}"` : '',
+    opts.value != null ? `data-current="${escapeHtml(String(opts.value))}"` : '',
+    opts.promoteKey ? `data-promote-key="${escapeHtml(String(opts.promoteKey))}"` : '',
+    !editing ? `data-disabled="1"` : '',
+  ].filter(Boolean).join(' ');
+  return `<span class="editable" ${dataAttrs} role="${editing ? 'button' : ''}" tabindex="${editing ? 0 : -1}">
+    ${display}
+    ${editing ? '<span class="ed-pencil">tap to edit</span>' : ''}
+  </span>`;
+}
+
+// Pretty inline display of a link field: name (primary) over ID (secondary).
+// Falls back to just the ID if no name is fetched yet.
+function renderLinkValue(id, name) {
+  if (!id) return '';
+  if (name) {
+    return `<span class="field-value-link">
+      <span class="name">${escapeHtml(name)}</span>
+      <span class="id">${escapeHtml(id)}</span>
+    </span>`;
+  }
+  return `<span class="field-value-link no-name"><span class="id">${escapeHtml(id)}</span></span>`;
+}
+
+function _effectiveTotal(d) {
+  // Prefer the header total if populated; otherwise sum the line amounts.
+  if (d.total_amt && Number(d.total_amt) > 0) return Number(d.total_amt);
+  const lines = d.lines || [];
+  let sum = 0;
+  for (const L of lines) {
+    const n = Number(L.amount || 0);
+    if (!isNaN(n)) sum += n;
+  }
+  return sum;
+}
+function _effectiveCurrency(d) { return d.currency || 'KES'; }
+
+function renderDetail(d) {
+  const lines = d.lines || [];
+  const status = statusOf(d);
+  const editable_ = canEdit(d);
+  const totalVal = _effectiveTotal(d);
+  const ccy = _effectiveCurrency(d);
+  const computed = (!d.total_amt || Number(d.total_amt) === 0) && totalVal > 0;
+  const total = totalVal > 0
+    ? `<span class="value-mono">${escapeHtml(ccy)} ${fmtKes(totalVal)}${computed ? ' <span style="font-size:10px;color:var(--muted);font-style:italic">(line sum)</span>' : ''}</span>`
+    : '<span class="value-mono">—</span>';
+  const lockHint = Number(d.docstatus) === 0
+    ? '<span class="meta" style="color:var(--vcl-sage);">draft &middot; all fields editable inline</span>'
+    : Number(d.docstatus) === 1
+      ? '<span class="meta" style="color:var(--vcl-blue);">submitted &middot; vendor, overrides, memo &amp; tax code editable for recovery</span>'
+      : '<span class="meta">cancelled &middot; read-only</span>';
+
+  const vendorDisplay = d.vendor_override
+    ? renderLinkValue(d.vendor_override, d.vendor_qbo_name)
+    : `<span class="ed-display ed-placeholder">choose vendor&hellip;</span>`;
+
+  const taxCodeDisplay = d.tax_qbo_taxcode
+    ? renderLinkValue(d.tax_qbo_taxcode, d.tax_calculation)
+    : `<span class="ed-display ed-placeholder">choose tax code&hellip;</span>`;
+
+  return `
+  <p class="detail-section-title">header &nbsp; ${lockHint}</p>
+  <div class="detail-grid">
+    <div class="field"><span class="field-overline">Source PI</span><div class="value-mono">${escapeHtml(d.pi || '—')}</div></div>
+    <div class="field"><span class="field-overline">Supplier</span><div class="value-text">${escapeHtml(d.supplier || '—')}</div></div>
+    <div class="field"><span class="field-overline">Bill No (ERP)</span><div class="value-mono">${escapeHtml(d.bill_no || '—')}</div></div>
+    <div class="field"><span class="field-overline">QBO DocNumber</span><div class="value-mono">${editable(d, 'text', {
+      field: 'qbo_docnumber_override', docName: d.name,
+      value: d.qbo_docnumber_override, placeholder: d.bill_no || 'use ERP bill no'
+    })}</div></div>
+
+    <div class="field"><span class="field-overline">Vendor Override</span><div>${editable(d, 'link', {
+      field: 'vendor_override', docName: d.name,
+      linkDoctype: 'QBO Vendor', companionField: 'vendor_qbo_name',
+      value: d.vendor_override,
+      displayHtml: vendorDisplay,
+      promoteKey: d.supplier,
+    })}</div></div>
+    <div class="field"><span class="field-overline">QBO Tax Code</span><div>${editable(d, 'link', {
+      field: 'tax_qbo_taxcode', docName: d.name,
+      linkDoctype: 'QBO TaxCode', companionField: 'tax_calculation',
+      value: d.tax_qbo_taxcode,
+      displayHtml: taxCodeDisplay,
+    })}</div></div>
+    <div class="field"><span class="field-overline">Total (doc ccy)</span><div>${total}</div></div>
+    <div class="field"><span class="field-overline">Push Status</span><div><span class="status-pill ${status}">${STATUS_MAP[status].label}</span></div></div>
+
+    <div class="field" style="grid-column: 1 / -1;"><span class="field-overline">QBO Memo</span><div class="value-text">${editable(d, 'longtext', {
+      field: 'qbo_memo', docName: d.name,
+      value: d.qbo_memo, placeholder: 'tap to add memo&hellip;'
+    })}</div></div>
+  </div>
+
+  <p class="detail-section-title">lines</p>
+  <table class="lines-table">
+    <thead>
+      <tr>
+        <th style="width:36px">#</th>
+        <th>Description</th>
+        <th style="width:120px">Routing</th>
+        <th style="width:240px">QBO Override</th>
+        <th class="num" style="width:80px">Qty</th>
+        <th class="num" style="width:110px">Rate</th>
+        <th class="num" style="width:130px">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${lines.length ? lines.map((L) => renderLine(L, d)).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No lines.</td></tr>'}
+    </tbody>
+  </table>
+
+  <div class="lines-cards">
+    ${lines.length ? lines.map((L) => renderLineCard(L, d)).join('') : '<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px;">No lines.</div>'}
+  </div>
+
+  ${d.blocker_reasons ? `<div style="background:var(--warn-soft);border-left:3px solid var(--warn);padding:12px 16px;margin-bottom:18px;font-size:12px;color:var(--warn);"><strong>Blockers:</strong><br>${escapeHtml(d.blocker_reasons || '').replace(/\n/g,'<br>')}</div>` : ''}
+  ${d.error_message ? `<div style="background:var(--err-soft);border-left:3px solid var(--err);padding:12px 16px;margin-bottom:18px;font-size:12px;color:var(--err);"><strong>Last error:</strong><br>${escapeHtml(d.error_message || '').slice(0,500)}</div>` : ''}
+
+  <div class="detail-actions">
+    <span class="meta">${d.pushed_at ? 'Pushed ' + d.pushed_at : (d.modified ? 'Last edited ' + d.modified : '')}</span>
+    <div class="left">
+      <button class="btn" data-action="refresh-maps">&#8635; Refresh from Maps</button>
+      <button class="btn" data-action="restage">&#8634; Re-stage from PI</button>
+    </div>
+    <div class="right">
+      ${d.qbo_bill_id ? `<button class="btn" data-action="view-qbo">View QBO Bill ${escapeHtml(d.qbo_bill_id)} &rarr;</button>` : ''}
+      ${d.docstatus === 0 ? '<button class="btn btn-primary" data-action="submit">Submit + Push</button>' : ''}
+      ${(d.docstatus === 1 && d.push_status === 'Pending') ? '<button class="btn btn-primary" data-action="push">Push to QBO</button>' : ''}
+      ${(d.docstatus === 1 && d.push_status === 'Failed') ? '<button class="btn btn-primary" data-action="retry-push">Retry Push</button>' : ''}
+    </div>
+    <button class="btn btn-link" data-action="open-desk">Open in Desk &rarr;</button>
+  </div>
+  `;
+}
+
+// Derive routing from whichever QBO override is filled. Item wins if both are set,
+// matching the receiver's precedence. Falls back to the staging hint when no
+// override is picked yet.
+function _effectiveRouting(L) {
+  if (L.qbo_item_override) return 'item';
+  if (L.qbo_account_override) return 'account';
+  const r = (L.routing_kind || '').toLowerCase().trim();
+  if (r) return r;
+  if (L.erp_item_code) return 'item';
+  if (L.erp_expense_account) return 'account';
+  return '';
+}
+
+function _lineEditConfig(L) {
+  const routing = _effectiveRouting(L);
+  if (routing.includes('item')) {
+    return {
+      field: 'qbo_item_override',
+      linkDoctype: 'QBO Item',
+      companionField: 'qbo_item_name',
+      currentId: L.qbo_item_override,
+      currentName: L.qbo_item_name,
+      label: 'QBO Item',
+    };
+  }
+  if (routing.includes('account')) {
+    return {
+      field: 'qbo_account_override',
+      linkDoctype: 'QBO Account',
+      companionField: 'qbo_account_name',
+      currentId: L.qbo_account_override,
+      currentName: L.qbo_account_name,
+      label: 'QBO Account',
+    };
+  }
+  return null;
+}
+
+function _routingTag(L) {
+  const routing = _effectiveRouting(L);
+  if (routing.includes('item'))    return { cls: 'item',     label: 'Item' };
+  if (routing.includes('account')) return { cls: 'account',  label: 'Account' };
+  return { cls: 'unrouted', label: 'Unrouted' };
+}
+
+// ERPNext description fields often contain Quill HTML wrappers. Strip them
+// for display in our compact line rows.
+function stripDescHtml(s) {
+  if (!s) return '';
+  // collapse blocks → " · " separators, then strip remaining tags
+  let t = String(s)
+    .replace(/<\/(p|div|li|h[1-6]|br)\s*>/gi, ' · ')
+    .replace(/<br\s*\/?>/gi, ' · ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s*·\s*·\s*/g, ' · ')
+    .replace(/(^[\s·]+|[\s·]+$)/g, '')
+    .replace(/\s{2,}/g, ' ');
+  return t;
+}
+
+// Render the two overrides (Item + Account) for a line, each independently editable.
+// Whichever is filled wins at push time; Item takes precedence if both are set.
+function _renderLineOverrides(L, parent) {
+  const lineDoctype = L.doctype || 'QBO Bill Push Queue Line';
+  const itemDisplay = L.qbo_item_override
+    ? renderLinkValue(L.qbo_item_override, L.qbo_item_name)
+    : `<span class="ed-display ed-placeholder">tap to pick QBO Item&hellip;</span>`;
+  const acctDisplay = L.qbo_account_override
+    ? renderLinkValue(L.qbo_account_override, L.qbo_account_name)
+    : `<span class="ed-display ed-placeholder">tap to pick QBO Account&hellip;</span>`;
+  const itemEd = editable(parent, 'link', {
+    field: 'qbo_item_override', docDoctype: lineDoctype, docName: L.name,
+    linkDoctype: 'QBO Item', companionField: 'qbo_item_name',
+    value: L.qbo_item_override, displayHtml: itemDisplay,
+    promoteKey: L.erp_item_code,
+  });
+  const acctEd = editable(parent, 'link', {
+    field: 'qbo_account_override', docDoctype: lineDoctype, docName: L.name,
+    linkDoctype: 'QBO Account', companionField: 'qbo_account_name',
+    value: L.qbo_account_override, displayHtml: acctDisplay,
+    promoteKey: L.erp_expense_account,
+  });
+  return { itemEd, acctEd };
+}
+
+function renderLine(L, parent) {
+  const tag = _routingTag(L);
+  const { itemEd, acctEd } = _renderLineOverrides(L, parent);
+  const desc = stripDescHtml(L.description) || '—';
+  return `<tr>
+    <td class="mono">${L.line_idx || ''}</td>
+    <td>${escapeHtml(desc)}<div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(L.erp_item_code || L.erp_expense_account || '')}</div></td>
+    <td><span class="routing-tag ${tag.cls}">${tag.label}</span></td>
+    <td>
+      <div class="override-stack">
+        <div class="override-row"><span class="override-tag item">ITEM</span>${itemEd}</div>
+        <div class="override-row"><span class="override-tag account">ACCT</span>${acctEd}</div>
+      </div>
+    </td>
+    <td class="num">${L.qty != null ? fmtKes(L.qty) : '—'}</td>
+    <td class="num">${L.rate != null ? fmtKes(L.rate) : '—'}</td>
+    <td class="num">${L.amount != null ? fmtKes(L.amount) : '—'}</td>
+  </tr>`;
+}
+
+function renderLineCard(L, parent) {
+  const tag = _routingTag(L);
+  const { itemEd, acctEd } = _renderLineOverrides(L, parent);
+  const src = L.erp_item_code || L.erp_expense_account || '';
+  const ccy = parent.currency || 'KES';
+  const desc = stripDescHtml(L.description) || '—';
+  return `<div class="line-card">
+    <div class="lc-head">
+      <span class="lc-idx">${L.line_idx || ''}</span>
+      <div style="flex:1; min-width:0;">
+        <div class="lc-desc">${escapeHtml(desc)}</div>
+        ${src ? `<div class="lc-src">${escapeHtml(src)}</div>` : ''}
+      </div>
+      <span class="routing-tag ${tag.cls}">${tag.label}</span>
+    </div>
+    <div class="lc-body">
+      <div class="lc-field"><span class="lc-label">Qty</span><span class="lc-val">${L.qty != null ? fmtKes(L.qty) : '—'}</span></div>
+      <div class="lc-field"><span class="lc-label">Rate</span><span class="lc-val">${L.rate != null ? fmtKes(L.rate) : '—'}</span></div>
+      <div class="lc-field lc-override"><span class="lc-label">QBO Item</span><span class="lc-val">${itemEd}</span></div>
+      <div class="lc-field lc-override"><span class="lc-label">QBO Account</span><span class="lc-val">${acctEd}</span></div>
+      <div class="lc-amount">${escapeHtml(ccy)} ${L.amount != null ? fmtKes(L.amount) : '—'}</div>
+    </div>
+  </div>`;
+}
+
+function wireInlineEdits(card, doc) {
+  card.querySelectorAll('.editable[data-editable="1"]').forEach((el) => {
+    if (el.dataset.disabled === '1') return;
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const kind = el.dataset.kind;
+      if (kind === 'link') {
+        openLookup(el, doc);
+      } else if (kind === 'text' || kind === 'longtext') {
+        startInlineText(el, kind, doc);
+      }
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+    });
+  });
+}
+
+function startInlineText(el, kind, doc) {
+  if (el.classList.contains('editing')) return;
+  el.classList.add('editing');
+  const current = el.dataset.current || '';
+  const input = document.createElement(kind === 'longtext' ? 'textarea' : 'input');
+  input.className = kind === 'longtext' ? 'ed-textarea' : 'ed-input';
+  if (kind !== 'longtext') input.type = 'text';
+  input.value = current;
+  // Replace contents
+  el.innerHTML = '';
+  el.appendChild(input);
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+  let committed = false;
+  const commit = async () => {
+    if (committed) return; committed = true;
+    const newVal = input.value;
+    if (newVal === current) {
+      restoreInline(el, current, doc);
+      return;
+    }
+    el.classList.add('saving');
+    try {
+      await patchFieldValue(el.dataset.doctype, el.dataset.docname, el.dataset.field, newVal);
+      el.dataset.current = newVal;
+      toast('Saved &middot; ' + el.dataset.field, 'ok');
+      // Re-pull the parent doc so any fetched companions appear.
+      await refreshExpandedRow(doc.name);
+    } catch (err) {
+      toast('Save failed: ' + (err.message || err).slice(0, 140), 'err');
+      restoreInline(el, current, doc);
+    }
+  };
+  const cancel = () => {
+    if (committed) return; committed = true;
+    restoreInline(el, current, doc);
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    if (e.key === 'Enter' && kind !== 'longtext') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && kind === 'longtext') { e.preventDefault(); input.blur(); }
+  });
+}
+
+function restoreInline(el, val, doc) {
+  el.classList.remove('editing', 'saving');
+  const ph = 'tap to edit';
+  el.innerHTML = val
+    ? `<span class="ed-display">${escapeHtml(val)}</span><span class="ed-pencil">tap to edit</span>`
+    : `<span class="ed-display ed-placeholder">${escapeHtml(ph)}</span><span class="ed-pencil">tap to edit</span>`;
+}
+
+async function patchFieldValue(doctype, name, field, value) {
+  // For child rows OR parent: frappe.client.set_value works for both.
+  const fd = new FormData();
+  fd.append('doctype', doctype);
+  fd.append('name', name);
+  fd.append('fieldname', field);
+  fd.append('value', value == null ? '' : String(value));
+  const r = await fetch('/api/method/frappe.client.set_value', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'X-Frappe-CSRF-Token': (typeof frappe !== 'undefined' && frappe.csrf_token) || '' },
+    body: fd,
+  });
+  const text = await r.text();
+  if (!r.ok) {
+    let detail = text.slice(0, 300);
+    try {
+      const j = JSON.parse(text);
+      detail = (j._server_messages && JSON.parse(j._server_messages).map((x) => { try { return JSON.parse(x).message } catch { return x } }).join(' &middot; '))
+        || j.exception || j._error_message || detail;
+    } catch {}
+    throw new Error('HTTP ' + r.status + ': ' + detail);
+  }
+  return JSON.parse(text);
+}
+
+// Always refresh in the active view (detail page or list).
+async function refreshExpandedRow(name) {
+  if (_view.mode === 'detail' && _view.detailName === name) {
+    return refreshDetailPage();
+  }
+  try { await reload(); } catch (e) {}
+}
+
+// ============================================================
+// Lookup popover (typeahead) — backed by frappe.desk.search.search_link
+// ============================================================
+const _lookupState = { el: null, doc: null, results: [], active: -1, abort: null };
+
+function openLookup(el, doc) {
+  _lookupState.el = el;
+  _lookupState.doc = doc;
+  _lookupState.results = [];
+  _lookupState.active = -1;
+  const linkDoctype = el.dataset.linkDoctype;
+  document.getElementById('lpTitle').textContent = 'Pick ' + linkDoctype;
+  const search = document.getElementById('lpSearch');
+  search.value = '';
+  search.placeholder = `Search ${linkDoctype}…`;
+  const results = document.getElementById('lpResults');
+  results.innerHTML = '<div class="lp-empty">Type a few letters to search&hellip;</div>';
+
+  positionPopover(el);
+  document.getElementById('lookupBackdrop').classList.add('show');
+  document.getElementById('lookupPopover').classList.add('show');
+
+  setTimeout(() => search.focus(), 50);
+  // Initial fetch with empty query to show top suggestions
+  runLookup('');
+}
+
+function positionPopover(anchor) {
+  const pop = document.getElementById('lookupPopover');
+  const rect = anchor.getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight;
+  // Phone: center bottom sheet style
+  if (vw < 720) {
+    pop.style.left = '12px';
+    pop.style.right = '12px';
+    pop.style.width = 'auto';
+    pop.style.top = Math.max(60, vh * 0.18) + 'px';
+    pop.style.maxHeight = (vh - 100) + 'px';
+    return;
+  }
+  // Desktop: drop below or above the anchor
+  const w = Math.min(440, vw - 32);
+  let left = Math.min(Math.max(8, rect.left), vw - w - 8);
+  let top = rect.bottom + 6;
+  if (top + 320 > vh) top = Math.max(8, rect.top - 320);
+  pop.style.width = w + 'px';
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  pop.style.right = 'auto';
+  pop.style.maxHeight = (vh - top - 16) + 'px';
+}
+
+function closeLookup() {
+  document.getElementById('lookupBackdrop').classList.remove('show');
+  document.getElementById('lookupPopover').classList.remove('show');
+  if (_lookupState.abort) { try { _lookupState.abort.abort(); } catch {} }
+  _lookupState.el = null;
+}
+
+let _lookupDebounce = null;
+async function runLookup(txt) {
+  if (_lookupDebounce) clearTimeout(_lookupDebounce);
+  _lookupDebounce = setTimeout(() => doLookup(txt), 180);
+}
+async function doLookup(txt) {
+  if (_lookupState.abort) { try { _lookupState.abort.abort(); } catch {} }
+  const ctrl = new AbortController();
+  _lookupState.abort = ctrl;
+  const el = _lookupState.el;
+  if (!el) return;
+  const linkDoctype = el.dataset.linkDoctype;
+  const url = `/api/method/frappe.client.get_list?` + new URLSearchParams({
+    doctype: linkDoctype,
+    fields: JSON.stringify(['name']),
+    filters: JSON.stringify([]),
+    or_filters: JSON.stringify([]),
+    limit_page_length: '20',
+    order_by: 'modified desc',
+  });
+  // Prefer frappe.desk.search.search_link (matches Desk typeahead behaviour incl. search_fields)
+  const sl = new URLSearchParams({
+    doctype: linkDoctype,
+    txt: txt || '',
+    page_length: '20',
+  });
+  try {
+    const r = await fetch('/api/method/frappe.desk.search.search_link?' + sl.toString(), {
+      credentials: 'include',
+      signal: ctrl.signal,
+      headers: { 'X-Frappe-CSRF-Token': (typeof frappe !== 'undefined' && frappe.csrf_token) || '' },
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    const rows = (j && (j.message || j.results)) || [];
+    _lookupState.results = rows;
+    renderLookupResults(rows, txt);
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+    document.getElementById('lpResults').innerHTML =
+      `<div class="lp-empty">Search failed: ${escapeHtml((err.message || String(err)).slice(0,140))}</div>`;
+  }
+}
+
+// search_link returns {value, description, label}. With show_title_field_in_link
+// set, the readable title lands in `label`; `description` is usually a dupe of
+// `value` (the doc name). Prefer label, fall back to description.
+function _extractLookupName(r) {
+  const val = r.value || r.name || '';
+  if (r.label && r.label.trim() && r.label.trim() !== val) return r.label.trim();
+  const d = (r.description || '').trim();
+  if (d && d !== val) {
+    const first = d.split(',')[0].trim();
+    if (first && !first.includes(':')) return first;
+    return d;
+  }
+  return '';
+}
+
+function renderLookupResults(rows, txt) {
+  const el = document.getElementById('lpResults');
+  if (!rows.length) {
+    el.innerHTML = `<div class="lp-empty">No matches${txt ? ' for "' + escapeHtml(txt) + '"' : ''}.</div>`;
+    return;
+  }
+  el.innerHTML = rows.map((r, i) => {
+    const val  = r.value || r.name || '';
+    const name = _extractLookupName(r);
+    const cls = 'lp-result' + (name ? '' : ' no-name');
+    return `<div class="${cls}" data-idx="${i}" data-value="${escapeHtml(val)}">
+      ${name ? `<span class="lp-name">${escapeHtml(name)}</span>` : ''}
+      <span class="lp-code">${escapeHtml(val)}</span>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.lp-result').forEach((r) => {
+    r.addEventListener('click', () => commitLookup(r.dataset.value));
+  });
+}
+
+// Fields that should trigger an auto-promote to the master Map doctype on pick.
+// Keyed by the queue field; the promoteKey carries the ERPNext-side primary
+// (supplier name / item code / expense account). approved=1 auto-trains the
+// staging pipeline to fill the same override on future PIs.
+const PROMOTE_MAP_CONFIG = {
+  vendor_override:      { mapDoctype: 'QBO Vendor Map',  primaryField: 'supplier',       targetField: 'qbo_vendor',  routingKind: null,            companionLabel: 'vendor' },
+  qbo_item_override:    { mapDoctype: 'QBO Item Map',    primaryField: 'erp_item_code',  targetField: 'qbo_item',    routingKind: 'Item-based',    companionLabel: 'item' },
+  qbo_account_override: { mapDoctype: 'QBO Account Map', primaryField: 'erp_account',    targetField: 'qbo_account', routingKind: 'Account-based', companionLabel: 'account' },
+};
+
+async function frappeGetValue(doctype, name, field) {
+  const params = new URLSearchParams({ doctype, filters: JSON.stringify({ name }), fieldname: JSON.stringify([field]) });
+  const r = await fetch('/api/method/frappe.client.get_value?' + params.toString(), {
+    credentials: 'include',
+    headers: { 'X-Frappe-CSRF-Token': (typeof frappe !== 'undefined' && frappe.csrf_token) || '' },
+  });
+  if (!r.ok) return null;
+  const j = await r.json();
+  return j.message || null;
+}
+
+async function frappeInsert(doc) {
+  const fd = new FormData();
+  fd.append('doc', JSON.stringify(doc));
+  const r = await fetch('/api/method/frappe.client.insert', {
+    method: 'POST', credentials: 'include',
+    headers: { 'X-Frappe-CSRF-Token': (typeof frappe !== 'undefined' && frappe.csrf_token) || '' },
+    body: fd,
+  });
+  if (!r.ok) throw new Error('insert failed: ' + r.status + ' ' + (await r.text()).slice(0,200));
+  return r.json();
+}
+
+async function promoteToMap(field, promoteKey, qboValue) {
+  const cfg = PROMOTE_MAP_CONFIG[field];
+  if (!cfg || !promoteKey || !qboValue) return null;
+  const existing = await frappeGetValue(cfg.mapDoctype, promoteKey, cfg.targetField);
+  if (existing) {
+    // Row exists — patch target + approved
+    await patchFieldValue(cfg.mapDoctype, promoteKey, cfg.targetField, qboValue);
+    await patchFieldValue(cfg.mapDoctype, promoteKey, 'approved', '1');
+    return { action: 'updated', mapDoctype: cfg.mapDoctype, name: promoteKey };
+  }
+  // No row yet — insert one, approved
+  const doc = { doctype: cfg.mapDoctype, approved: 1 };
+  doc[cfg.primaryField] = promoteKey;
+  doc[cfg.targetField] = qboValue;
+  await frappeInsert(doc);
+  return { action: 'created', mapDoctype: cfg.mapDoctype, name: promoteKey };
+}
+
+async function commitLookup(value) {
+  const el = _lookupState.el;
+  const doc = _lookupState.doc;
+  if (!el) return;
+  closeLookup();
+  el.classList.add('saving');
+  const field = el.dataset.field;
+  const promoteKey = el.dataset.promoteKey || null;
+  try {
+    await patchFieldValue(el.dataset.doctype, el.dataset.docname, field, value || '');
+
+    // Side-effects when the picked value is non-empty:
+    //   1. For line overrides → set routing_kind on the same line
+    //   2. For all three (vendor/item/account) → upsert the master Map row, approved=1
+    //   3. Sync the cached display name companion (vendor_qbo_name, qbo_item_name,
+    //      qbo_account_name) from the QBO master — set_value bypasses the Before
+    //      Save server script, so we have to write the display ourselves.
+    let promoteNote = '';
+    if (value) {
+      const cfg = PROMOTE_MAP_CONFIG[field];
+      if (cfg && cfg.routingKind) {
+        try { await patchFieldValue(el.dataset.doctype, el.dataset.docname, 'routing_kind', cfg.routingKind); } catch (e) {}
+      }
+      // Companion display-name sync — read the masters and patch the cached field.
+      const companion = el.dataset.companionField;
+      if (companion) {
+        try {
+          const masters = { 'QBO Vendor': 'display_name', 'QBO Item': 'name', 'QBO Account': 'qbo_name' };
+          const masterDoctype = el.dataset.linkDoctype;
+          const masterField = masters[masterDoctype] || 'name';
+          const v = await frappeGetValue(masterDoctype, value, masterField);
+          const displayName = (v && (v[masterField] || v.name)) || value;
+          await patchFieldValue(el.dataset.doctype, el.dataset.docname, companion, displayName);
+          // Vendor: also keep the id mirror in sync
+          if (field === 'vendor_override') {
+            try { await patchFieldValue(el.dataset.doctype, el.dataset.docname, 'vendor_qbo_id', value); } catch (e) {}
+          }
+        } catch (e) {}
+      }
+      if (cfg && promoteKey) {
+        try {
+          const r = await promoteToMap(field, promoteKey, value);
+          if (r) promoteNote = ' &middot; ' + cfg.companionLabel + ' map ' + r.action + ' (' + escapeHtml(promoteKey).slice(0,40) + ' &rarr; ' + escapeHtml(value) + ')';
+        } catch (e) {
+          promoteNote = ' &middot; map promote failed: ' + (e.message || e).slice(0,80);
+        }
+      }
+    }
+
+    toast('Saved &middot; ' + field + (value ? ' = ' + value : ' cleared') + promoteNote, 'ok');
+    await refreshExpandedRow(doc.name);
+  } catch (err) {
+    el.classList.remove('saving');
+    toast('Save failed: ' + (err.message || err).slice(0,140), 'err');
+  }
+}
+
+// Wire global popover controls once (DOMContentLoaded already passed by here)
+(function wireLookupControls() {
+  const search = document.getElementById('lpSearch');
+  if (!search) return;
+  search.addEventListener('input', (e) => runLookup(e.target.value));
+  search.addEventListener('keydown', (e) => {
+    const rows = document.querySelectorAll('.lp-result');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      _lookupState.active = Math.min(rows.length - 1, _lookupState.active + 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      _lookupState.active = Math.max(0, _lookupState.active - 1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const r = rows[_lookupState.active] || rows[0];
+      if (r) commitLookup(r.dataset.value);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeLookup();
+    } else {
+      return;
+    }
+    rows.forEach((r) => r.classList.remove('active'));
+    if (rows[_lookupState.active]) {
+      rows[_lookupState.active].classList.add('active');
+      rows[_lookupState.active].scrollIntoView({ block: 'nearest' });
+    }
+  });
+  document.getElementById('lpCancel').addEventListener('click', closeLookup);
+  document.getElementById('lpClear').addEventListener('click', () => commitLookup(''));
+  document.getElementById('lookupBackdrop').addEventListener('click', closeLookup);
+  window.addEventListener('resize', () => {
+    if (_lookupState.el) positionPopover(_lookupState.el);
+  });
+})();
+
+function wireDetailActions(card, doc) {
+  card.querySelectorAll('[data-action]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const act = btn.dataset.action;
+      try {
+        if (act === 'open-desk') {
+          window.open(`/app/qbo-bill-push-queue/${encodeURIComponent(doc.name)}`, '_blank');
+        } else if (act === 'view-qbo') {
+          window.open(`https://app.qbo.intuit.com/app/bill?txnId=${encodeURIComponent(doc.qbo_bill_id)}`, '_blank');
+        } else if (act === 'refresh-maps') {
+          overlay(true, 'Refreshing from maps…', doc.name);
+          await frappeCall('qbo_refresh_queue_mappings', { queue_name: doc.name });
+          overlay(false);
+          toast('Mappings refreshed for ' + doc.name, 'ok');
+          await refreshExpandedRow(doc.name);
+        } else if (act === 'restage') {
+          if (!doc.pi) { toast('No PI linked', 'err'); return; }
+          overlay(true, 'Re-staging from PI…', doc.pi);
+          await callTunnel('/qbo-pi-stage', { pi_name: doc.pi }, 120000);
+          overlay(false);
+          toast('Re-staged from ' + doc.pi, 'ok');
+          await refreshExpandedRow(doc.name);
+        } else if (act === 'submit' || act === 'push' || act === 'retry-push') {
+          btn.disabled = true; btn.textContent = '…';
+          if (act === 'submit') {
+            await frappeSubmit('QBO Bill Push Queue', doc.name);
+          }
+          // After submit, the Frappe Webhook fires and pushes asynchronously.
+          // For push/retry, call the receiver directly.
+          if (act !== 'submit') {
+            // Guard: if a Bill already exists in QBO for this row, don't retry as a fresh POST.
+            // Resetting push_status=Pending on a row that has qbo_bill_id would tell the
+            // receiver to create a duplicate Bill — we'd rather block + warn.
+            if (doc.qbo_bill_id) {
+              if (!confirm('This row was already pushed (QBO Bill ' + doc.qbo_bill_id + '). Pushing again will create a DUPLICATE in QBO. Continue anyway?')) {
+                btn.disabled = false; btn.textContent = act === 'push' ? 'Push to QBO' : 'Retry Push';
+                return;
+              }
+            }
+            overlay(true, 'Pushing to QBO…', doc.name);
+            // /qbo-bill-push is the n8n workflow that validates queue_name and
+            // proxies to the local push receiver. /push is not exposed publicly.
+            // Also reset push_status to Pending so the receiver picks it up
+            // (the script filters by docstatus=1 AND push_status=Pending).
+            try { await patchFieldValue('QBO Bill Push Queue', doc.name, 'push_status', 'Pending'); } catch (e) {}
+            try { await patchFieldValue('QBO Bill Push Queue', doc.name, 'error_message', ''); } catch (e) {}
+            const res = await callTunnel('/qbo-bill-push', { queue_name: doc.name }, 180000);
+            overlay(false);
+            if (res && res.ok) {
+              toast(`Pushed → QBO Bill ${res.qbo_bill_id || ''}`, 'ok');
+            } else {
+              toast('Push failed — open in Desk for details', 'err');
+            }
+          } else {
+            toast('Submitted — push will fire automatically via webhook', 'ok');
+          }
+          await refreshExpandedRow(doc.name);
+        }
+      } catch (err) {
+        overlay(false);
+        toast(`${act} failed: ${err.message.slice(0,140)}`, 'err');
+      }
+    });
+  });
+}
+
+// ============================================================
+// Toolbar handlers
+// ============================================================
+document.getElementById('btnQuickSync').addEventListener('click', async () => {
+  try {
+    overlay(true, 'Quick sync from QBO…', 'CDC delta, ~10 sec');
+    const res = await callTunnel('/qbo-refresh-masters', { entity: 'all', mode: 'delta', suggest_mappings: false }, 120000);
+    overlay(false);
+    if (res && res.ok) toast('QBO masters refreshed (delta)', 'ok');
+    else toast('Quick sync failed — see Desk', 'err');
+    await reload();
+  } catch (e) { overlay(false); toast(`Quick sync error: ${e.message.slice(0,140)}`, 'err'); }
+});
+document.getElementById('btnFullRefresh').addEventListener('click', async () => {
+  if (!confirm('Full refresh pulls every QBO Vendor / Account / Item / Tax Code (~6 minutes). Continue?')) return;
+  try {
+    overlay(true, 'Full QBO refresh — please wait', '~6 min · do not close this tab');
+    const res = await callTunnel('/qbo-refresh-masters', { entity: 'all', mode: 'full', suggest_mappings: true }, 900000);
+    overlay(false);
+    if (res && res.ok) toast('Full refresh complete', 'ok');
+    else toast('Full refresh failed — see Desk', 'err');
+    await reload();
+  } catch (e) { overlay(false); toast(`Full refresh error: ${e.message.slice(0,140)}`, 'err'); }
+});
+const _ENTITY_LABELS = { vendor: 'Vendors', account: 'Accounts', item: 'Items', tax_code: 'Tax Codes' };
+document.querySelectorAll('[data-refresh-entity]').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const entity = btn.dataset.refreshEntity;
+    const label = _ENTITY_LABELS[entity] || entity;
+    try {
+      overlay(true, 'Refreshing ' + label + ' from QBO\u2026', 'full pull \u00b7 up to a few minutes');
+      const res = await callTunnel('/qbo-refresh-masters', { entity: entity, mode: 'full', suggest_mappings: false }, 900000);
+      overlay(false);
+      if (res && res.ok) toast(label + ' refreshed', 'ok');
+      else toast(label + ' refresh failed \u2014 see Desk', 'err');
+      await reload();
+    } catch (e) { overlay(false); toast(label + ' refresh error: ' + e.message.slice(0,140), 'err'); }
+  });
+});
+document.getElementById('btnReload').addEventListener('click', () => reload());
+
+document.getElementById('search').addEventListener('input', (e) => {
+  state.search = e.target.value;
+  renderQueue();
+});
+['dateFrom', 'dateTo'].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', (e) => { state[id] = e.target.value; renderQueue(); });
+});
+(function () { const c = document.getElementById('dateClear');
+  if (c) c.addEventListener('click', () => {
+    state.dateFrom = ''; state.dateTo = '';
+    const f = document.getElementById('dateFrom'), t = document.getElementById('dateTo');
+    if (f) f.value = ''; if (t) t.value = ''; renderQueue();
+  });
+})();
+
+document.querySelectorAll('.tab').forEach((t) => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
+    t.classList.add('active');
+    state.status = t.dataset.status;
+    renderQueue();
+  });
+});
+
+// Click → navigate to the full-screen detail page (deep-linkable via ?row=NAME)
+document.getElementById('queue').addEventListener('click', (e) => {
+  const card = e.target.closest('.row');
+  if (!card) return;
+  if (e.target.closest('button, a, input, select')) return;
+  showDetail(card.dataset.name);
+});
+
+// ============================================================
+// Data load
+// ============================================================
+function _dbg(msg) {
+  const t = new Date().toLocaleTimeString('en-GB');
+  const el = document.getElementById('qboDebugStep');
+  if (el) el.textContent = '[' + t + '] ' + msg;
+  const err = document.getElementById('qboDebugErr');
+  if (err) err.textContent = '';
+  if (window.__qboLog) window.__qboLog(msg);
+}
+function _dbgErr(msg) {
+  const err = document.getElementById('qboDebugErr');
+  if (err) err.textContent = msg;
+  if (window.__qboLog) window.__qboLog('ERROR', msg);
+}
+
+async function getSessionUser() {
+  // Web Page context: frappe.session.user is unreliable, ask the server.
+  try {
+    const r = await fetch('/api/method/frappe.auth.get_logged_user', {
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!r.ok) return 'Guest';
+    const j = await r.json();
+    return (j && j.message) || 'Guest';
+  } catch (e) {
+    return 'Guest';
+  }
+}
+
+async function reload() {
+  try {
+    _dbg('Step 1 — checking session');
+    const cur = await getSessionUser();
+    _dbg('Step 2 — user: ' + cur);
+    const curEl = document.getElementById('curUser');
+    if (curEl) curEl.textContent = cur;
+    if (cur === 'Guest' || cur === 'guest') {
+      document.getElementById('queue').innerHTML = '<div class="queue-empty"><p class="mark">Please sign in</p><p class="sub"><a style="color:var(--vcl-blue);text-decoration:underline" href="/login?redirect-to=/qbo-push">Sign in &rarr;</a></p></div>';
+      return;
+    }
+    _dbg('Step 3 — calling /api/resource/QBO Bill Push Queue (slim fields)');
+    const rows = await frappeList(
+      [],
+      ['name','pi','supplier','bill_no','total_amt','currency','docstatus',
+       'push_status','qbo_bill_id','vendor_qbo_name','modified'],
+      500
+    );
+    _dbg('Step 4 — got ' + rows.length + ' rows · saving state');
+    state.rows = rows;
+    try {
+      const piNames = [...new Set(state.rows.map((r) => r.pi).filter(Boolean))];
+      const dateByPi = {};
+      for (let i = 0; i < piNames.length; i += 100) {
+        const chunk = piNames.slice(i, i + 100);
+        const piUrl = '/api/resource/' + encodeURIComponent('Purchase Invoice') + '?' + new URLSearchParams({
+          filters: JSON.stringify([['name', 'in', chunk]]),
+          fields: JSON.stringify(['name', 'posting_date']),
+          limit_page_length: '0',
+        });
+        const pr = await fetch(piUrl, { credentials: 'include', headers: { 'X-Frappe-CSRF-Token': (typeof frappe !== 'undefined' && frappe.csrf_token) || '' } });
+        if (pr.ok) { ((await pr.json()).data || []).forEach((p) => { dateByPi[p.name] = p.posting_date; }); }
+      }
+      state.rows.forEach((r) => { r.posting_date = dateByPi[r.pi] || null; });
+    } catch (e) { /* posting-date enrichment is best-effort */ }
+    _dbg('Step 5 — updating counters');
+    try { updateCounters(); } catch (e) { throw new Error('updateCounters failed: ' + (e.message || String(e))); }
+    _dbg('Step 6 — rendering queue (' + state.status + ')');
+    try { renderQueue(); } catch (e) { throw new Error('renderQueue failed: ' + (e.message || String(e)) + (e.stack ? ' :: ' + String(e.stack).slice(0,400) : '')); }
+    _dbg('Step 7 — done');
+    document.getElementById('lastSync').textContent = new Date().toLocaleTimeString('en-GB');
+  } catch (e) {
+    _dbgErr('ERROR: ' + (e.message || String(e)).slice(0, 220));
+    document.getElementById('queue').innerHTML = `<div class="queue-empty">
+      <p class="mark">Couldn't load queue</p>
+      <p class="sub" style="font-family:var(--font-mono); font-size:12px; max-width:600px; margin:12px auto 0; white-space:pre-wrap;">${escapeHtml(e.message || String(e))}</p>
+    </div>`;
+  }
+}
+
+function updateCounters() {
+  const c = { draft:0, pending:0, pushed:0, failed:0, cancelled:0, all: state.rows.length };
+  state.rows.forEach((r) => { c[statusOf(r)] = (c[statusOf(r)] || 0) + 1; });
+  state.counters = c;
+  Object.entries(c).forEach(([k,v]) => {
+    const el = document.getElementById('cnt-' + k);
+    if (el) el.textContent = v;
+  });
+}
+
+// ============================================================
+// Bootstrap
+// ============================================================
+document.getElementById('todayDate').textContent = today();
+function bootstrap() {
+  _dbg('bootstrap entered');
+  // Session resolution happens inside reload() now (via getSessionUser).
+  // Bootstrap just kicks it off and lets reload handle the Guest branch.
+  reload().catch((e) => {
+    _dbgErr('bootstrap: ' + (e.message || String(e)));
+  });
+  // Deep-link: if URL has ?row=NAME, jump straight to the detail page.
+  const initialRow = _readUrlRow();
+  if (initialRow) showDetail(initialRow, { skipUrl: true });
+}
+if (window.__qboLog) window.__qboLog('IIFE parsed — registering load handler');
+if (document.readyState === 'complete') { bootstrap(); }
+else { window.addEventListener('load', bootstrap); }
+
+})();
+</script>
