@@ -27,6 +27,7 @@ _RUNNER_OWNED_FIELDS = {
     "approved_at",
     "qbo_bill_id",
     "qbo_sync_token",
+    "qbo_last_updated_at_push",
     "pushed_at",
     "attempts",
     "last_attempt_at",
@@ -88,7 +89,7 @@ def mark_pushed(name: str, qbo_bill_id: str, qbo_sync_token: str, last_updated_t
     if not name or not qbo_bill_id:
         frappe.throw("`name` and `qbo_bill_id` are required.")
     pushed_at = now_datetime()
-    frappe.db.set_value(_QUEUE_DOCTYPE, name, {
+    update_fields = {
         "qbo_bill_id": qbo_bill_id,
         "qbo_sync_token": qbo_sync_token,
         "pushed_at": pushed_at,
@@ -96,7 +97,10 @@ def mark_pushed(name: str, qbo_bill_id: str, qbo_sync_token: str, last_updated_t
         "attempts": (frappe.db.get_value(_QUEUE_DOCTYPE, name, "attempts") or 0) + 1,
         "error_message": "",
         "category": "ALREADY_SYNCED",
-    }, update_modified=True)
+    }
+    if last_updated_time:
+        update_fields["qbo_last_updated_at_push"] = last_updated_time
+    frappe.db.set_value(_QUEUE_DOCTYPE, name, update_fields, update_modified=True)
 
     pi_name = frappe.db.get_value(_QUEUE_DOCTYPE, name, "pi")
     if pi_name:
