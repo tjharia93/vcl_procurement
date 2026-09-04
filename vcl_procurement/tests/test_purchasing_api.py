@@ -25,6 +25,10 @@ def _getdate(v):
 
 
 utils.getdate = _getdate
+utils.today = lambda: datetime.date.today().isoformat()
+utils.date_diff = lambda a, b: (_getdate(a) - _getdate(b)).days
+frappe.get_roles = lambda: ["Purchase Manager"]
+frappe.PermissionError = PermissionError
 frappe.utils = utils
 sys.modules.setdefault("frappe", frappe)
 sys.modules.setdefault("frappe.utils", utils)
@@ -106,6 +110,18 @@ class Shaping(unittest.TestCase):
         self.assertEqual(
             _shape_order(dict(ORDER, supplier_name=None))["supplier_name"],
             "LABCHEM LTD")
+
+    def test_the_gate_is_the_purchasing_roles_not_read_permission(self):
+        """Stock User has read on Purchase Order and includes sales reps.
+
+        Gating on `has_permission("Purchase Order", "read")` would have widened
+        access when this moved out of vcl_compass, not preserved it.
+        """
+        from vcl_procurement.api.purchasing import PURCHASING_ROLES
+        self.assertEqual(PURCHASING_ROLES,
+                         {"Purchase Manager", "Purchase User", "System Manager"})
+        self.assertNotIn("Stock User", PURCHASING_ROLES)
+        self.assertNotIn("Sales User", PURCHASING_ROLES)
 
     def test_totals_are_floats_not_strings(self):
         order = _shape_order(dict(ORDER, grand_total="66700"))
