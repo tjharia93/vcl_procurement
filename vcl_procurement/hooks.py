@@ -13,6 +13,12 @@ doc_events = {
         "on_submit": "vcl_procurement.api.staging.on_submit_purchase_invoice",
         "on_cancel": "vcl_procurement.api.staging.on_cancel_purchase_invoice",
     },
+    # A margin left on a PO line is re-applied on top of the base the next time
+    # anyone edits it, which is how Labchem was ordered at 280 against a quote
+    # of 250 on 4 Sep 2026. `rate` is made authoritative on every save.
+    "Purchase Order": {
+        "validate": "vcl_procurement.api.po_price_guard.normalise_line_prices",
+    },
 }
 
 # Fixtures
