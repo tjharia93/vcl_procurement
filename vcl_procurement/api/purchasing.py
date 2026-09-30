@@ -102,8 +102,10 @@ def open_orders(status=None, supplier=None):
     rows = frappe.get_all(
         "Purchase Order", filters=filters,
         fields=["name", "supplier", "transaction_date", "schedule_date", "status",
-                "base_grand_total", "per_received", "per_billed", "currency"],
+                "base_grand_total", "grand_total", "per_received", "per_billed", "currency",
+                "custom_order_type", "order_confirmation_no", "custom_file_number"],
         order_by="transaction_date asc", limit_page_length=500)
+    links = _links_for([r.name for r in rows])
 
     out = []
     for r in rows:
@@ -121,6 +123,12 @@ def open_orders(status=None, supplier=None):
             "status": r.status,
             "value": flt(r.base_grand_total),
             "currency": r.currency,
+            "total": flt(r.grand_total),            # in the order's own currency
+            "order_type": r.custom_order_type or "Local",
+            "confirmation_no": r.order_confirmation_no,
+            "file_no": r.custom_file_number,
+            # Receipts and invoices already raised against it, drafts included.
+            "connections": links.get(r.name, []),
             "per_received": recv,
             "per_billed": bill,
             # Billed but never received is the anomaly worth surfacing: the
@@ -147,6 +155,47 @@ def open_orders(status=None, supplier=None):
         "currency": frappe.db.get_default("currency") or "KES",
         "today": now,
     }
+
+
+def _links_for(po_names):
+    """{po: [{kind, name, draft}]} for every receipt and invoice against these orders."""
+    out = {}
+    if not po_names:
+        return out
+    for child, parent, kind in (("Purchase Receipt Item", "Purchase Receipt", "Receipt"),
+                                ("Purchase Invoice Item", "Purchase Invoice", "Invoice")):
+        rows = frappe.get_all(child, filters={"purchase_order": ["in", po_names], "docstatus": ["<", 2]},
+                              fields=["purchase_order", "parent", "docstatus"], parent_doctype=parent,
+                              limit_page_length=5000)
+        seen = set()
+        for r in rows:
+            key = (r.purchase_order, r.parent)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.setdefault(r.purchase_order, []).append(
+                {"kind": kind, "name": r.parent, "draft": r.docstatus == 0})
+    return out
+
+
+@frappe.whitelist()
+def draft_orders(mine=0):
+    """Purchase orders still in draft (raised, not yet approved), newest first."""
+    _assert_purchasing_role()
+    filters = {"docstatus": 0}
+    if int(mine):
+        filters["owner"] = frappe.session.user
+    rows = frappe.get_all(
+        "Purchase Order", filters=filters,
+        fields=["name", "supplier", "transaction_date", "schedule_date", "currency", "grand_total",
+                "workflow_state", "custom_order_type", "owner"],
+        order_by="modified desc", limit_page_length=200)
+    return [{
+        "name": r.name, "supplier": r.supplier, "date": _iso(r.transaction_date),
+        "due": _iso(r.schedule_date), "currency": r.currency, "total": flt(r.grand_total),
+        "workflow_state": r.workflow_state, "order_type": r.custom_order_type or "Local",
+        "raised_by": r.owner,
+    } for r in rows]
 
 
 # --- new: one order, for a phone screen -------------------------------------

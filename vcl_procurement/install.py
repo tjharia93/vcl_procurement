@@ -6,6 +6,9 @@ def after_install():
 
     _ensure_settings_doc()
     ensure_reel_fields()
+    # A patch alone is not enough here: installing an app stamps its patches as done without running them.
+    from vcl_procurement.setup_fields import ensure_fields
+    ensure_fields()
     frappe.db.commit()
 
 

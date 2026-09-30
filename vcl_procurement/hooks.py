@@ -10,6 +10,9 @@ required_apps = ["frappe", "erpnext"]
 # ----------------
 doc_events = {
     "Purchase Invoice": {
+        # An import invoice cannot be submitted until the KRA details are in - on the
+        # server, so the Desk and any script are held to it as well as the screen.
+        "before_submit": "vcl_procurement.api.pi.gate_before_submit",
         "on_submit": "vcl_procurement.api.staging.on_submit_purchase_invoice",
         "on_cancel": "vcl_procurement.api.staging.on_cancel_purchase_invoice",
     },

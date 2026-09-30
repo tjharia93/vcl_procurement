@@ -136,11 +136,17 @@ def material_request_lines(name):
 
 @frappe.whitelist()
 def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
-                          order_type="Local"):
-    """Create a DRAFT purchase order.
+                          order_type="Local", order_confirmation_no=None, file_no=None,
+                          payment_terms_template=None, tax_template=None):
+    """Create a DRAFT purchase order, complete, in ONE transaction.
 
-    `lines` is a list of {item_code, qty, rate, uom?, warehouse?,
-    material_request?, material_request_item?}.
+    `lines` is a list of {item_code, qty, rate, uom?, conversion_factor?, warehouse?,
+    material_request?, material_request_item?}. A unit other than the item's stock
+    unit must arrive with its conversion.
+
+    The confirmation number, file number (imports), payment terms and tax
+    template used to be a second call from the browser, which could fail and leave a
+    half-made order. They are applied here, so the order exists whole or not at all.
     """
     _assert_purchasing_role()
     if isinstance(lines, str):
@@ -151,6 +157,16 @@ def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
         frappe.throw(_("A purchase order needs at least one line."))
 
     wanted = getdate(schedule_date) if schedule_date else getdate(_default_schedule_date())
+
+    from vcl_procurement.api import rules
+    with_units = [ln for ln in lines if ln.get("uom")]
+    if with_units:
+        stock = {ln["item_code"]: frappe.db.get_value("Item", ln["item_code"], "stock_uom")
+                 for ln in with_units if ln.get("item_code")}
+        try:
+            rules.check_line_units(with_units, stock)
+        except rules.RuleError as e:
+            frappe.throw(str(e))
 
     doc = frappe.new_doc("Purchase Order")
     doc.supplier = supplier
@@ -173,6 +189,8 @@ def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
         row.schedule_date = getdate(raw.get("schedule_date") or wanted)
         if raw.get("uom"):
             row.uom = raw["uom"]
+            if flt(raw.get("conversion_factor")) > 0:
+                row.conversion_factor = flt(raw["conversion_factor"])
         if raw.get("warehouse"):
             row.warehouse = raw["warehouse"]
         if raw.get("material_request"):
@@ -182,6 +200,21 @@ def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
         # The only price field. po_price_guard clears anything that could
         # re-derive it, so what is typed here is what gets ordered.
         row.rate = flt(raw.get("rate"))
+
+    if order_confirmation_no:
+        doc.order_confirmation_no = order_confirmation_no
+    if payment_terms_template:
+        doc.payment_terms_template = payment_terms_template
+    if order_type == "Import":
+        doc.tax_category = "Importation"
+        if file_no:
+            doc.custom_file_number = file_no
+    if tax_template:
+        from erpnext.controllers.accounts_controller import get_taxes_and_charges
+        doc.taxes_and_charges = tax_template
+        doc.set("taxes", [])
+        for r in get_taxes_and_charges("Purchase Taxes and Charges Template", tax_template) or []:
+            doc.append("taxes", r)
 
     doc.insert()
     return {
