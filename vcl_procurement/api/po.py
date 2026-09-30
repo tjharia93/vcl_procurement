@@ -243,7 +243,7 @@ def po_save(name, payload):
                 frappe.throw(_("Every line needs a quantity."))
             # A unit sent without its conversion is looked up rather than refused.
             if ln.get("uom") and ln["uom"] != stock[ln["item_code"]] and not flt(ln.get("conversion_factor")):
-                _, found = resolve_factor(ln["item_code"], ln["uom"])
+                _stock, found = resolve_factor(ln["item_code"], ln["uom"])
                 if found:
                     ln["conversion_factor"] = found
         try:

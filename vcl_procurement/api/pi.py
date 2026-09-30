@@ -23,7 +23,6 @@ from frappe import _
 from frappe.utils import flt, nowdate
 
 from vcl_procurement.api import rules
-from vcl_procurement.api.po import clean_tax_rows  # noqa: F401  (shared row cleaning)
 from vcl_procurement.api.purchasing import _assert_purchasing_role
 
 PI = "Purchase Invoice"
