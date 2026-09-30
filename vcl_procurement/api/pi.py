@@ -329,6 +329,33 @@ def pi_save(name, payload):
 
 
 @frappe.whitelist()
+def schedule_preview(name, payload):
+    """The import payment schedule as it WOULD be, without saving anything.
+
+    Keeps the calculation on the server (rules.import_schedule) so the screen never
+    holds a second copy of it. payload: {terms_template, tax_days_after_landing,
+    bill_date, expected_delivery, taxes_kes?}. Anything omitted is read from the invoice;
+    `taxes_kes` lets the screen preview typed-but-unsaved tax amounts.
+    """
+    _assert_purchasing_role()
+    payload = frappe.parse_json(payload) or {}
+    doc = frappe.get_doc(PI, name)
+    doc.check_permission("read")
+    term, term_name = _term_row(payload.get("terms_template"))
+    net = flt(doc.net_total)
+    if payload.get("taxes_kes") is not None:
+        taxes = rules.kes_to_doc(payload["taxes_kes"], doc.conversion_rate, doc.currency)
+    else:
+        taxes = flt(doc.grand_total) - net
+    bill = payload.get("bill_date") or doc.bill_date
+    eta = payload.get("expected_delivery") or doc.get("custom_expected_date_of_delivery_to_port")
+    days = int(payload.get("tax_days_after_landing", rules.DEFAULT_TAX_DAYS_AFTER_LANDING))
+    rows, missing = rules.import_schedule(net, taxes, bill, term, term_name, eta, days)
+    return {"rows": rows, "missing": missing,
+            "kes": None if not rows else [rules.doc_to_kes(r["payment_amount"], doc.conversion_rate, doc.currency) for r in rows]}
+
+
+@frappe.whitelist()
 def pi_set_stock(name, on):
     """The Receive goods tick: books stock with the invoice (1) or ledger only, pending receipt (0)."""
     _assert_purchasing_role()

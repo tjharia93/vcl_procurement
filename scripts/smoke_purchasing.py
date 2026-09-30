@@ -88,6 +88,19 @@ def _pi_page():
     return f"{p['name']} docstatus {p['docstatus']}, ready to submit: {p['can']['submit']}, missing {p['requirements']['missing']}"
 
 
+def _raise_options():
+    o = call("po.raise_options")
+    assert o["tax_defaults"]["Import"] == "Importation - VCL" and "USD" in o["currencies"] and o["payment_terms"]
+    return f"{len(o['tax_templates'])} tax templates, {len(o['payment_terms'])} terms"
+
+
+def _schedule_preview():
+    r = call("pi.schedule_preview", name=PI, payload={"terms_template": "180 Days", "tax_days_after_landing": 2,
+                                                    "expected_delivery": "2026-10-01"})
+    assert not r["missing"] and r["rows"][1]["due_date"] == "2026-10-03", r
+    return f"net due {r['rows'][0]['due_date']}, taxes due {r['rows'][1]['due_date']}"
+
+
 def _attachments():
     p = call("pi.pi_page", name=PI)
     assert p["attachments"] is not None, "attachments could not be listed"
@@ -108,6 +121,8 @@ check("draft_orders", lambda: f"{len(call('purchasing.draft_orders'))} drafts")
 check(f"po_page {PO}: no price fields leak", _po_page)
 check("tax_template_rows: Importation - VCL is fixed", _tax_rows)
 check(f"pi_page {PI}", _pi_page)
+check("raise_options", _raise_options)
+check("schedule_preview (server-side rule, nothing saved)", _schedule_preview)
 check("attachments listed server-side", _attachments)
 check("pay_context (read only)", _pay_context)
 print("\nAll good." if not fails else f"\n{len(fails)} failed: {fails}")

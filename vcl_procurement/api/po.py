@@ -154,6 +154,19 @@ def po_page(name):
 
 
 @frappe.whitelist()
+def raise_options():
+    """The dropdowns on the Raise a purchase order screen, in one call."""
+    _assert_purchasing_role()
+    return {
+        "payment_terms": _payment_terms(),
+        "tax_templates": _tax_templates(),
+        "tax_defaults": TAX_TEMPLATE_DEFAULTS,
+        "currencies": frappe.get_all("Currency", filters={"enabled": 1}, pluck="name",
+                                     order_by="name asc", limit_page_length=200),
+    }
+
+
+@frappe.whitelist()
 def tax_template_rows(template):
     """The rows of one tax template, ready to become a PO's tax rows."""
     _assert_purchasing_role()
