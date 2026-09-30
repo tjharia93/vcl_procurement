@@ -148,6 +148,9 @@ def po_page(name):
             "amount": flt(p.payment_amount),
         } for p in doc.get("payment_schedule") or []],
         "connections": _connections(doc.name),
+        # What is actually pending, in plain figures (ERPNext's own tag is one combined phrase).
+        "pending": rules.pending_lines([{"qty": ln["qty"], "received_qty": ln["received_qty"], "uom": ln["uom"],
+                                         "amount": ln["amount"], "billed_amt": ln["billed_amt"]} for ln in lines]),
         "actions": _workflow_actions(doc) if doc.docstatus == 0 else [],
         "payment_terms_options": _payment_terms() if doc.docstatus == 0 else [],
         "tax_template_options": _tax_templates() if doc.docstatus == 0 else [],
@@ -300,3 +303,130 @@ def po_act(name, action):
         frappe.throw(_("The action {0} is not available on {1} right now.").format(action, name))
     apply_workflow(doc, action)
     return po_page(name)
+
+
+# --- close / re-open ------------------------------------------------------------
+
+def _set_status(name, status):
+    from erpnext.buying.doctype.purchase_order.purchase_order import update_status
+    doc = frappe.get_doc(PO, name)
+    doc.check_permission("write")
+    if doc.docstatus != 1:
+        frappe.throw(_("{0} is not approved, so it cannot be closed or re-opened.").format(name))
+    update_status(status, name)
+    # Say what the server now holds, not what was asked for: the screen compares the two.
+    return frappe.db.get_value(PO, name, "status")
+
+
+@frappe.whitelist()
+def po_close(name):
+    """Close a purchase order. Returns the status it now has.
+
+    Closing is refused nowhere: the caller warns first. A closed PO cannot be billed
+    (Purchase Invoice validate refuses a line on a closed PO), so an order that still needs
+    billing should be trimmed, not closed.
+    """
+    _assert_purchasing_role()
+    return {"name": name, "status": _set_status(name, "Closed")}
+
+
+@frappe.whitelist()
+def po_reopen(name):
+    _assert_purchasing_role()
+    return {"name": name, "status": _set_status(name, "Submitted")}
+
+
+# --- print and email --------------------------------------------------------------
+
+IMPORT_FORMAT = "PURCHASE ORDER - IMPORT"
+STANDARD_FORMAT = "Purchase Order Standard"
+
+
+def choose_format(formats, default, order_type):
+    """(formats, default) for the print dialog: an import order prefers the import format, and a
+    default that is not an enabled format falls back to the standard one, then to the first."""
+    fmts = list(formats) or [STANDARD_FORMAT]
+    dflt = default or ""
+    if order_type == "Import" and IMPORT_FORMAT in fmts:
+        dflt = IMPORT_FORMAT
+    if dflt not in fmts:
+        dflt = STANDARD_FORMAT if STANDARD_FORMAT in fmts else fmts[0]
+    return fmts, dflt
+
+
+@frappe.whitelist()
+def print_formats(name):
+    _assert_purchasing_role()
+    doc = frappe.get_doc(PO, name)
+    doc.check_permission("read")
+    fmts = frappe.get_all("Print Format", filters={"doc_type": PO, "disabled": 0}, pluck="name",
+                          order_by="name asc", limit_page_length=100)
+    default = frappe.db.get_value("Property Setter", {"doc_type": PO, "property": "default_print_format"}, "value")
+    fmts, dflt = choose_format(fmts, default, doc.get("custom_order_type"))
+    return {"formats": fmts, "default": dflt}
+
+
+def dedupe_emails(*groups):
+    """Case-insensitively unique, in first-seen order, blanks dropped."""
+    seen, out = set(), []
+    for g in groups:
+        for e in g or []:
+            e = (e or "").strip()
+            if e and e.lower() not in seen:
+                seen.add(e.lower())
+                out.append(e)
+    return out
+
+
+def _addresses(text):
+    return [a.strip() for a in (text or "").replace(";", ",").split(",") if a.strip()]
+
+
+@frappe.whitelist()
+def email_context(name):
+    """Who to email, and what to say: the PO contact, the supplier's own address and its contacts."""
+    _assert_purchasing_role()
+    doc = frappe.get_doc(PO, name)
+    doc.check_permission("read")
+    sup_mail = frappe.db.get_value("Supplier", doc.supplier, "email_id")
+    contacts = frappe.get_all("Contact", filters=[["Dynamic Link", "link_doctype", "=", "Supplier"],
+                                                  ["Dynamic Link", "link_name", "=", doc.supplier],
+                                                  ["email_id", "is", "set"]],
+                              pluck="email_id", limit_page_length=10)
+    who = doc.supplier_name or doc.supplier
+    conf = f" (your order confirmation {doc.order_confirmation_no})" if doc.get("order_confirmation_no") else ""
+    return {
+        "to": dedupe_emails([doc.get("contact_email")], [sup_mail], contacts),
+        "cc": [frappe.session.user],
+        "sender": frappe.session.user,
+        "subject": f"Purchase order {doc.name} - Vimit Converters Limited",
+        "message": (f"Dear {who} team,\n\nPlease find attached purchase order {doc.name} dated "
+                    f"{rules.iso(doc.transaction_date)}{conf}.\n\nKindly acknowledge receipt and confirm the delivery "
+                    "date.\n\nRegards,\nVimit Converters Limited"),
+        "can_send": doc.docstatus == 1 and doc.status != "Cancelled",
+    }
+
+
+@frappe.whitelist()
+def po_send_email(name, recipients, subject, content, cc="", attach=1, print_format=None):
+    """Email a purchase order. Only ever called from the Send button: it sends for real.
+
+    A draft is refused (approve it first). The email is linked to the PO and sent as the
+    signed-in user. Returns the addresses ERPNext refused, so the screen can say so.
+    """
+    _assert_purchasing_role()
+    doc = frappe.get_doc(PO, name)
+    doc.check_permission("email")
+    if doc.docstatus != 1 or doc.status == "Cancelled":
+        frappe.throw(_("Approve {0} before emailing it.").format(name))
+    to = _addresses(recipients)
+    if not to:
+        frappe.throw(_("Enter at least one recipient."))
+    from frappe.core.doctype.communication.email import make
+    args = dict(doctype=PO, name=name, recipients=", ".join(to), cc=", ".join(_addresses(cc)),
+                subject=subject, content=content, sender=frappe.session.user, send_email=1,
+                communication_medium="Email", sent_or_received="Sent")
+    if int(attach or 0):
+        args.update(attach_document_print=1, print_format=print_format or STANDARD_FORMAT, print_language="en")
+    r = make(**args) or {}
+    return {"name": r.get("name"), "emails_not_sent_to": r.get("emails_not_sent_to") or ""}

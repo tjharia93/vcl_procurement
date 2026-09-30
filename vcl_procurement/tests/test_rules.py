@@ -188,5 +188,65 @@ class TestTaxRows(unittest.TestCase):
         self.assertAlmostEqual(rules.signed_sum(self.rows(), "base_tax_amount"), 895388.45)
 
 
+class TestLocalInvoice(unittest.TestCase):
+    def test_local_needs_bill_date_and_supplier_invoice_no(self):
+        self.assertEqual(rules.pending_before_submit("Local Purchase", None, None, None, ""),
+                         ["Supplier invoice date (bill date)", "Supplier invoice no."])
+        self.assertEqual(rules.pending_before_submit("Local Purchase", "2026-08-04", None, None, "  "),
+                         ["Supplier invoice no."])
+        self.assertEqual(rules.pending_before_submit("Local Purchase", "2026-08-04", None, None, "KRACU/7025"), [])
+
+    def test_import_still_needs_the_kra_details_not_the_invoice_no(self):
+        self.assertEqual(rules.pending_before_submit("Importation", "2026-08-11", None, None, "3941"),
+                         ["KRA customs entry date", "KRA customs entry number"])
+        self.assertEqual(rules.pending_before_submit("Importation", "2026-08-11", "2026-09-27", "26MBA|M4", None), [])
+
+    def test_local_schedule_is_one_row_due_per_terms(self):
+        # ACC-PINV-2026-00520: 90 Days End of Month from 04-08-2026, KES 22,040
+        t = {"due_date_based_on": "Day(s) after the end of the invoice month", "credit_days": 90, "credit_months": 0}
+        rows, missing = rules.local_schedule(22040, "2026-08-04", t, "90 Days End of Month")
+        self.assertEqual(missing, [])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["due_date"], "2026-11-29")
+        self.assertEqual(rows[0]["invoice_portion"], 100.0)
+        self.assertEqual(rows[0]["payment_amount"], 22040.0)
+        self.assertEqual(rows[0]["payment_term"], "90 Days End of Month")
+
+    def test_local_schedule_names_what_is_missing(self):
+        rows, missing = rules.local_schedule(100, None, {"credit_days": 30}, "30 Days")
+        self.assertIsNone(rows)
+        self.assertEqual(missing, ["supplier invoice date (bill date)"])
+        rows, missing = rules.local_schedule(100, "2026-08-04", None, None)
+        self.assertEqual(missing, ["payment terms"])
+
+
+class TestPendingLines(unittest.TestCase):
+    # PUR-ORD-2026-00203 before it was received: four lines in Tonne, 98.66% billed
+    ITEMS = [{"qty": 3, "received_qty": 0, "uom": "Tonne", "amount": 1680, "billed_amt": 1677.2},
+             {"qty": 4, "received_qty": 0, "uom": "Tonne", "amount": 2240, "billed_amt": 2343.6},
+             {"qty": 5, "received_qty": 0, "uom": "Tonne", "amount": 2800, "billed_amt": 2819.6},
+             {"qty": 15, "received_qty": 14.638, "uom": "Tonne", "amount": 8400, "billed_amt": 8200.08}]
+
+    def test_quantities_are_summed_per_unit_and_over_billing_never_offsets_another_line(self):
+        p = rules.pending_lines(self.ITEMS)
+        self.assertEqual(p["to_receive"], [{"uom": "Tonne", "qty": 12.362}])
+        self.assertEqual(p["to_bill"], round(2.8 + 199.92, 2))   # lines 2 and 3 are over-billed: they add nothing
+
+    def test_fully_done_order_has_nothing_pending(self):
+        p = rules.pending_lines([{"qty": 2, "received_qty": 2, "uom": "Nos", "amount": 24300, "billed_amt": 24300}])
+        self.assertEqual(p, {"to_receive": [], "to_bill": 0.0})
+
+    def test_mixed_units_stay_separate(self):
+        p = rules.pending_lines([{"qty": 5, "received_qty": 1, "uom": "Kg", "amount": 0, "billed_amt": 0},
+                                 {"qty": 2, "received_qty": 0, "uom": "Roll", "amount": 0, "billed_amt": 0}])
+        self.assertEqual({r["uom"]: r["qty"] for r in p["to_receive"]}, {"Kg": 4.0, "Roll": 2.0})
+
+    def test_receive_from_invoice_says_why_not(self):
+        self.assertEqual(rules.po_open_for_receipt(1, "To Receive and Bill", 0), (True, ""))
+        self.assertEqual(rules.po_open_for_receipt(0, "Draft", 0), (False, "The PO is not approved"))
+        self.assertEqual(rules.po_open_for_receipt(1, "Completed", 100), (False, "Already received"))
+        self.assertEqual(rules.po_open_for_receipt(1, "Closed", 40), (False, "The PO is Closed"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

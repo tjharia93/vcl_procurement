@@ -24,6 +24,7 @@ The rules, in the order Tanuj decided them (29-30 Sep 2026):
 """
 
 import calendar
+import math
 import datetime
 import re
 
@@ -148,6 +149,64 @@ def kra_gate_missing(invoice_type, bill_date, kra_entry_date, kra_entry_number):
     return missing
 
 
+def pending_before_submit(invoice_type, bill_date, kra_entry_date, kra_entry_number, bill_no):
+    """What ANY invoice still needs before it may be submitted from the screen. [] = ready.
+
+    An import needs its three KRA details. A local invoice needs the supplier invoice date
+    and the supplier invoice number. (The Desk hook stays import-only: see `kra_gate_missing`.)
+    """
+    if is_import(invoice_type):
+        return kra_gate_missing(invoice_type, bill_date, kra_entry_date, kra_entry_number)
+    missing = []
+    if not bill_date:
+        missing.append("Supplier invoice date (bill date)")
+    if not (bill_no or "").strip():
+        missing.append("Supplier invoice no.")
+    return missing
+
+
+def local_schedule(total, bill_date, term, term_name):
+    """The payment schedule of a LOCAL invoice: one row, the whole invoice, due per the
+    supplier's terms counted from the supplier invoice date. Returns (rows, missing)."""
+    total = round(float(total or 0), 2)
+    missing = []
+    due = term_due_date(bill_date, term) if term else None
+    if not term:
+        missing.append("payment terms")
+    elif not due:
+        missing.append("supplier invoice date (bill date)")
+    if missing:
+        return None, missing
+    return [{"payment_term": term_name, "description": "Total: paid as per supplier terms",
+             "due_date": due, "invoice_portion": 100.0, "payment_amount": total}], []
+
+
+def pending_lines(items):
+    """What is still to happen on a purchase order, worked out from its lines.
+
+    Returns {"to_receive": [{"uom", "qty"}], "to_bill": amount before tax}. ERPNext's own
+    status ("To Receive and Bill") says neither how much nor of what, so the screen says both.
+    """
+    by_uom, to_bill = {}, 0.0
+    for i in items:
+        left = float(i.get("qty") or 0) - float(i.get("received_qty") or 0)
+        if left > 1e-9:
+            u = i.get("uom") or ""
+            by_uom[u] = by_uom.get(u, 0.0) + left
+        to_bill += max(0.0, float(i.get("amount") or 0) - float(i.get("billed_amt") or 0))
+    return {"to_receive": [{"uom": u, "qty": round(q, 6)} for u, q in by_uom.items()],
+            "to_bill": round(to_bill, 2)}
+
+
+def po_open_for_receipt(docstatus, status, per_received):
+    """(ok, why) - can goods still be received against this purchase order?"""
+    if docstatus != 1:
+        return False, "The PO is not approved"
+    if status in ("Closed", "Cancelled", "Completed") or float(per_received or 0) >= 100:
+        return False, "Already received" if float(per_received or 0) >= 100 else f"The PO is {status}"
+    return True, ""
+
+
 # --- import payment schedule --------------------------------------------------
 
 def import_schedule(net, taxes, bill_date, term, term_name, expected_delivery_to_port,
@@ -246,3 +305,62 @@ def check_tax_rows(rows):
 
 def signed_sum(rows, key):
     return sum((-1 if r.get("add_deduct_tax") == "Deduct" else 1) * float(r.get(key) or 0) for r in rows)
+
+
+# --- receiving goods against a PO ---------------------------------------------
+
+def allowance_pct(item_pct, global_pct):
+    """ERPNext's over-receipt allowance: the item's own % when it has one, else Stock Settings'."""
+    item_pct = float(item_pct or 0)
+    return item_pct if item_pct > 0 else float(global_pct or 0)
+
+
+def max_receipt_qty(pending, pct):
+    """The most that can be received on a line: pending plus the allowance, cut (never rounded up) at 6 dp."""
+    pending = max(0.0, float(pending or 0))
+    return math.floor(pending * (1 + float(pct or 0) / 100) * 1e6 + 1e-6) / 1e6
+
+
+def start_receipt_qty(pending, max_qty, invoice_qty=None):
+    """What a line is pre-filled with: everything pending, or - opened from an invoice - what the invoice
+    bills, held to the most that may be received. A line the invoice does not bill starts at 0."""
+    if invoice_qty is None:
+        return float(pending or 0)
+    return min(float(invoice_qty or 0), float(max_qty or 0))
+
+
+def invoice_qty_by_line(po_rows, invoice_rows):
+    """{PO row idx: qty billed on the invoice}, matched on the invoice row's po_detail = the PO row's name.
+    Both are lists of dicts; PO rows carry `name` and `idx`, invoice rows `po_detail` and `qty`."""
+    idx_of = {r.get("name"): r.get("idx") for r in po_rows}
+    out = {}
+    for r in invoice_rows:
+        idx = idx_of.get(r.get("po_detail"))
+        if idx is not None:
+            out[idx] = out.get(idx, 0.0) + float(r.get("qty") or 0)
+    return out
+
+
+def check_receipt_lines(wanted, limits):
+    """Refuse a receipt line above what ERPNext will accept. `wanted` and `limits` are {idx: qty}."""
+    if not any(float(v or 0) > 0 for v in wanted.values()):
+        raise RuleError("No quantities to receive.")
+    for idx, qty in wanted.items():
+        qty = float(qty or 0)
+        if qty <= 0:
+            continue
+        mx = limits.get(idx)
+        if mx is None:
+            raise RuleError(f"Line {idx} is not on the purchase order.")
+        if qty > mx + 1e-9:
+            raise RuleError(f"Line {idx}: {qty:g} is more than can be received (at most {mx:g}, the order quantity still pending plus the over-receipt allowance).")
+
+
+def unbilled_lines(po_rows):
+    """PO rows with something left to bill: [{idx, left}] where left = amount - billed_amt, > 0."""
+    out = []
+    for r in po_rows:
+        left = float(r.get("amount") or 0) - float(r.get("billed_amt") or 0)
+        if left > 0.005:
+            out.append({"idx": r.get("idx"), "left": round(left, 2)})
+    return out

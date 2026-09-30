@@ -224,60 +224,119 @@ def get_purchase_order(name):
 
 # --- receipts, moved verbatim ------------------------------------------------
 
-@frappe.whitelist()
-def receipt_preview(po):
-    """What is still to receive on a PO, line by line.
+def _receipt_limits(doc):
+    """Per PO row: (allowance %, max receivable). Item allowance if set, else Stock Settings'."""
+    from vcl_procurement.api import rules
+    glob = flt(frappe.db.get_single_value("Stock Settings", "over_delivery_receipt_allowance"))
+    codes = list({it.item_code for it in doc.items})
+    per_item = {r.name: flt(r.over_delivery_receipt_allowance) for r in frappe.get_all(
+        "Item", filters={"name": ["in", codes]}, fields=["name", "over_delivery_receipt_allowance"], limit_page_length=0)} if codes else {}
+    out = {}
+    for it in doc.items:
+        pending = max(0.0, flt(it.qty) - flt(it.received_qty))
+        pct = rules.allowance_pct(per_item.get(it.item_code), glob)
+        out[it.idx] = (pct, rules.max_receipt_qty(pending, pct))
+    return glob, out
 
-    Read the PO — do not recompute. `received_qty` on the item is what ERPNext
+
+@frappe.whitelist()
+def receipt_preview(po, pi=None):
+    """What is still to receive on a PO, line by line - and the most each line may take.
+
+    Read the PO - do not recompute. `received_qty` on the item is what ERPNext
     and the warehouse already agree on; deriving it from receipts would drift.
+    The over-receipt allowance is ERPNext's own rule (the item's %, else Stock
+    Settings'); `max_qty` is the ceiling the screen enforces and `create_receipt`
+    checks again. Given `pi` (an invoice on this PO) each line also carries
+    `invoice_qty`, what that invoice bills, matched on po_detail.
     """
+    from vcl_procurement.api import rules
     _assert_purchasing_role()
     doc = frappe.get_doc("Purchase Order", po)
     doc.check_permission("read")
     if doc.docstatus != 1:
         frappe.throw(f"{po} is not submitted, so nothing can be received against it.")
 
+    glob, limits = _receipt_limits(doc)
+    inv_qty = None
+    inv_meta = None
+    if pi:
+        inv = frappe.get_doc("Purchase Invoice", pi)
+        inv.check_permission("read")
+        inv_qty = rules.invoice_qty_by_line([{"name": r.name, "idx": r.idx} for r in doc.items],
+                                            [{"po_detail": r.po_detail, "qty": r.qty} for r in inv.items])
+        inv_meta = {"name": inv.name, "supplier_name": inv.supplier_name or inv.supplier, "bill_no": inv.bill_no,
+                    "matched": bool(inv_qty)}
+
     items = []
     for it in doc.items:
         pending = flt(it.qty) - flt(it.received_qty)
-        items.append({
+        pct, mx = limits[it.idx]
+        row = {
             "idx": it.idx,
             "item_code": it.item_code,
             "item_name": it.item_name,
             "uom": it.uom,
+            "warehouse": it.warehouse,
             "ordered": flt(it.qty),
             "received": flt(it.received_qty),
             "pending": pending if pending > 0 else 0,
             "rate": flt(it.rate),
-        })
+            "allowance_pct": pct,
+            "max_qty": mx,
+        }
+        if inv_qty is not None:
+            row["invoice_qty"] = inv_qty.get(it.idx, 0.0)
+        items.append(row)
     return {
         "po": doc.name,
         "supplier": doc.supplier,
+        "supplier_name": doc.supplier_name or doc.supplier,
         "currency": doc.currency,
         "status": doc.status,
+        "grand_total": flt(doc.grand_total),
+        "transaction_date": _iso(doc.transaction_date),
+        "schedule_date": _iso(doc.schedule_date),
+        "order_type": doc.get("custom_order_type"),
+        "confirmation_no": doc.get("order_confirmation_no"),
         "per_received": flt(doc.per_received),
+        "per_billed": flt(doc.per_billed),
+        "global_allowance_pct": glob,
         "items": items,
+        "invoice": inv_meta,
         "anything_pending": any(i["pending"] > 0 for i in items),
     }
 
 
 @frappe.whitelist()
-def create_receipt(po, lines=None):
-    """Create a DRAFT Purchase Receipt against a PO.
+def create_receipt(po, lines=None, posting_date=None, supplier_delivery_note=None, submit=0):
+    """Create a Purchase Receipt against a PO - a draft, or (submit=1) a submitted one.
 
-    Draft only — submission stays a human act in the Desk, same standing rule
-    as everywhere else. `lines` is an optional {idx: qty} map for a partial
-    receipt; omitted means receive everything still pending.
+    `lines` is an optional {idx: qty} map for a partial receipt; omitted means
+    receive everything still pending. A quantity above what is pending is
+    accepted up to the item's over-receipt allowance (checked here, then by
+    ERPNext on save). `posting_date` is the day the goods arrived.
+
+    With submit=1 the receipt is submitted and then RE-READ: `docstatus` in the
+    answer is what the database says, never what we hoped. If the submit fails
+    the draft is kept and `submit_error` says why.
     """
+    from vcl_procurement.api import rules
     _assert_purchasing_role()
     if isinstance(lines, str):
         lines = json.loads(lines or "null")
 
     from erpnext.buying.doctype.purchase_order.purchase_order import make_purchase_receipt
 
+    po_doc = frappe.get_doc("Purchase Order", po)
+    _glob, limits = _receipt_limits(po_doc)
     pr = make_purchase_receipt(po)
     if lines:
         wanted = {int(k): flt(v) for k, v in lines.items()}
+        try:
+            rules.check_receipt_lines(wanted, {idx: mx for idx, (_p, mx) in limits.items()})
+        except rules.RuleError as e:
+            frappe.throw(str(e))
         keep = []
         for row in pr.items:
             qty = wanted.get(int(row.idx))
@@ -293,14 +352,30 @@ def create_receipt(po, lines=None):
     if not pr.items:
         frappe.throw(f"Nothing left to receive on {po}.")
 
+    if posting_date:
+        pr.set_posting_time = 1
+        pr.posting_date = getdate(posting_date)
+    if supplier_delivery_note:
+        pr.supplier_delivery_note = str(supplier_delivery_note).strip()
+
     pr.insert()
+    submit_error = None
+    if int(submit or 0):
+        frappe.db.savepoint("create_receipt_submit")
+        try:
+            pr.submit()
+        except Exception as e:  # keep the draft; say why the submit failed
+            frappe.db.rollback(save_point="create_receipt_submit")
+            submit_error = getattr(e, "message", None) or str(e)
+    docstatus = frappe.db.get_value("Purchase Receipt", pr.name, "docstatus")
     return {
         "name": pr.name,
-        "docstatus": pr.docstatus,
+        "docstatus": docstatus,
         "po": po,
         "supplier": pr.supplier,
-        "posting_date": str(pr.posting_date),
+        "posting_date": str(frappe.db.get_value("Purchase Receipt", pr.name, "posting_date")),
         "items": [{"item_code": i.item_code, "qty": flt(i.qty), "uom": i.uom}
                   for i in pr.items],
+        "submit_error": submit_error,
         "desk_url": f"/app/purchase-receipt/{pr.name}",
     }

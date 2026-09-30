@@ -120,5 +120,48 @@ class TaxRows(unittest.TestCase):
             po.clean_tax_rows([{"charge_type": "On Previous Row Total", "row_id": 1, "account_head": "X"}], 1, "KES")
 
 
+class LocalInvoiceScreenRule(unittest.TestCase):
+    def local(self, **kw):
+        base = dict(custom_purchase_invoice_type="Local Purchase", custom_kra_entry_date=None,
+                    custom_kra_import_number=None, bill_no="0171374790000000668")
+        base.update(kw)
+        return invoice(**base)
+
+    def test_local_invoice_with_date_and_number_is_ready_on_the_screen(self):
+        self.assertEqual(pi._missing(self.local()), [])
+
+    def test_local_invoice_without_supplier_invoice_no_is_pending(self):
+        self.assertEqual(pi._missing(self.local(bill_no=None)), ["Supplier invoice no."])
+
+    def test_desk_hook_does_not_start_blocking_local_invoices(self):
+        # The Desk rule stays import-only: a Local invoice with no number is not newly refused there.
+        pi.gate_before_submit(self.local(bill_no=None))
+
+
+class PoHelpers(unittest.TestCase):
+    def test_import_order_prefers_the_import_print_format(self):
+        f, d = po.choose_format(["Purchase Order Standard", "PURCHASE ORDER - IMPORT", "Local Purchase Order - Pricing"],
+                                "Purchase Order - Pricing + Goods Receiving", "Import")
+        self.assertEqual(d, "PURCHASE ORDER - IMPORT")
+
+    def test_local_order_uses_the_default_when_it_is_enabled(self):
+        f, d = po.choose_format(["Purchase Order Standard", "Purchase Order - Pricing + Goods Receiving"],
+                                "Purchase Order - Pricing + Goods Receiving", "Local")
+        self.assertEqual(d, "Purchase Order - Pricing + Goods Receiving")
+
+    def test_disabled_default_falls_back_to_standard_then_first(self):
+        self.assertEqual(po.choose_format(["A", "Purchase Order Standard"], "Gone", "Local")[1], "Purchase Order Standard")
+        self.assertEqual(po.choose_format(["A", "B"], "Gone", "Local")[1], "A")
+        self.assertEqual(po.choose_format([], "", "Local"), (["Purchase Order Standard"], "Purchase Order Standard"))
+
+    def test_recipients_are_deduped_case_insensitively_in_first_seen_order(self):
+        self.assertEqual(po.dedupe_emails(["Arun@globalpaperlink.com"], ["arun@globalpaperlink.com", None],
+                                          ["shraddha@globalpaperlink.com", " "]),
+                         ["Arun@globalpaperlink.com", "shraddha@globalpaperlink.com"])
+
+    def test_typed_recipient_lists_split_on_comma_and_semicolon(self):
+        self.assertEqual(po._addresses("a@x.com; b@x.com,  c@x.com ,"), ["a@x.com", "b@x.com", "c@x.com"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

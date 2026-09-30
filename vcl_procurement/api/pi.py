@@ -12,10 +12,11 @@ any script). A rule kept only in the browser would stop nothing.
 **Ledger date.** An import invoice posts on the KRA customs entry date. The due
 date still runs from the supplier invoice date plus terms.
 
-**What is deliberately NOT here:** Local Purchase invoices are not submitted
-from this API. Their KRA CUIN check lives in the Desk's client script and
-`vcl_kra_validation`, and a second copy of it here would drift. They are
-edited and paid here; they are submitted in the Desk.
+**Local Purchase invoices** are submitted here too (from 30 Sep 2026) once they carry the
+supplier invoice date and number. The KRA CUIN checks are ERPNext's own validate/submit events
+(`vcl_kra_validation`), which run on `doc.submit()` exactly as they do in the Desk, so this API
+keeps no second copy: a refusal comes back as the error text. Their payment schedule is one row,
+the whole invoice, due per the supplier's terms from the supplier invoice date.
 """
 
 import frappe
@@ -48,15 +49,19 @@ _CONTAINER_FIELDS = ("container_reference", "description_of_packaging_eg_51_reel
 # --- the KRA gate, shared by the screen and the Desk --------------------------
 
 def _missing(doc):
-    return rules.kra_gate_missing(doc.get("custom_purchase_invoice_type"), doc.get("bill_date"),
-                                  doc.get("custom_kra_entry_date"), doc.get("custom_kra_import_number"))
+    """What still blocks a submit from the screen, for either kind of invoice."""
+    return rules.pending_before_submit(doc.get("custom_purchase_invoice_type"), doc.get("bill_date"),
+                                       doc.get("custom_kra_entry_date"), doc.get("custom_kra_import_number"),
+                                       doc.get("bill_no"))
 
 
 def gate_before_submit(doc, method=None):
     """`before_submit` on Purchase Invoice: an import invoice needs its KRA details."""
     if doc.get("is_return"):        # a debit note against an import invoice carries no KRA entry of its own
         return
-    missing = _missing(doc)
+    # Import-only in the Desk: a Local invoice's number/date rule is the screen's, not a new Desk block.
+    missing = rules.kra_gate_missing(doc.get("custom_purchase_invoice_type"), doc.get("bill_date"),
+                                     doc.get("custom_kra_entry_date"), doc.get("custom_kra_import_number"))
     if missing:
         frappe.throw(_("This importation invoice stays in Draft until these are filled:<br>{0}")
                      .format("<br>".join(missing)), title=_("Cannot submit: KRA details pending"))
@@ -100,6 +105,20 @@ def _suggested_terms(doc):
     if po:
         return po, "from the PO (this supplier has no default)"
     return None, None
+
+
+def _receive_from(doc):
+    """Can goods be received against the PO this invoice bills? {po, ok, why}. Only meaningful for an
+    invoice that booked no stock itself (update_stock off) - otherwise there is nothing to receive."""
+    pos = _linked_pos(doc)
+    if doc.docstatus == 2 or int(doc.update_stock or 0) or not pos:
+        return None
+    po = pos[0]
+    d = frappe.db.get_value("Purchase Order", po, ["docstatus", "status", "per_received"], as_dict=True)
+    if not d:
+        return None
+    ok, why = rules.po_open_for_receipt(d.docstatus, d.status, d.per_received)
+    return {"po": po, "ok": ok, "why": why}
 
 
 def _payments(name):
@@ -172,7 +191,8 @@ def pi_page(name):
         "payment_term": p.payment_term, "description": p.description, "due": rules.iso(p.due_date),
         "portion": flt(p.invoice_portion), "amount": flt(p.payment_amount), "outstanding": flt(p.outstanding),
     } for p in doc.get("payment_schedule") or []]
-    saved_term = schedule[0]["payment_term"] if len(schedule) >= 2 else None
+    # An import keeps two rows (net + taxes); a local invoice keeps one.
+    saved_term = schedule[0]["payment_term"] if len(schedule) >= (2 if imp else 1) else None
 
     missing = _missing(doc)
     outstanding = flt(doc.outstanding_amount)
@@ -219,12 +239,12 @@ def pi_page(name):
         "qbo": _qbo(doc),
         "attachments": _attachments(doc.name),
         "requirements": {"missing": missing, "ready": not missing},
+        "receive_from": _receive_from(doc),
         "invoice_types": INVOICE_TYPES,
         "can": {
             "edit": draft,
-            # Import invoices only: Local Purchase invoices are submitted in the Desk.
-            "submit": draft and imp and not missing,
-            "submit_here": imp,
+            "submit": draft and not missing,
+            "submit_here": True,
             "pay": doc.docstatus == 1 and outstanding > 0.005,
         },
         "desk_url": f"/app/purchase-invoice/{doc.name}",
@@ -319,7 +339,20 @@ def pi_save(name, payload):
     doc.update(data)
 
     sched = payload.get("schedule")
-    if sched and rules.is_import(itype):
+    if sched and not rules.is_import(itype):
+        doc.calculate_taxes_and_totals()
+        try:
+            term, term_name = _term_row(sched.get("terms_template"))
+        except ValueError as e:
+            frappe.throw(str(e))
+        total = flt(doc.rounded_total) or flt(doc.grand_total)
+        rows, missing = rules.local_schedule(total, bill_date, term, term_name)
+        if missing:
+            notes.append("The payment schedule was not updated: it still needs the " + ", ".join(missing) + ".")
+        else:
+            doc.payment_terms_template = None
+            doc.set("payment_schedule", rows)
+    elif sched and rules.is_import(itype):
         doc.calculate_taxes_and_totals()
         try:
             term, term_name = _term_row(sched.get("terms_template"))
@@ -360,6 +393,11 @@ def schedule_preview(name, payload):
         term, term_name = _term_row(payload.get("terms_template"))
     except ValueError as e:
         return {"rows": None, "missing": [str(e)], "kes": None}
+    if not rules.is_import(payload.get("invoice_type") or doc.get("custom_purchase_invoice_type")):
+        total = flt(doc.rounded_total) or flt(doc.grand_total)
+        rows, missing = rules.local_schedule(total, payload.get("bill_date") or doc.bill_date, term, term_name)
+        return {"rows": rows, "missing": missing,
+                "kes": None if not rows else [rules.doc_to_kes(r["payment_amount"], doc.conversion_rate, doc.currency) for r in rows]}
     net = flt(doc.net_total)
     if payload.get("taxes_kes") is not None:
         taxes = rules.kes_to_doc(payload["taxes_kes"], doc.conversion_rate, doc.currency)
@@ -388,25 +426,73 @@ def pi_set_stock(name, on):
 
 @frappe.whitelist()
 def pi_submit(name):
-    """Submit an IMPORT invoice, if the KRA details are in. Returns the fresh page."""
+    """Submit an invoice, if its pending details are in. Returns the fresh page.
+
+    Import: bill date + KRA entry date + KRA entry number. Local: bill date + supplier invoice no.
+    ERPNext's own submit events (the KRA CUIN checks) still run and their refusal is the error.
+    """
     _assert_purchasing_role()
     doc = frappe.get_doc(PI, name)
     doc.check_permission("submit")
     if doc.docstatus != 0:
         frappe.throw(_("{0} is not a draft.").format(name))
-    if not rules.is_import(doc.get("custom_purchase_invoice_type")):
-        frappe.throw(_("Submit this invoice type in the ERPNext Desk: its KRA CUIN checks run there."))
+    missing = _missing(doc)
+    if missing:
+        frappe.throw(_("Not submitted. Still pending:<br>{0}").format("<br>".join(missing)))
     gate_before_submit(doc)   # the same rule the before_submit event applies
     doc.submit()
     return pi_page(name)
 
 
 @frappe.whitelist()
-def bill_from_po(po):
-    """A DRAFT purchase invoice for the unbilled balance of a purchase order."""
+def bill_preview(po):
+    """What the Bill screen shows: the order, and the unbilled balance line by line.
+
+    Read from the PO. `left` is amount - billed_amt before tax, in the order's currency.
+    """
     _assert_purchasing_role()
+    doc = frappe.get_doc("Purchase Order", po)
+    doc.check_permission("read")
+    if doc.docstatus != 1:
+        frappe.throw(_("{0} is not approved, so it cannot be billed.").format(po))
+    left = {r["idx"]: r["left"] for r in rules.unbilled_lines(
+        [{"idx": i.idx, "amount": i.amount, "billed_amt": i.billed_amt} for i in doc.items])}
+    return {
+        "po": doc.name,
+        "supplier": doc.supplier,
+        "supplier_name": doc.supplier_name or doc.supplier,
+        "currency": doc.currency,
+        "status": doc.status,
+        "grand_total": flt(doc.grand_total),
+        "transaction_date": str(doc.transaction_date) if doc.transaction_date else None,
+        "order_type": doc.get("custom_order_type"),
+        "payment_terms_template": doc.get("payment_terms_template"),
+        "per_received": flt(doc.per_received),
+        "per_billed": flt(doc.per_billed),
+        "lines": [{
+            "idx": i.idx, "item_code": i.item_code, "item_name": i.item_name, "uom": i.uom,
+            "qty": flt(i.qty), "received_qty": flt(i.received_qty), "rate": flt(i.rate), "left": left[i.idx],
+        } for i in doc.items if i.idx in left],
+        "left_total": round(sum(left.values()), 2),
+    }
+
+
+@frappe.whitelist()
+def bill_from_po(po, bill_date=None, bill_no=None):
+    """A DRAFT purchase invoice for the unbilled balance of a purchase order.
+
+    The supplier's invoice date is required: it sets the due date, and (for an
+    import) it is one of the three things the KRA gate asks for. The number is
+    optional and can be added on the invoice page.
+    """
+    _assert_purchasing_role()
+    if not bill_date:
+        frappe.throw(_("Enter the supplier invoice date."))
     from erpnext.buying.doctype.purchase_order.purchase_order import make_purchase_invoice
     pi = make_purchase_invoice(po)
+    pi.bill_date = bill_date
+    if (bill_no or "").strip():
+        pi.bill_no = bill_no.strip()
     pi.insert()
     return {"name": pi.name, "docstatus": pi.docstatus, "po": po}
 
