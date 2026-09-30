@@ -134,6 +134,7 @@ def po_page(name):
         "taxes_and_charges": doc.get("taxes_and_charges"),
         "tax_category": doc.get("tax_category"),
         "net_total": flt(doc.net_total),
+        "base_net_total": flt(doc.base_net_total),
         "total_tax_kes": rules.signed_sum(taxes, "kes"),
         "grand_total": flt(doc.grand_total),
         "base_grand_total": flt(doc.base_grand_total),
