@@ -172,13 +172,15 @@ def import_schedule(net, taxes, bill_date, term, term_name, expected_delivery_to
         missing.append("expected delivery to port")
     if missing:
         return None, missing
-    portion = round(net / grand * 100, 2) if grand else 100.0
+    # ERPNext recomputes each row's amount from its PORTION on save, so a portion rounded
+    # to 2 dp moves the split (0.67 USD on a 50k invoice). Keep it at full precision.
+    portion = round(net / grand * 100, 8) if grand else 100.0
     return [
         {"payment_term": term_name, "description": "Net total: paid as per supplier terms",
          "due_date": net_due, "invoice_portion": portion, "payment_amount": net},
         {"payment_term": None,
          "description": f"Taxes: due {int(tax_days_after_landing)} days after the vessel lands",
-         "due_date": tax_due, "invoice_portion": round(100 - portion, 2), "payment_amount": taxes},
+         "due_date": tax_due, "invoice_portion": round(100 - portion, 8), "payment_amount": taxes},
     ], []
 
 

@@ -14,6 +14,7 @@ from frappe.query_builder import DocType
 
 from vcl_procurement.api import rules
 from vcl_procurement.api.purchasing import _assert_purchasing_role
+from vcl_procurement.api.units import resolve_factor
 
 MAX_RESULTS = 25
 
@@ -40,7 +41,7 @@ def search_items(q="", limit=MAX_RESULTS):
     for t in toks:
         query = query.where(_like_any(item, ["name", "item_name", "item_group"], t))
     first = toks[0]
-    rows = query.orderby(item.item_name).limit(200).run(as_dict=True)
+    rows = query.orderby(item.item_name).limit(400).run(as_dict=True)
     # Codes that start with the first word come first, then shorter codes.
     rows.sort(key=lambda r: (0 if r.name.lower().startswith(first) else 1, len(r.name)))
     return [{
@@ -90,15 +91,5 @@ def uom_factor(item_code, uom):
     """How many of the item's stock unit are in ONE `uom`. `factor` is null when
     neither the item nor the site conversion table knows: the buyer then types it."""
     _assert_purchasing_role()
-    if not frappe.db.exists("Item", item_code):
-        frappe.throw(f"Item {item_code} was not found.")
-    item = frappe.get_doc("Item", item_code)
-    stock = item.stock_uom
-    own = [{"uom": u.uom, "conversion_factor": u.conversion_factor} for u in item.get("uoms") or []]
-
-    def _g(f, t):
-        v = frappe.db.get_value("UOM Conversion Factor", {"from_uom": f, "to_uom": t}, "value")
-        return float(v) if v else None
-
-    factor = rules.uom_factor(uom, stock, own, _g(uom, stock), _g(stock, uom))
+    stock, factor = resolve_factor(item_code, uom)
     return {"item_code": item_code, "stock_uom": stock, "uom": uom, "factor": factor}

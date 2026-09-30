@@ -96,6 +96,11 @@ class TestImportSchedule(unittest.TestCase):
         self.assertEqual(rows[0]["payment_term"], "180 Days")
         self.assertIsNone(rows[1]["payment_term"])
         self.assertAlmostEqual(rows[0]["invoice_portion"] + rows[1]["invoice_portion"], 100.0, 6)
+        # ERPNext recomputes each amount from the portion, so it must not be rounded to 2 dp:
+        # 41,528.379 / 50,478.97 = 82.2683...%, not 82.27%.
+        self.assertNotEqual(rows[0]["invoice_portion"], round(rows[0]["invoice_portion"], 2))
+        grand = rows[0]["payment_amount"] + rows[1]["payment_amount"]
+        self.assertAlmostEqual(rows[0]["invoice_portion"] / 100 * grand, rows[0]["payment_amount"], 4)
         self.assertAlmostEqual(rows[0]["payment_amount"] + rows[1]["payment_amount"], 50478.97, 6)
 
     def test_missing_pieces_are_named_and_nothing_is_returned(self):

@@ -159,14 +159,20 @@ def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
     wanted = getdate(schedule_date) if schedule_date else getdate(_default_schedule_date())
 
     from vcl_procurement.api import rules
-    with_units = [ln for ln in lines if ln.get("uom")]
-    if with_units:
-        stock = {ln["item_code"]: frappe.db.get_value("Item", ln["item_code"], "stock_uom")
-                 for ln in with_units if ln.get("item_code")}
-        try:
-            rules.check_line_units(with_units, stock)
-        except rules.RuleError as e:
-            frappe.throw(str(e))
+    # A line in a unit other than the item's stock unit needs its conversion. The screen may
+    # not send one (the older one never did), so look it up: the item's own rows, then the
+    # site table. Only when nothing knows it is the line refused.
+    from vcl_procurement.api.units import resolve_factor
+    stock = {}
+    for ln in lines:
+        if ln.get("item_code") and ln.get("uom"):
+            stock[ln["item_code"]], found = resolve_factor(ln["item_code"], ln["uom"])
+            if not flt(ln.get("conversion_factor")) and found:
+                ln["conversion_factor"] = found
+    try:
+        rules.check_line_units([ln for ln in lines if ln.get("uom")], stock)
+    except rules.RuleError as e:
+        frappe.throw(str(e))
 
     doc = frappe.new_doc("Purchase Order")
     doc.supplier = supplier

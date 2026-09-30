@@ -23,6 +23,7 @@ from frappe.utils import flt
 
 from vcl_procurement.api import rules
 from vcl_procurement.api.purchasing import _assert_purchasing_role
+from vcl_procurement.api.units import resolve_factor
 
 PO = "Purchase Order"
 
@@ -176,16 +177,21 @@ def tax_template_rows(template):
              "kes": 0.0} for r in rows]
 
 
-def clean_tax_rows(rows, rate, currency):
+def clean_tax_rows(rows, rate, currency, valid_names=None):
     """Client tax rows -> what ERPNext should hold. KES on an Actual row becomes
-    document currency; every other type keeps its rate and is recalculated by ERPNext."""
+    document currency; every other type keeps its rate and is recalculated by ERPNext.
+
+    `valid_names` is the set of row names that belong to THIS document. A name that is
+    not in it is dropped, so the row is inserted fresh: ERPNext updates a child row by
+    name alone, so a name from another document would overwrite that document's row.
+    """
     rules.check_tax_rows(rows)
     out = []
     for i, r in enumerate(rows, start=1):
         row = {k: r.get(k) for k in _TAX_FIELDS}
         row["idx"] = i
         row["add_deduct_tax"] = row.get("add_deduct_tax") or "Add"
-        if r.get("name"):
+        if r.get("name") and (valid_names is None or r["name"] in valid_names):
             row["name"] = r["name"]
         if row["charge_type"] == "Actual":
             row["tax_amount"] = rules.kes_to_doc(r.get("kes"), rate, currency)
@@ -235,6 +241,11 @@ def po_save(name, payload):
                 frappe.throw(_("Every line needs an item that exists."))
             if flt(ln.get("qty")) <= 0:
                 frappe.throw(_("Every line needs a quantity."))
+            # A unit sent without its conversion is looked up rather than refused.
+            if ln.get("uom") and ln["uom"] != stock[ln["item_code"]] and not flt(ln.get("conversion_factor")):
+                _, found = resolve_factor(ln["item_code"], ln["uom"])
+                if found:
+                    ln["conversion_factor"] = found
         try:
             rules.check_line_units(lines, stock)
         except rules.RuleError as e:
@@ -244,7 +255,10 @@ def po_save(name, payload):
         existing = {i.name: i for i in doc.items}
         rows = []
         for ln in lines:
-            row = existing[ln["name"]].as_dict() if ln.get("name") in existing else {}
+            # Reuse a row (and what it carries: name, description, taxes on the item...) only when
+            # the item is unchanged. A different item is a new row, or the old description stays.
+            same = ln.get("name") in existing and existing[ln["name"]].item_code == ln["item_code"]
+            row = existing[ln["name"]].as_dict() if same else {}
             row.update({"item_code": ln["item_code"], "qty": flt(ln["qty"]),
                         "uom": ln.get("uom") or stock[ln["item_code"]],
                         "conversion_factor": flt(ln.get("conversion_factor")) or 1.0,
@@ -257,7 +271,8 @@ def po_save(name, payload):
 
     if "taxes" in payload:
         try:
-            data["taxes"] = clean_tax_rows(payload["taxes"] or [], flt(doc.conversion_rate) or 1, doc.currency)
+            data["taxes"] = clean_tax_rows(payload["taxes"] or [], flt(doc.conversion_rate) or 1, doc.currency,
+                                           valid_names={t.name for t in doc.get("taxes") or []})
         except rules.RuleError as e:
             frappe.throw(str(e))
         if any(r.get("account_head") is None for r in data["taxes"]):

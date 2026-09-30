@@ -68,6 +68,9 @@ class SubmitGate(unittest.TestCase):
         for label in ("Supplier invoice date", "KRA customs entry date", "KRA customs entry number"):
             self.assertIn(label, msg)
 
+    def test_a_debit_note_is_not_held_to_it(self):
+        pi.gate_before_submit(invoice(bill_date=None, custom_kra_entry_date=None, is_return=1))
+
     def test_other_types_are_not_held_to_it(self):
         for t in ("Local Purchase", "Importation costs", "Other", None):
             pi.gate_before_submit(invoice(custom_purchase_invoice_type=t, custom_kra_entry_date=None))
@@ -104,6 +107,13 @@ class TaxRows(unittest.TestCase):
         out = po.clean_tax_rows(rows, 1, "KES")[0]
         self.assertNotIn("docstatus", out)
         self.assertNotIn("owner", out)
+
+    def test_a_name_from_another_document_is_dropped(self):
+        rows = [{"name": "abc", "charge_type": "Actual", "account_head": "X", "kes": 1},
+                {"name": "zzz", "charge_type": "Actual", "account_head": "X", "kes": 1}]
+        out = po.clean_tax_rows(rows, 1, "KES", valid_names={"abc"})
+        self.assertEqual(out[0].get("name"), "abc")
+        self.assertNotIn("name", out[1])
 
     def test_row_pointing_forward_is_refused(self):
         with self.assertRaises(rules.RuleError):

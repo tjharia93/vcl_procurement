@@ -55,6 +55,8 @@ def _missing(doc):
 
 def gate_before_submit(doc, method=None):
     """`before_submit` on Purchase Invoice: an import invoice needs its KRA details."""
+    if doc.get("is_return"):        # a debit note against an import invoice carries no KRA entry of its own
+        return
     missing = _missing(doc)
     if missing:
         frappe.throw(_("This importation invoice stays in Draft until these are filled:<br>{0}")
@@ -70,6 +72,9 @@ def _term_row(template):
     t = frappe.get_doc("Payment Terms Template", template)
     if not t.terms:
         return None, None
+    if len(t.terms) > 1:
+        # A 30/70 template cannot become "net per terms": say so rather than silently use part one.
+        raise ValueError(f"{template} has {len(t.terms)} parts; choose a single-part payment term.")
     r = t.terms[0]
     return {"due_date_based_on": r.due_date_based_on, "credit_days": r.credit_days,
             "credit_months": r.credit_months}, r.payment_term
@@ -290,7 +295,11 @@ def pi_save(name, payload):
             row = i.as_dict()
             if i.name in want:
                 row["qty"] = flt(want[i.name].get("qty"))
-                row["rate"] = flt(want[i.name].get("rate"))
+                rate_ = flt(want[i.name].get("rate"))
+                row["rate"] = rate_
+                # `rate` is the only price field: keep ERPNext from re-deriving it (see po_price_guard).
+                row.update(price_list_rate=rate_, base_price_list_rate=rate_, margin_type="", rate_with_margin=0,
+                           base_rate_with_margin=0, margin_rate_or_amount=0, discount_percentage=0, discount_amount=0)
             rows.append(row)
         data["items"] = rows
 
@@ -313,15 +322,22 @@ def pi_save(name, payload):
     sched = payload.get("schedule")
     if sched and rules.is_import(itype):
         doc.calculate_taxes_and_totals()
-        term, term_name = _term_row(sched.get("terms_template"))
+        try:
+            term, term_name = _term_row(sched.get("terms_template"))
+        except ValueError as e:
+            frappe.throw(str(e))
         net = flt(doc.net_total)
+        # The schedule must add up to what ERPNext will compare it with.
+        total = flt(doc.rounded_total) or flt(doc.grand_total)
         rows, missing = rules.import_schedule(
-            net, flt(doc.grand_total) - net, bill_date, term, term_name,
+            net, total - net, bill_date, term, term_name,
             doc.get("custom_expected_date_of_delivery_to_port"),
             int(sched.get("tax_days_after_landing", rules.DEFAULT_TAX_DAYS_AFTER_LANDING)))
         if missing:
             notes.append("The payment schedule was not updated: it still needs the " + ", ".join(missing) + ".")
         else:
+            # A template on the invoice would make ERPNext rebuild the schedule from it and discard these rows.
+            doc.payment_terms_template = None
             doc.set("payment_schedule", rows)
 
     doc.save()
@@ -341,12 +357,15 @@ def schedule_preview(name, payload):
     payload = frappe.parse_json(payload) or {}
     doc = frappe.get_doc(PI, name)
     doc.check_permission("read")
-    term, term_name = _term_row(payload.get("terms_template"))
+    try:
+        term, term_name = _term_row(payload.get("terms_template"))
+    except ValueError as e:
+        return {"rows": None, "missing": [str(e)], "kes": None}
     net = flt(doc.net_total)
     if payload.get("taxes_kes") is not None:
         taxes = rules.kes_to_doc(payload["taxes_kes"], doc.conversion_rate, doc.currency)
     else:
-        taxes = flt(doc.grand_total) - net
+        taxes = (flt(doc.rounded_total) or flt(doc.grand_total)) - net
     bill = payload.get("bill_date") or doc.bill_date
     eta = payload.get("expected_delivery") or doc.get("custom_expected_date_of_delivery_to_port")
     days = int(payload.get("tax_days_after_landing", rules.DEFAULT_TAX_DAYS_AFTER_LANDING))
@@ -405,11 +424,12 @@ def pay_context(pi):
                                                   "company": doc.company},
                               fields=["name", "account_currency"], order_by="name asc", limit_page_length=200)
     modes = frappe.get_all("Mode of Payment", pluck="name", order_by="name asc", limit_page_length=200)
+    page = pi_page(pi)
     return {
-        "invoice": pi_page(pi),
+        "invoice": page,
         "accounts": [{"name": a.name, "currency": a.account_currency} for a in accounts],
         "modes": modes,
-        "rows": [r for r in pi_page(pi)["schedule"] if r["outstanding"] > 0.005],
+        "rows": [r for r in page["schedule"] if r["outstanding"] > 0.005],
     }
 
 
@@ -423,7 +443,14 @@ def _build_payment(pi_doc, payload):
     acct_cur = frappe.db.get_value("Account", account, "account_currency")
     fx = acct_cur != pi_doc.currency
     rate = flt(payload.get("rate")) or flt(pi_doc.conversion_rate) or 1
-    applied = amount / rate if fx else amount
+    if not fx:
+        applied = amount
+    elif acct_cur == rules.COMPANY_CURRENCY:        # KES paid against a foreign-currency invoice
+        applied = amount / rate
+    elif pi_doc.currency == rules.COMPANY_CURRENCY:  # a foreign account paying a KES invoice
+        applied = amount * rate
+    else:
+        frappe.throw(_("Pay from an account in {0} or in {1}.").format(rules.COMPANY_CURRENCY, pi_doc.currency))
     out = flt(pi_doc.outstanding_amount)
     if applied > out + 0.01:
         frappe.throw(_("That is more than the outstanding {0} {1}.").format(pi_doc.currency, out))
@@ -460,8 +487,14 @@ def pay_create(pi, payload, submit=0):
         frappe.throw(_("Submit the invoice first: a payment can only be recorded against a submitted invoice."))
 
     pe, applied = _build_payment(doc, payload)
-    pe.insert()
-    frappe.db.commit()
+    # A double-click must not record the payment twice: reuse a draft made in the last few
+    # minutes for the same invoice, amount and reference.
+    dup = _recent_duplicate(doc.name, pe)
+    if dup:
+        pe = frappe.get_doc(PE, dup)
+    else:
+        pe.insert()
+        frappe.db.commit()
     result = {"name": pe.name, "docstatus": pe.docstatus, "applied": applied, "posted": False, "error": None}
     if int(submit):
         try:
@@ -469,8 +502,21 @@ def pay_create(pi, payload, submit=0):
             result.update(docstatus=pe.docstatus, posted=pe.docstatus == 1)
         except Exception as e:  # keep the draft; report plainly
             frappe.db.rollback()
+            frappe.clear_messages()      # the answer carries the error; do not also raise a popup
             result["error"] = str(e)
     return result
+
+
+def _recent_duplicate(pi_name, pe):
+    rows = frappe.db.sql(
+        """select pe.name from `tabPayment Entry` pe
+           join `tabPayment Entry Reference` r on r.parent = pe.name
+           where pe.docstatus = 0 and r.reference_doctype = %s and r.reference_name = %s
+             and pe.paid_amount = %s and ifnull(pe.reference_no, '') = %s
+             and pe.creation > now() - interval 5 minute
+           order by pe.creation desc limit 1""",
+        (PI, pi_name, flt(pe.paid_amount), pe.reference_no or ""))
+    return rows[0][0] if rows else None
 
 
 @frappe.whitelist()
@@ -481,5 +527,9 @@ def pay_submit(name):
     pe.check_permission("submit")
     if pe.docstatus != 0:
         frappe.throw(_("{0} is not a draft.").format(name))
+    # Only a supplier payment against purchase invoices: this API must not be a back door
+    # to submit customer receipts or internal transfers.
+    if pe.party_type != "Supplier" or not pe.references or any(r.reference_doctype != PI for r in pe.references):
+        frappe.throw(_("{0} is not a supplier payment against purchase invoices.").format(name))
     pe.submit()
     return {"name": pe.name, "docstatus": pe.docstatus, "posted": pe.docstatus == 1}
