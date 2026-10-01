@@ -137,16 +137,21 @@ def material_request_lines(name):
 @frappe.whitelist()
 def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
                           order_type="Local", order_confirmation_no=None, file_no=None,
-                          payment_terms_template=None, tax_template=None):
+                          payment_terms_template=None, tax_template=None,
+                          order_date=None, note=None):
     """Create a DRAFT purchase order, complete, in ONE transaction.
 
     `lines` is a list of {item_code, qty, rate, uom?, conversion_factor?, warehouse?,
-    material_request?, material_request_item?}. A unit other than the item's stock
+    material_request?, material_request_item?, description?}. `description` is plain text, written
+    as editor HTML only when non-empty (else the item's own description is used). A unit other than the item's stock
     unit must arrive with its conversion.
 
     The confirmation number, file number (imports), payment terms and tax
     template used to be a second call from the browser, which could fail and leave a
     half-made order. They are applied here, so the order exists whole or not at all.
+
+    `order_date` (default today) is the PO date and may not be after the schedule date;
+    `note` is the free-text comment on the order (custom_comments__).
     """
     _assert_purchasing_role()
     if isinstance(lines, str):
@@ -176,8 +181,15 @@ def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
 
     doc = frappe.new_doc("Purchase Order")
     doc.supplier = supplier
-    doc.transaction_date = nowdate()
+    doc.transaction_date = getdate(order_date) if order_date else nowdate()
+    if order_date:      # only a date the caller chose is checked; today vs an old schedule date is not new
+        try:
+            rules.check_order_date(doc.transaction_date, wanted)
+        except rules.RuleError as e:
+            frappe.throw(str(e))
     doc.schedule_date = wanted
+    if (note or "").strip():
+        doc.custom_comments__ = note.strip()
     doc.custom_order_type = order_type
     if currency:
         doc.currency = currency
@@ -202,6 +214,9 @@ def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
         if raw.get("material_request"):
             row.material_request = raw["material_request"]
             row.material_request_item = raw.get("material_request_item")
+
+        if (raw.get("description") or "").strip():
+            row.description = rules.html_from_text(raw["description"].strip())
 
         # The only price field. po_price_guard clears anything that could
         # re-derive it, so what is typed here is what gets ordered.

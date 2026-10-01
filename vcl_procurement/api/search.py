@@ -36,7 +36,8 @@ def search_items(q="", limit=MAX_RESULTS):
         return []
     item = DocType("Item")
     query = (frappe.qb.from_(item)
-             .select(item.name, item.item_name, item.stock_uom, item.item_group, item.last_purchase_rate)
+             .select(item.name, item.item_name, item.stock_uom, item.item_group, item.last_purchase_rate,
+                     item.description)
              .where(item.disabled == 0).where(item.is_purchase_item == 1))
     for t in toks:
         query = query.where(_like_any(item, ["name", "item_name", "item_group"], t))
@@ -51,6 +52,8 @@ def search_items(q="", limit=MAX_RESULTS):
         "item_group": r.item_group,
         # A hint only - the buyer types the rate they were quoted.
         "last_rate": float(r.last_purchase_rate or 0),
+        # Item.description is HTML; the screen shows and edits plain text.
+        "description": rules.plain_text(r.description),
     } for r in rows[: min(int(limit or MAX_RESULTS), 50)]]
 
 

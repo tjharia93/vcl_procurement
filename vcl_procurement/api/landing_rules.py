@@ -20,6 +20,18 @@ def container_matches(reference, query):
     return len(q) >= MIN_CONTAINER_CHARS and q in norm_container(reference)
 
 
+def bl_matches(bl_no, query):
+    """A bill of lading matches on the same normalisation as a container (upper-case, A-Z0-9 only,
+    substring, minimum length)."""
+    return container_matches(bl_no, query)
+
+
+def bl_hits(invoices, query):
+    """The invoice rows (dicts carrying `custom_bill_of_lading_number`) whose BL matches, cancelled ones dropped."""
+    return [i for i in invoices or []
+            if i.get("docstatus") != 2 and bl_matches(i.get("custom_bill_of_lading_number"), query)]
+
+
 def group_pos(child_rows):
     """{parent: [purchase orders...]} from child rows carrying `parent` and `purchase_order`, sorted, no blanks or repeats."""
     out = {}

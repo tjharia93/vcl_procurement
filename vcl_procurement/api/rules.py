@@ -26,6 +26,7 @@ The rules, in the order Tanuj decided them (29-30 Sep 2026):
 import calendar
 import math
 import datetime
+import html as _html
 import re
 
 IMPORT = "Importation"
@@ -364,3 +365,78 @@ def unbilled_lines(po_rows):
         if left > 0.005:
             out.append({"idx": r.get("idx"), "left": round(left, 2)})
     return out
+
+
+# --- invoice type follows the order ----------------------------------------------
+
+def invoice_type_for_po(order_type, tax_category):
+    """The purchase invoice type implied by the Purchase Order it bills.
+
+    An import order (order type Import, or the Importation tax category) bills as
+    Importation; any other order that says what it is bills as Local Purchase; an order
+    that says nothing implies nothing (None), so the invoice keeps what it has.
+    """
+    if (order_type or "").strip() == "Import" or (tax_category or "").strip() == IMPORT:
+        return IMPORT
+    if (order_type or "").strip() or (tax_category or "").strip():
+        return "Local Purchase"
+    return None
+
+
+# --- descriptions: Item / PO rows hold HTML, the screens edit plain text -------------
+
+def plain_text(html):
+    """HTML description -> plain text. Line breaks survive; every tag and entity goes."""
+    s = str(html or "")
+    s = re.sub(r"<\s*br\s*/?\s*>", "\n", s, flags=re.I)
+    s = re.sub(r"<\s*/\s*(p|div|li)\s*>", "\n", s, flags=re.I)
+    s = re.sub(r"<[^>]*>", "", s)
+    for a, b in (("&nbsp;", " "), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", '"'), ("&#x27;", "'"), ("&#39;", "'"), ("&amp;", "&")):
+        s = s.replace(a, b)          # &amp; last, so "&amp;lt;" stays "&lt;"
+    s = re.sub(r"\n{3,}", "\n\n", s)
+    return s.strip()
+
+
+def html_from_text(text):
+    """Plain text -> the editor markup ERPNext's text editor writes, one <p> per line."""
+    lines = str(text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    body = "".join("<p>%s</p>" % _html.escape(ln, quote=False) if ln else "<p><br></p>" for ln in lines)
+    return '<div class="ql-editor read-mode">%s</div>' % body
+
+
+def is_stale(due_iso, today_iso, days=90):
+    """True when the due date is more than `days` days before today."""
+    if not due_iso or not today_iso:
+        return False
+    return (to_date(today_iso) - to_date(due_iso)).days > int(days)
+
+
+def check_order_date(order_date, required_by):
+    """An order cannot be dated after the day it is required. Blank on either side passes."""
+    if order_date and required_by and to_date(order_date) > to_date(required_by):
+        raise RuleError("The order date cannot be after the required-by date.")
+
+
+def first_line_text(item_name, description):
+    """What a list row shows as the first thing ordered: the description when it says more than
+    the item name, else the name. Whitespace is collapsed to single spaces."""
+    d = re.sub(r"\s+", " ", plain_text(description)).strip()
+    n = re.sub(r"\s+", " ", str(item_name or "")).strip()
+    return d if d and d != n else n
+
+
+def ordered_summary(lines):
+    """{text, more} for a list row from its ordered lines [{item_name, description}] in order."""
+    if not lines:
+        return {"text": "", "more": 0}
+    first = lines[0]
+    return {"text": first_line_text(first.get("item_name"), first.get("description")), "more": len(lines) - 1}
+
+
+def rate_after_lookup(current, looked_up):
+    """The exchange rate to keep: the looked-up one when it is usable (> 0), else the document's own."""
+    try:
+        v = float(looked_up or 0)
+    except (TypeError, ValueError):
+        v = 0.0
+    return v if v > 0 else float(current or 0)

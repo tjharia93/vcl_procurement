@@ -96,6 +96,17 @@ def _from_po(doc, field):
     return None
 
 
+def _po_derived_type(doc):
+    """The invoice type implied by the Purchase Order this invoice bills, or None when there is
+    no PO (or it says nothing). The first linked PO that implies a type wins."""
+    for po in _linked_pos(doc):
+        d = frappe.db.get_value("Purchase Order", po, ["custom_order_type", "tax_category"], as_dict=True)
+        t = rules.invoice_type_for_po(d.get("custom_order_type"), d.get("tax_category")) if d else None
+        if t:
+            return t
+    return None
+
+
 def _suggested_terms(doc):
     """Supplier default first, else the PO's. Says which, so the screen can too."""
     dflt = frappe.db.get_value("Supplier", doc.supplier, "payment_terms")
@@ -175,8 +186,12 @@ def pi_page(name):
     doc.check_permission("read")
     cur, rate = doc.currency, flt(doc.conversion_rate) or 1
     itype = doc.get("custom_purchase_invoice_type")
-    imp = rules.is_import(itype)
     draft = doc.docstatus == 0
+    # A draft's type follows the order it bills; a submitted or cancelled invoice keeps what it was posted as.
+    derived = _po_derived_type(doc) if draft else None
+    if derived:
+        itype = derived
+    imp = rules.is_import(itype)
 
     taxes = [{
         "idx": t.idx, "name": t.name, "description": t.description, "account_head": t.account_head,
@@ -200,7 +215,7 @@ def pi_page(name):
         "name": doc.name, "docstatus": doc.docstatus, "status": doc.status,
         "supplier": doc.supplier, "supplier_name": doc.supplier_name or doc.supplier,
         "currency": cur, "conversion_rate": rate, "company": doc.company,
-        "invoice_type": itype, "is_import": imp,
+        "invoice_type": itype, "is_import": imp, "type_follows_po": bool(derived),
         "bill_no": doc.bill_no,
         "dates": {"bill_date": rules.iso(doc.bill_date), "kra_entry_date": rules.iso(doc.get("custom_kra_entry_date")),
                   "posting_date": rules.iso(doc.posting_date), "due_date": rules.iso(doc.due_date),
@@ -284,6 +299,10 @@ def pi_save(name, payload):
             frappe.throw(_("The exchange rate must be greater than zero."))
         data["conversion_rate"] = flt(payload["conversion_rate"])
 
+    # The type follows the order being billed: whatever the payload says, a PO-derived type wins.
+    derived = _po_derived_type(doc)
+    if derived:
+        data["custom_purchase_invoice_type"] = derived
     itype = data.get("custom_purchase_invoice_type", doc.get("custom_purchase_invoice_type"))
     if itype and itype not in INVOICE_TYPES:
         frappe.throw(_("Unknown invoice type: {0}").format(itype))
@@ -493,8 +512,29 @@ def bill_from_po(po, bill_date=None, bill_no=None):
     pi.bill_date = bill_date
     if (bill_no or "").strip():
         pi.bill_no = bill_no.strip()
+
+    src = frappe.db.get_value("Purchase Order", po, ["custom_order_type", "tax_category", "custom_file_number"],
+                              as_dict=True) or {}
+    itype = rules.invoice_type_for_po(src.get("custom_order_type"), src.get("tax_category"))
+    if itype:
+        pi.custom_purchase_invoice_type = itype
+    if src.get("custom_file_number") and not pi.get("custom_file_number"):
+        pi.custom_file_number = src["custom_file_number"]
+
+    # The PO can carry a stale rate (even 1) for a foreign currency: price the bill at the day's rate.
+    company_currency = frappe.get_cached_value("Company", pi.company, "default_currency")
+    if pi.currency and company_currency and pi.currency != company_currency:
+        try:
+            from erpnext.setup.utils import get_exchange_rate
+            looked_up = get_exchange_rate(pi.currency, company_currency, pi.get("posting_date") or nowdate())
+        except Exception:
+            looked_up = 0      # keep the PO's rate rather than fail the bill
+        pi.conversion_rate = rules.rate_after_lookup(pi.conversion_rate, looked_up)
+
     pi.insert()
-    return {"name": pi.name, "docstatus": pi.docstatus, "po": po}
+    return {"name": pi.name, "docstatus": pi.docstatus, "po": po,
+            "invoice_type": pi.get("custom_purchase_invoice_type"),
+            "conversion_rate": flt(pi.conversion_rate) or 1}
 
 
 # --- payments -----------------------------------------------------------------

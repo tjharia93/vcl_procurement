@@ -248,5 +248,62 @@ class TestPendingLines(unittest.TestCase):
         self.assertEqual(rules.po_open_for_receipt(1, "Closed", 40), (False, "The PO is Closed"))
 
 
+class TestPortAdditions(unittest.TestCase):
+    def test_invoice_type_for_po(self):
+        f = rules.invoice_type_for_po
+        self.assertEqual(f("Import", None), "Importation")
+        self.assertEqual(f("Local", "Importation"), "Importation")
+        self.assertEqual(f(None, "Importation"), "Importation")
+        self.assertEqual(f("Local", None), "Local Purchase")
+        self.assertEqual(f(None, "In-State"), "Local Purchase")
+        self.assertIsNone(f(None, None))
+        self.assertIsNone(f("", ""))
+
+    def test_plain_text(self):
+        self.assertEqual(rules.plain_text('<div class="ql-editor read-mode"><p>One &amp; two</p><p><br></p><p>x&nbsp;&lt;3&gt; &quot;q&quot;</p></div>'),
+                         'One & two\n\nx <3> "q"')
+        self.assertEqual(rules.plain_text("a<br>b<br/>c"), "a\nb\nc")
+        self.assertEqual(rules.plain_text("<ul><li>a</li><li>b</li></ul>"), "a\nb")
+        self.assertEqual(rules.plain_text("<p>a</p><p></p><p></p><p></p><p>b</p>"), "a\n\nb")
+        self.assertEqual(rules.plain_text(None), "")
+        self.assertEqual(rules.plain_text("&amp;lt;"), "&lt;")
+
+    def test_html_from_text(self):
+        self.assertEqual(rules.html_from_text("a <b>\n\nc & d"),
+                         '<div class="ql-editor read-mode"><p>a &lt;b&gt;</p><p><br></p><p>c &amp; d</p></div>')
+        self.assertEqual(rules.html_from_text(""), '<div class="ql-editor read-mode"><p><br></p></div>')
+
+    def test_text_round_trips(self):
+        t = "Line one & <two>\n\nLine 'three'"
+        self.assertEqual(rules.plain_text(rules.html_from_text(t)), t)
+
+    def test_is_stale(self):
+        self.assertTrue(rules.is_stale("2026-06-01", "2026-10-01"))
+        self.assertFalse(rules.is_stale("2026-07-03", "2026-10-01"))   # exactly 90 days
+        self.assertTrue(rules.is_stale("2026-07-02", "2026-10-01"))    # 91 days
+        self.assertFalse(rules.is_stale("2026-10-05", "2026-10-01"))
+        self.assertTrue(rules.is_stale("2026-06-01", "2026-10-01", days=30))
+        self.assertFalse(rules.is_stale(None, "2026-10-01"))
+
+    def test_order_date_check(self):
+        rules.check_order_date("2026-10-01", "2026-10-01")
+        rules.check_order_date(None, "2026-10-01")
+        with self.assertRaises(rules.RuleError):
+            rules.check_order_date("2026-10-02", "2026-10-01")
+
+    def test_first_line_text_and_ordered_summary(self):
+        self.assertEqual(rules.first_line_text("PAPER", "<p>Paper  roll\n80gsm</p>"), "Paper roll 80gsm")
+        self.assertEqual(rules.first_line_text("PAPER", "<p>PAPER</p>"), "PAPER")
+        self.assertEqual(rules.first_line_text("PAPER", None), "PAPER")
+        self.assertEqual(rules.ordered_summary([]), {"text": "", "more": 0})
+        self.assertEqual(rules.ordered_summary([{"item_name": "A", "description": ""}, {"item_name": "B"}, {"item_name": "C"}]),
+                         {"text": "A", "more": 2})
+
+    def test_rate_after_lookup(self):
+        self.assertEqual(rules.rate_after_lookup(1, 129.4), 129.4)
+        self.assertEqual(rules.rate_after_lookup(1, 0), 1.0)
+        self.assertEqual(rules.rate_after_lookup(128, None), 128.0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

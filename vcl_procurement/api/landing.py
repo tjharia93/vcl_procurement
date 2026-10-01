@@ -65,7 +65,7 @@ def pi_list():
         "Purchase Invoice", filters={"docstatus": ["<", 2], "is_return": 0},
         fields=["name", "supplier", "supplier_name", "bill_no", "bill_date", "posting_date", "due_date",
                 "status", "docstatus", "grand_total", "base_grand_total", "outstanding_amount",
-                "conversion_rate", "currency", "custom_purchase_invoice_type"],
+                "conversion_rate", "currency", "custom_purchase_invoice_type", "custom_bill_of_lading_number"],
         order_by="posting_date desc, creation desc", limit_page_length=R.LIMIT)
     names = [r.name for r in rows]
     pos = R.group_pos(_children("Purchase Invoice Item", "Purchase Invoice", names, ["parent", "purchase_order"]))
@@ -83,13 +83,18 @@ def pi_list():
         "base_total": flt(r.base_grand_total), "outstanding": flt(r.outstanding_amount),
         "conversion_rate": flt(r.conversion_rate) or 1, "currency": r.currency,
         "invoice_type": r.custom_purchase_invoice_type, "pos": pos.get(r.name, []),
+        "bl_no": (str(r.custom_bill_of_lading_number).strip() or None) if r.custom_bill_of_lading_number else None,
         "containers": conts.get(r.name, []),
     } for r in rows]
 
 
 @frappe.whitelist()
 def container_search(q=""):
-    """Invoices carrying a container whose number contains `q` (spaces, dashes and case ignored)."""
+    """Invoices matching `q` by container number or by bill of lading (spaces, dashes and case ignored).
+
+    Each hit says what it matched in `kind`: 'container' (the existing hits, unchanged otherwise) or
+    'bl'. A BL hit has no container, so `container` and `size` are None. Cancelled invoices never match.
+    """
     _assert_purchasing_role()
     if len(R.norm_container(q)) < R.MIN_CONTAINER_CHARS:
         return []
@@ -97,23 +102,36 @@ def container_search(q=""):
         "Container Shipping Details", filters={"parenttype": "Purchase Invoice"},
         fields=["parent", "container_reference", "container_size"],
         parent_doctype="Purchase Invoice", limit_page_length=0)
-    hits = [r for r in rows if R.container_matches(r.get("container_reference"), q)][:30]
-    if not hits:
+    hits = [r for r in rows if R.container_matches(r.get("container_reference"), q)]
+    bl_rows = R.bl_hits(frappe.get_all(
+        "Purchase Invoice", filters={"docstatus": ["<", 2], "custom_bill_of_lading_number": ["is", "set"]},
+        fields=["name", "docstatus", "custom_bill_of_lading_number"], limit_page_length=0), q)
+    if not hits and not bl_rows:
         return []
-    parents = sorted({h.parent for h in hits})
+    parents = sorted({h.parent for h in hits} | {b.name for b in bl_rows})
     inv = {r.name: r for r in frappe.get_all(
         "Purchase Invoice", filters={"name": ["in", parents]},
         fields=["name", "supplier", "supplier_name", "bill_no", "docstatus", "custom_bill_of_lading_number"],
         limit_page_length=0)}
     pos = R.group_pos(_children("Purchase Invoice Item", "Purchase Invoice", parents, ["parent", "purchase_order"]))
+
+    def base(name):
+        i = inv.get(name)
+        return {
+            "invoice": name, "supplier": (i.supplier_name or i.supplier) if i else None,
+            "bill_no": i.bill_no if i else None, "pos": pos.get(name, []),
+            "bl_no": i.custom_bill_of_lading_number if i else None,
+            "draft": bool(i and i.docstatus == 0),
+        }
+
     out = []
     for h in hits:
         i = inv.get(h.parent)
-        out.append({
-            "container": str(h.container_reference or "").strip(), "size": h.container_size,
-            "invoice": h.parent, "supplier": (i.supplier_name or i.supplier) if i else None,
-            "bill_no": i.bill_no if i else None, "pos": pos.get(h.parent, []),
-            "bl_no": i.custom_bill_of_lading_number if i else None,
-            "draft": bool(i and i.docstatus == 0),
-        })
-    return out
+        if i and i.docstatus == 2:
+            continue
+        out.append({"kind": "container", "container": str(h.container_reference or "").strip(),
+                    "size": h.container_size, **base(h.parent)})
+    for b in bl_rows:
+        out.append({"kind": "bl", "container": None, "size": None,
+                    **base(b.name), "bl_no": str(b.custom_bill_of_lading_number or "").strip()})
+    return out[:30]

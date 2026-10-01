@@ -112,6 +112,8 @@ def po_page(name):
         "warehouse": i.warehouse, "due": _iso(i.schedule_date),
         "received_qty": flt(i.received_qty), "billed_amt": flt(i.billed_amt),
         "material_request": i.material_request,
+        # The row's description is HTML; the screen edits plain text.
+        "description": rules.plain_text(i.description),
     } for i in doc.items]
 
     taxes = [_tax_row(t, rate, cur) for t in doc.get("taxes") or []]
@@ -130,6 +132,7 @@ def po_page(name):
         "required_by": _iso(doc.schedule_date),
         "order_confirmation_no": doc.get("order_confirmation_no"),
         "file_no": doc.get("custom_file_number"),
+        "note": doc.get("custom_comments__") or "",
         "payment_terms_template": doc.get("payment_terms_template"),
         "taxes_and_charges": doc.get("taxes_and_charges"),
         "tax_category": doc.get("tax_category"),
@@ -211,9 +214,11 @@ def clean_tax_rows(rows, rate, currency, valid_names=None):
 def po_save(name, payload):
     """Save an edit to a DRAFT purchase order and return the fresh page.
 
-    payload: {required_by, order_confirmation_no, file_no, payment_terms_template,
+    payload: {order_date, required_by, order_confirmation_no, file_no, note, payment_terms_template,
               taxes_and_charges, lines: [{name?, item_code, qty, uom, conversion_factor,
-              rate, warehouse?}], taxes: [{...tax row, kes}]}
+              rate, warehouse?, description?}], taxes: [{...tax row, kes}]}
+    `description` is plain text; it is written (as editor HTML) only when it differs from the
+    existing row's, so untouched lines keep their original HTML.
     Every key is optional; what is missing is left as it is.
     """
     _assert_purchasing_role()
@@ -228,6 +233,18 @@ def po_save(name, payload):
         if not payload["required_by"]:
             frappe.throw(_("A purchase order needs a required-by date."))
         data["schedule_date"] = payload["required_by"]
+    if "order_date" in payload:
+        if not payload["order_date"]:
+            frappe.throw(_("A purchase order needs an order date."))
+        data["transaction_date"] = payload["order_date"]
+    if "order_date" in payload or "required_by" in payload:
+        try:
+            rules.check_order_date(data.get("transaction_date") or doc.transaction_date,
+                                   data.get("schedule_date") or doc.schedule_date)
+        except rules.RuleError as e:
+            frappe.throw(str(e))
+    if "note" in payload:
+        data["custom_comments__"] = (payload["note"] or "").strip() or None
     for src, dst in (("order_confirmation_no", "order_confirmation_no"), ("file_no", "custom_file_number"),
                      ("payment_terms_template", "payment_terms_template"),
                      ("taxes_and_charges", "taxes_and_charges")):
@@ -270,6 +287,12 @@ def po_save(name, payload):
                         "rate": flt(ln.get("rate")), "schedule_date": sd})
             if ln.get("warehouse"):
                 row["warehouse"] = ln["warehouse"]
+            if "description" in ln:
+                new = (ln.get("description") or "").strip()
+                old = rules.plain_text(row.get("description")) if same else ""
+                # Only a real change is written, so an untouched line keeps its original HTML.
+                if new != old and (new or old):
+                    row["description"] = rules.html_from_text(new) if new else None
             rows.append(row)
         data["items"] = rows
 

@@ -45,5 +45,26 @@ class TestGrouping(unittest.TestCase):
         self.assertFalse(R.is_open_mr({"per_ordered": 40, "status": "Stopped"}))
 
 
+class TestBillOfLading(unittest.TestCase):
+    INV = [
+        {"name": "PI-1", "docstatus": 1, "custom_bill_of_lading_number": "MEDU-1234 567"},
+        {"name": "PI-2", "docstatus": 2, "custom_bill_of_lading_number": "MEDU1234567"},
+        {"name": "PI-3", "docstatus": 0, "custom_bill_of_lading_number": "ZZZ999"},
+        {"name": "PI-4", "docstatus": 0, "custom_bill_of_lading_number": None},
+    ]
+
+    def test_same_normalisation_as_containers(self):
+        self.assertTrue(R.bl_matches("MEDU-1234 567", "medu1234"))
+        self.assertTrue(R.bl_matches("MEDU1234567", "234 5"))
+        self.assertFalse(R.bl_matches("MEDU1234567", "xx"))
+
+    def test_too_short_matches_nothing(self):
+        self.assertFalse(R.bl_matches("MEDU1234567", "me"))
+
+    def test_hits_exclude_cancelled_and_blank(self):
+        self.assertEqual([i["name"] for i in R.bl_hits(self.INV, "medu1234")], ["PI-1"])
+        self.assertEqual(R.bl_hits(self.INV, "zz"), [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

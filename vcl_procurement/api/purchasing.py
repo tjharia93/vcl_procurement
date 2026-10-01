@@ -34,6 +34,8 @@ import frappe
 from frappe import _
 from frappe.utils import date_diff, flt, getdate, today
 
+from vcl_procurement.api import rules
+
 OPEN_STATUSES = ["To Receive and Bill", "To Receive", "To Bill"]
 
 # Purchasing is not rep work. These are ERPNext's own roles and they are already
@@ -106,6 +108,7 @@ def open_orders(status=None, supplier=None):
                 "custom_order_type", "order_confirmation_no", "custom_file_number"],
         order_by="transaction_date asc", limit_page_length=500)
     links = _links_for([r.name for r in rows])
+    ordered = _ordered_for([r.name for r in rows])
 
     out = []
     for r in rows:
@@ -120,13 +123,17 @@ def open_orders(status=None, supplier=None):
             "age_days": date_diff(now, getdate(r.transaction_date)) if r.transaction_date else None,
             "due": due,
             "overdue": bool(due and due < now and recv < 100),
+            # Overdue for so long that it is probably dead paper, not a late delivery.
+            "stale": bool(due and due < now and recv < 100 and rules.is_stale(due, now)),
             "status": r.status,
             "value": flt(r.base_grand_total),
             "currency": r.currency,
             "total": flt(r.grand_total),            # in the order's own currency
             "order_type": r.custom_order_type or "Local",
             "confirmation_no": r.order_confirmation_no,
+            "order_confirmation_no": r.order_confirmation_no,
             "file_no": r.custom_file_number,
+            "ordered": ordered.get(r.name) or rules.ordered_summary([]),
             # Receipts and invoices already raised against it, drafts included.
             "connections": links.get(r.name, []),
             "per_received": recv,
@@ -178,6 +185,19 @@ def _links_for(po_names):
     return out
 
 
+def _ordered_for(po_names):
+    """{po: {text, more}}: what each order is for, from ONE query over all the orders' lines."""
+    if not po_names:
+        return {}
+    rows = frappe.get_all("Purchase Order Item", filters={"parent": ["in", po_names]},
+                          fields=["parent", "idx", "item_name", "description"],
+                          order_by="parent, idx", parent_doctype="Purchase Order", limit_page_length=0)
+    by_po = {}
+    for r in rows:
+        by_po.setdefault(r.parent, []).append(r)
+    return {po: rules.ordered_summary(lines) for po, lines in by_po.items()}
+
+
 @frappe.whitelist()
 def draft_orders(mine=0):
     """Purchase orders still in draft (raised, not yet approved), newest first."""
@@ -188,13 +208,19 @@ def draft_orders(mine=0):
     rows = frappe.get_all(
         "Purchase Order", filters=filters,
         fields=["name", "supplier", "transaction_date", "schedule_date", "currency", "grand_total",
-                "workflow_state", "custom_order_type", "owner"],
+                "workflow_state", "custom_order_type", "owner", "order_confirmation_no",
+                "custom_file_number"],
         order_by="modified desc", limit_page_length=200)
+    ordered = _ordered_for([r.name for r in rows])
     return [{
         "name": r.name, "supplier": r.supplier, "date": _iso(r.transaction_date),
         "due": _iso(r.schedule_date), "currency": r.currency, "total": flt(r.grand_total),
         "workflow_state": r.workflow_state, "order_type": r.custom_order_type or "Local",
         "raised_by": r.owner,
+        "confirmation_no": r.order_confirmation_no, "order_confirmation_no": r.order_confirmation_no,
+        "file_no": r.custom_file_number,
+        "stale": False,
+        "ordered": ordered.get(r.name) or rules.ordered_summary([]),
     } for r in rows]
 
 

@@ -35,3 +35,12 @@ VAT's base excludes import duty because it points at the insurance row.
 2. Confirm on a draft import invoice with the KRA entry date empty that the Desk's Submit is refused.
 
 Custom fields `custom_kra_entry_date` and `custom_file_number` (Purchase Invoice) exist already; the patch and `after_install` create them on any other site.
+
+## Added 01/10/2026
+Additive contract changes for the ported Compass screens (no existing key removed):
+- `rules.py`: `invoice_type_for_po`, `plain_text`, `html_from_text`, `is_stale`, plus `check_order_date`, `ordered_summary`, `rate_after_lookup`.
+- `po_page`: line `description` (plain text), page `note` (`custom_comments__`). `po_save`: `order_date`, `note`, per-line `description` (written only when changed). `create_purchase_order`: `order_date`, `note`, per-line `description`.
+- `search_items`: `description` on each hit.
+- `open_orders` / `draft_orders` rows: `stale`, `ordered {text, more}`, `order_confirmation_no`, `file_no` (drafts also `confirmation_no`).
+- `container_search`: hits carry `kind` ('container' | 'bl'); BL matches on `custom_bill_of_lading_number`; cancelled invoices excluded. `pi_list` rows: `bl_no`.
+- `pi_page`: a draft's `invoice_type`/`is_import` follow its PO, plus `type_follows_po`; `pi_save` forces that type. `bill_from_po`: sets type and file number from the PO, refreshes the exchange rate, returns `invoice_type` and `conversion_rate`.
