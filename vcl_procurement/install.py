@@ -2,7 +2,10 @@ import frappe
 
 
 def after_install():
+    from vcl_procurement.reels import ensure_reel_fields
+
     _ensure_settings_doc()
+    ensure_reel_fields()
     frappe.db.commit()
 
 
