@@ -307,3 +307,38 @@ class TestPortAdditions(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
+
+
+class QboBillRules(unittest.TestCase):
+    def test_import_uses_the_kra_entry_number(self):
+        self.assertEqual(rules.qbo_docnumber("Importation", "26MBAIM406532497", "MPPAST2600557"), ("26MBAIM406532497", "KRA customs entry number"))
+
+    def test_local_keeps_the_supplier_invoice_number(self):
+        self.assertEqual(rules.qbo_docnumber("Local Purchase", "", "INV-9"), ("INV-9", "supplier invoice number"))
+
+    def test_a_typed_number_wins(self):
+        self.assertEqual(rules.qbo_docnumber("Importation", "KRA1", "S1", " TYPED ")[0], "TYPED")
+
+    def test_an_import_without_a_kra_number_has_no_bill_number(self):
+        n, _ = rules.qbo_docnumber("Importation", "", "S1")
+        self.assertEqual(n, "")
+        c = rules.qbo_checks(n, "2026-09-28", {"name": "V", "approved": 1}, [{"amount": 10, "account": "A"}], 10, "NEW")
+        self.assertFalse(c[0]["ok"])
+
+    def test_checks_all_pass_when_the_row_is_complete(self):
+        c = rules.qbo_checks("N1", "2026-09-28", {"name": "V", "approved": 1}, [{"amount": 6, "item": "I"}, {"amount": 4, "account": "A"}], 10, "NEW")
+        self.assertTrue(all(x["ok"] for x in c), c)
+
+    def test_an_empty_or_unrouted_row_fails(self):
+        self.assertFalse(all(x["ok"] for x in rules.qbo_checks("N1", "2026-09-28", {"name": "V", "approved": 1}, [], 10, "")))
+        c = rules.qbo_checks("N1", "2026-09-28", {"name": "V", "approved": 1}, [{"amount": 10}], 10, "NEW")
+        self.assertFalse(c[3]["ok"])
+        self.assertIn("line 1", c[3]["why"])
+
+    def test_vendor_must_be_mapped_and_approved_and_totals_must_match(self):
+        self.assertFalse(rules.qbo_checks("N1", "d", None, [{"amount": 10, "item": "I"}], 10, "NEW")[2]["ok"])
+        self.assertFalse(rules.qbo_checks("N1", "d", {"name": "V", "approved": 0}, [{"amount": 10, "item": "I"}], 10, "NEW")[2]["ok"])
+        self.assertFalse(rules.qbo_checks("N1", "d", {"name": "V", "approved": 1}, [{"amount": 9, "item": "I"}], 10, "NEW")[4]["ok"])
+
+    def test_too_long_a_number_fails(self):
+        self.assertFalse(rules.qbo_checks("X" * 22, "d", {"name": "V", "approved": 1}, [{"amount": 1, "item": "I"}], 1, "NEW")[0]["ok"])

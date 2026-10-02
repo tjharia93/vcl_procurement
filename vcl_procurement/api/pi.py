@@ -177,7 +177,63 @@ def _qbo(doc):
                             "block_reason": q[0].block_reason, "txn_date": rules.iso(q[0].txn_date),
                             "qbo_bill_id": q[0].qbo_bill_id, "docstatus": q[0].docstatus,
                             "error_message": q[0].error_message}
+            out["review"] = _qbo_review(doc, q[0].name)
     return out
+
+
+def _qbo_review(doc, queue_name):
+    """What will be posted to QuickBooks, read off the queue row, with the checks that gate the push."""
+    try:
+        q = frappe.get_doc("QBO Bill Push Queue", queue_name)
+    except Exception:
+        return None
+    itype = doc.get("custom_purchase_invoice_type")
+    docnumber, source = rules.qbo_docnumber(itype, doc.get("custom_kra_import_number"), doc.bill_no, q.get("qbo_docnumber_override"))
+    vendor = None
+    try:
+        if q.get("vendor_override"):
+            vendor = {"name": q.get("vendor_qbo_name") or q.vendor_override, "approved": 1, "source": "typed on the queue row"}
+        else:
+            from vcl_procurement.api import resolvers
+            v = resolvers.resolve_supplier(doc.supplier)
+            if v:
+                vendor = {"name": v.get("qbo_name"), "approved": 1 if v.get("approved") else 0, "source": "vendor map"}
+    except Exception:
+        vendor = None
+    lines = []
+    for l in q.get("lines") or []:
+        kind = l.get("routing_kind") or ""
+        lines.append({"idx": l.get("line_idx"), "description": (l.get("description") or "").strip(), "qty": flt(l.get("qty")),
+                      "rate": flt(l.get("rate")), "amount": flt(l.get("amount")), "erp_item": l.get("erp_item_code"),
+                      "item": l.get("qbo_item_name") or l.get("qbo_item_override") or None,
+                      "account": l.get("qbo_account_name") or l.get("qbo_account_override") or None,
+                      "routing": kind, "taxcode": l.get("qbo_taxcode_override") or q.get("tax_qbo_taxcode")})
+    txn = q.get("txn_date") or doc.get("bill_date") or doc.posting_date
+    checks = rules.qbo_checks(docnumber, str(txn) if txn else None, vendor, lines, flt(doc.get("net_total") or doc.get("total")), q.get("category"))
+    return {"queue": q.name, "docnumber": docnumber, "docnumber_source": source, "docnumber_typed": (q.get("qbo_docnumber_override") or "").strip(),
+            "txn_date": rules.iso(txn), "currency": doc.currency, "rate": flt(doc.conversion_rate) or 1, "memo": q.get("qbo_memo"),
+            "vendor": vendor, "tax_calculation": q.get("tax_calculation"), "lines": lines,
+            "lines_total": round(sum(l["amount"] for l in lines), 2), "pi_net": flt(doc.get("net_total") or doc.get("total")),
+            "checks": checks, "ready": all(c["ok"] for c in checks)}
+
+
+@frappe.whitelist(methods=["POST"])
+def qbo_prepare(name):
+    """Before a push: put the right bill number on the draft queue row (an import uses the KRA customs entry number).
+
+    Never touches a row that has been submitted. Returns the refreshed page.
+    """
+    _assert_purchasing_role()
+    doc = frappe.get_doc(PI, name)
+    doc.check_permission("read")
+    row = frappe.get_all("QBO Bill Push Queue", filters={"pi": name, "docstatus": 0}, fields=["name", "qbo_docnumber_override"], limit_page_length=1)
+    if row and rules.is_import(doc.get("custom_purchase_invoice_type")):
+        want = (doc.get("custom_kra_import_number") or "").strip()
+        if not want:
+            frappe.throw("This is an import: the KRA customs entry number is missing, and QuickBooks needs it as the bill number.")
+        if (row[0].qbo_docnumber_override or "").strip() != want:
+            frappe.db.set_value("QBO Bill Push Queue", row[0].name, "qbo_docnumber_override", want, update_modified=True)
+    return pi_page(name)
 
 
 @frappe.whitelist()

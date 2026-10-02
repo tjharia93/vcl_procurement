@@ -19,7 +19,7 @@ from typing import Any
 import frappe
 from frappe.utils import getdate, now_datetime
 
-from vcl_procurement.api import resolvers, todos
+from vcl_procurement.api import resolvers, rules, todos
 from vcl_procurement.api.mappings import upsert_unapproved_map_row
 
 
@@ -183,6 +183,9 @@ def stage_pi_to_queue(pi_doc, *, run_id: str | None = None) -> dict:
         "run_id": run_id or now_datetime().strftime("STG-%Y%m%d-%H%M%S"),
     }
 
+    if rules.is_import(pi_doc.get("custom_purchase_invoice_type")) and (pi_doc.get("custom_kra_import_number") or "").strip():
+        fields["qbo_docnumber_override"] = pi_doc.custom_kra_import_number.strip()   # the push script reads only this field
+
     existing_name = frappe.db.get_value(_QUEUE_DOCTYPE, {"pi": pi_doc.name}, "name")
 
     if existing_name:
@@ -245,10 +248,12 @@ def _evaluate_pi(pi_doc) -> tuple[dict, str, str]:
     """Resolves all maps, builds the QBO Bill payload, returns (payload, category, block_reason)."""
     blockers: list[str] = []
 
-    if not (pi_doc.bill_no or "").strip():
-        blockers.append("missing bill_no")
-    elif len(pi_doc.bill_no) > _DOCNUMBER_LIMIT:
-        blockers.append(f"bill_no '{pi_doc.bill_no}' exceeds QBO DocNumber limit ({_DOCNUMBER_LIMIT} chars)")
+    # The QuickBooks bill number: an import goes in under its KRA customs entry number, a local purchase under the supplier's.
+    docnumber, _src = rules.qbo_docnumber(pi_doc.get("custom_purchase_invoice_type"), pi_doc.get("custom_kra_import_number"), pi_doc.bill_no)
+    if not docnumber:
+        blockers.append("missing KRA customs entry number (an import is posted under it)" if rules.is_import(pi_doc.get("custom_purchase_invoice_type")) else "missing bill_no")
+    elif len(docnumber) > _DOCNUMBER_LIMIT:
+        blockers.append(f"bill number '{docnumber}' exceeds QBO DocNumber limit ({_DOCNUMBER_LIMIT} chars)")
 
     if getattr(pi_doc, "is_return", 0):
         blockers.append("is_return=1 — debit notes need manual QBO entry until Phase 4")
@@ -380,7 +385,7 @@ def _build_qbo_bill_payload(
     account_based_count: int,
 ) -> dict:
     payload: dict[str, Any] = {
-        "DocNumber": pi_doc.bill_no or "",
+        "DocNumber": rules.qbo_docnumber(pi_doc.get("custom_purchase_invoice_type"), pi_doc.get("custom_kra_import_number"), pi_doc.bill_no)[0],
         "TxnDate": str(pi_doc.bill_date or pi_doc.posting_date or ""),
         "PrivateNote": f"ERPNext PI: {pi_doc.name}",
         "CurrencyRef": {"value": pi_doc.currency or "KES"},

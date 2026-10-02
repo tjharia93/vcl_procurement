@@ -440,3 +440,45 @@ def rate_after_lookup(current, looked_up):
     except (TypeError, ValueError):
         v = 0.0
     return v if v > 0 else float(current or 0)
+
+
+# --- QuickBooks bill: the number and the checks before a push ------------------------
+
+QBO_DOCNUMBER_LIMIT = 21
+
+
+def qbo_docnumber(invoice_type, kra_entry_no, bill_no, override=None):
+    """The bill number QuickBooks will carry, and where it came from.
+
+    An import is posted under its KRA customs entry number, not the supplier's invoice number; a local purchase
+    keeps the supplier's invoice number. A number typed on the queue row wins over both.
+    """
+    o = (override or "").strip()
+    if o:
+        return o, "typed on the queue row"
+    if is_import(invoice_type):
+        return (kra_entry_no or "").strip(), "KRA customs entry number"
+    return (bill_no or "").strip(), "supplier invoice number"
+
+
+def qbo_checks(docnumber, txn_date, vendor, lines, pi_net, category, tolerance=0.01):
+    """What must be true before a bill can be pushed. Each check: {ok, label, why}. `vendor` is {name, approved} or None.
+
+    A line is routed when it names a QuickBooks item or account. `lines` are dicts with amount, item, account.
+    """
+    out = []
+    n = (docnumber or "").strip()
+    out.append({"ok": bool(n) and len(n) <= QBO_DOCNUMBER_LIMIT, "label": "Bill number",
+                "why": "missing" if not n else f"{len(n)} characters; QuickBooks allows {QBO_DOCNUMBER_LIMIT}" if len(n) > QBO_DOCNUMBER_LIMIT else n})
+    out.append({"ok": bool(txn_date), "label": "Bill date", "why": "missing" if not txn_date else str(txn_date)})
+    v_ok = bool(vendor and vendor.get("name") and vendor.get("approved"))
+    out.append({"ok": v_ok, "label": "Vendor in QuickBooks",
+                "why": (vendor or {}).get("name") if v_ok else "no approved vendor mapping" if not vendor or not vendor.get("name") else "mapping not approved"})
+    unrouted = [str(i + 1) for i, l in enumerate(lines) if not (l.get("item") or l.get("account"))]
+    out.append({"ok": bool(lines) and not unrouted, "label": "Every line has an item or account",
+                "why": "no lines on the queue row" if not lines else ("line " + ", ".join(unrouted) + " not routed") if unrouted else f"{len(lines)} lines"})
+    total = round(sum(float(l.get("amount") or 0) for l in lines), 2)
+    out.append({"ok": bool(lines) and abs(total - float(pi_net or 0)) <= tolerance, "label": "Lines add up to the invoice net",
+                "why": f"lines {total:,.2f}, invoice {float(pi_net or 0):,.2f}"})
+    out.append({"ok": category != "BLOCKED", "label": "Staging", "why": "blocked at staging" if category == "BLOCKED" else (category or "not staged")})
+    return out
