@@ -461,6 +461,14 @@ def qbo_docnumber(invoice_type, kra_entry_no, bill_no, override=None):
     return (bill_no or "").strip(), "supplier invoice number"
 
 
+def qbo_txn_date(invoice_type, kra_entry_date, bill_date, posting_date):
+    """The date QuickBooks carries on the bill. An import is dated on its KRA customs entry date, nothing else;
+    a local purchase on the supplier's bill date, falling back to the ledger date."""
+    if is_import(invoice_type):
+        return kra_entry_date or None
+    return bill_date or posting_date or None
+
+
 def qbo_checks(docnumber, txn_date, vendor, lines, pi_net, category, tolerance=0.01):
     """What must be true before a bill can be pushed. Each check: {ok, label, why}. `vendor` is {name, approved} or None.
 

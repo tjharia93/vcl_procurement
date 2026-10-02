@@ -171,7 +171,7 @@ def stage_pi_to_queue(pi_doc, *, run_id: str | None = None) -> dict:
     fields = {
         "pi": pi_doc.name,
         "bill_no": pi_doc.bill_no or None,
-        "txn_date": pi_doc.bill_date or pi_doc.posting_date,
+        "txn_date": rules.qbo_txn_date(pi_doc.get("custom_purchase_invoice_type"), pi_doc.get("custom_kra_entry_date"), pi_doc.bill_date, pi_doc.posting_date),
         "currency": pi_doc.currency,
         "exchange_rate": pi_doc.conversion_rate or 1.0,
         "total_amt": pi_doc.grand_total,
@@ -254,6 +254,8 @@ def _evaluate_pi(pi_doc) -> tuple[dict, str, str]:
         blockers.append("missing KRA customs entry number (an import is posted under it)" if rules.is_import(pi_doc.get("custom_purchase_invoice_type")) else "missing bill_no")
     elif len(docnumber) > _DOCNUMBER_LIMIT:
         blockers.append(f"bill number '{docnumber}' exceeds QBO DocNumber limit ({_DOCNUMBER_LIMIT} chars)")
+    if rules.is_import(pi_doc.get("custom_purchase_invoice_type")) and not pi_doc.get("custom_kra_entry_date"):
+        blockers.append("missing KRA customs entry date (an import is dated on it in QuickBooks)")
 
     if getattr(pi_doc, "is_return", 0):
         blockers.append("is_return=1 — debit notes need manual QBO entry until Phase 4")
@@ -386,7 +388,7 @@ def _build_qbo_bill_payload(
 ) -> dict:
     payload: dict[str, Any] = {
         "DocNumber": rules.qbo_docnumber(pi_doc.get("custom_purchase_invoice_type"), pi_doc.get("custom_kra_import_number"), pi_doc.bill_no)[0],
-        "TxnDate": str(pi_doc.bill_date or pi_doc.posting_date or ""),
+        "TxnDate": str(rules.qbo_txn_date(pi_doc.get("custom_purchase_invoice_type"), pi_doc.get("custom_kra_entry_date"), pi_doc.bill_date, pi_doc.posting_date) or ""),
         "PrivateNote": f"ERPNext PI: {pi_doc.name}",
         "CurrencyRef": {"value": pi_doc.currency or "KES"},
         "ExchangeRate": float(pi_doc.conversion_rate or 1.0),

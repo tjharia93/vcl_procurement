@@ -208,9 +208,9 @@ def _qbo_review(doc, queue_name):
                       "item": l.get("qbo_item_name") or l.get("qbo_item_override") or None,
                       "account": l.get("qbo_account_name") or l.get("qbo_account_override") or None,
                       "routing": kind, "taxcode": l.get("qbo_taxcode_override") or q.get("tax_qbo_taxcode")})
-    txn = q.get("txn_date") or doc.get("bill_date") or doc.posting_date
+    txn = rules.qbo_txn_date(itype, doc.get("custom_kra_entry_date"), q.get("txn_date") or doc.get("bill_date"), doc.posting_date)
     checks = rules.qbo_checks(docnumber, str(txn) if txn else None, vendor, lines, flt(doc.get("net_total") or doc.get("total")), q.get("category"))
-    return {"queue": q.name, "docnumber": docnumber, "docnumber_source": source, "docnumber_typed": (q.get("qbo_docnumber_override") or "").strip(),
+    return {"queue": q.name, "is_import": rules.is_import(itype), "docnumber": docnumber, "docnumber_source": source, "docnumber_typed": (q.get("qbo_docnumber_override") or "").strip(),
             "txn_date": rules.iso(txn), "currency": doc.currency, "rate": flt(doc.conversion_rate) or 1, "memo": q.get("qbo_memo"),
             "vendor": vendor, "tax_calculation": q.get("tax_calculation"), "lines": lines,
             "lines_total": round(sum(l["amount"] for l in lines), 2), "pi_net": flt(doc.get("net_total") or doc.get("total")),
@@ -226,13 +226,18 @@ def qbo_prepare(name):
     _assert_purchasing_role()
     doc = frappe.get_doc(PI, name)
     doc.check_permission("read")
-    row = frappe.get_all("QBO Bill Push Queue", filters={"pi": name, "docstatus": 0}, fields=["name", "qbo_docnumber_override"], limit_page_length=1)
+    row = frappe.get_all("QBO Bill Push Queue", filters={"pi": name, "docstatus": 0}, fields=["name", "qbo_docnumber_override", "txn_date"], limit_page_length=1)
     if row and rules.is_import(doc.get("custom_purchase_invoice_type")):
         want = (doc.get("custom_kra_import_number") or "").strip()
+        when = rules.qbo_txn_date(doc.get("custom_purchase_invoice_type"), doc.get("custom_kra_entry_date"), None, None)
         if not want:
             frappe.throw("This is an import: the KRA customs entry number is missing, and QuickBooks needs it as the bill number.")
+        if not when:
+            frappe.throw("This is an import: the KRA customs entry date is missing, and QuickBooks is dated on it.")
         if (row[0].qbo_docnumber_override or "").strip() != want:
             frappe.db.set_value("QBO Bill Push Queue", row[0].name, "qbo_docnumber_override", want, update_modified=True)
+        if str(row[0].txn_date or "")[:10] != str(when)[:10]:
+            frappe.db.set_value("QBO Bill Push Queue", row[0].name, "txn_date", when, update_modified=True)
     return pi_page(name)
 
 

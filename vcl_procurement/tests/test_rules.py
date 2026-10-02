@@ -342,3 +342,15 @@ class QboBillRules(unittest.TestCase):
 
     def test_too_long_a_number_fails(self):
         self.assertFalse(rules.qbo_checks("X" * 22, "d", {"name": "V", "approved": 1}, [{"amount": 1, "item": "I"}], 1, "NEW")[0]["ok"])
+
+
+class QboTxnDate(unittest.TestCase):
+    def test_an_import_is_dated_on_the_kra_entry_date(self):
+        self.assertEqual(rules.qbo_txn_date("Importation", "2026-09-28", "2026-08-27", "2026-09-28"), "2026-09-28")
+
+    def test_an_import_without_the_entry_date_has_no_date(self):
+        self.assertIsNone(rules.qbo_txn_date("Importation", None, "2026-08-27", "2026-09-28"))
+
+    def test_a_local_purchase_keeps_the_supplier_bill_date(self):
+        self.assertEqual(rules.qbo_txn_date("Local Purchase", "2026-09-28", "2026-08-27", "2026-09-28"), "2026-08-27")
+        self.assertEqual(rules.qbo_txn_date("Local Purchase", None, None, "2026-09-28"), "2026-09-28")
