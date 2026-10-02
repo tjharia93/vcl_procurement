@@ -170,12 +170,13 @@ def _qbo(doc):
            "queue": None}
     if frappe.db.exists("DocType", "QBO Bill Push Queue"):
         q = frappe.get_all("QBO Bill Push Queue", filters={"pi": doc.name, "docstatus": ["<", 2]},
-                           fields=["name", "category", "push_status", "block_reason", "txn_date", "qbo_bill_id"],
+                           fields=["name", "category", "push_status", "block_reason", "txn_date", "qbo_bill_id", "docstatus", "error_message"],
                            order_by="creation desc", limit_page_length=1)
         if q:
             out["queue"] = {"name": q[0].name, "category": q[0].category, "push_status": q[0].push_status,
                             "block_reason": q[0].block_reason, "txn_date": rules.iso(q[0].txn_date),
-                            "qbo_bill_id": q[0].qbo_bill_id}
+                            "qbo_bill_id": q[0].qbo_bill_id, "docstatus": q[0].docstatus,
+                            "error_message": q[0].error_message}
     return out
 
 
