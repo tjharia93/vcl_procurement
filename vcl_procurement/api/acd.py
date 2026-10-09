@@ -1,7 +1,8 @@
 """ACD reference code on import Purchase Invoices.
 
-Two rules, both about the Advance Cargo Declaration reference:
-  * an Importation invoice cannot be submitted without one (server side, so Desk and
+Rules on import invoices:
+  * an Importation invoice cannot be submitted without an ACD reference code, or until the
+    export entry is ticked as received (server side, so Desk and
     Compass are held to the same rule as the /purchasing-dev page);
   * every Monday, one email lists the import invoices that still have none, until the
     expected date of delivery to port has passed (that date is the "landed" signal we have).
@@ -19,6 +20,9 @@ def require_acd_before_submit(doc, method=None):
     if not (doc.get("custom_acd_reference_code") or "").strip():
         frappe.throw("Enter the ACD reference code before submitting an Importation invoice.",
                      title="ACD reference code missing")
+    if not int(doc.get("custom_export_entry_received") or 0):
+        frappe.throw("Tick 'Export Entry Received' before submitting an Importation invoice.",
+                     title="Export entry not received")
 
 
 def invoices_missing_acd(today=None):

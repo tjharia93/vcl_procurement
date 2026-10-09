@@ -24,11 +24,16 @@ class TestACD(unittest.TestCase):
     def test_blocks_import_without_code(self):
         with mock.patch.object(acd.frappe, "throw", side_effect=Exception("blocked")):
             with self.assertRaises(Exception):
-                acd.require_acd_before_submit(_Doc(custom_purchase_invoice_type="Importation", custom_acd_reference_code="  "))
+                acd.require_acd_before_submit(_Doc(custom_purchase_invoice_type="Importation", custom_acd_reference_code="  ", custom_export_entry_received=1))
 
     def test_allows_import_with_code_and_local_without(self):
-        acd.require_acd_before_submit(_Doc(custom_purchase_invoice_type="Importation", custom_acd_reference_code="ACD123"))
+        acd.require_acd_before_submit(_Doc(custom_purchase_invoice_type="Importation", custom_acd_reference_code="ACD123", custom_export_entry_received=1))
         acd.require_acd_before_submit(_Doc(custom_purchase_invoice_type="Local Purchase"))
+
+    def test_blocks_import_until_export_entry_ticked(self):
+        with mock.patch.object(acd.frappe, "throw", side_effect=Exception("blocked")):
+            with self.assertRaises(Exception):
+                acd.require_acd_before_submit(_Doc(custom_purchase_invoice_type="Importation", custom_acd_reference_code="ACD123", custom_export_entry_received=0))
 
     def test_landed_invoices_drop_out(self):
         rows = [_Doc(name="A", custom_expected_date_of_delivery_to_port="2026-10-20"),
