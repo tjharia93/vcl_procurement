@@ -13,6 +13,7 @@ doc_events = {
         # An import invoice cannot be submitted until the KRA details are in - on the
         # server, so the Desk and any script are held to it as well as the screen.
         "before_submit": "vcl_procurement.api.pi.gate_before_submit",
+        "before_submit": "vcl_procurement.api.acd.require_acd_before_submit",
         "on_submit": "vcl_procurement.api.staging.on_submit_purchase_invoice",
         "on_cancel": "vcl_procurement.api.staging.on_cancel_purchase_invoice",
     },
@@ -50,4 +51,9 @@ after_install = "vcl_procurement.install.after_install"
 
 # Scheduled Tasks
 # ----------------
-scheduler_events = {}
+scheduler_events = {
+    "cron": {
+        # Mondays 07:00: chase import invoices that still have no ACD reference code
+        "0 7 * * 1": ["vcl_procurement.api.acd.monday_reminder"],
+    },
+}

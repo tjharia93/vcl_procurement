@@ -3,3 +3,4 @@
 [post_model_sync]
 vcl_procurement.patches.add_reel_batch_fields
 vcl_procurement.patches.add_purchase_invoice_kra_fields
+vcl_procurement.patches.add_acd_fields

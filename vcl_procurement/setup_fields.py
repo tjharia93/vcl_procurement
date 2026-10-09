@@ -30,6 +30,25 @@ FIELDS = [
         "insert_after": "custom_proforma_invoice_number_importation_link",
         "description": "Filled from the linked Purchase Order. Not edited here.",
     },
+    {
+        "dt": "Purchase Invoice",
+        "fieldname": "custom_acd_reference_code",
+        "label": "ACD Reference Code",
+        "fieldtype": "Data",
+        "allow_on_submit": 1,
+        "insert_after": "custom_number_of_days_free",
+        "description": ("Advance Cargo Declaration reference. Required before an Importation invoice is "
+                        "submitted; chased by email every Monday until the container lands."),
+    },
+    {
+        "dt": "Purchase Invoice",
+        "fieldname": "custom_export_entry_received",
+        "label": "Export Entry Received",
+        "fieldtype": "Check",
+        "allow_on_submit": 1,
+        "insert_after": "custom_acd_reference_code",
+        "description": "Ticked when the supplier's export entry has been received.",
+    },
 ]
 
 
