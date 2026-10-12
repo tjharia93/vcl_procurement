@@ -572,6 +572,17 @@ def bill_from_po(po, bill_date=None, bill_no=None):
     from erpnext.buying.doctype.purchase_order.purchase_order import make_purchase_invoice
     pi = make_purchase_invoice(po)
     pi.bill_date = bill_date
+    # The mapped schedule counts from today; the supplier's terms count from the invoice date.
+    rows = pi.get("payment_schedule") or []
+    dues, last = rules.rebase_due_dates(
+        [{"due_date_based_on": r.get("due_date_based_on"), "credit_days": r.get("credit_days"),
+          "credit_months": r.get("credit_months")} for r in rows], bill_date)
+    if dues:
+        for r, d in zip(rows, dues):
+            if d:
+                r.due_date = d
+        if last:
+            pi.due_date = last
     if (bill_no or "").strip():
         pi.bill_no = bill_no.strip()
 

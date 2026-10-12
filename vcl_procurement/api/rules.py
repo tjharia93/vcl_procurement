@@ -97,6 +97,22 @@ def term_due_date(bill_date, term):
     return add_days(bill_date, days)
 
 
+def rebase_due_dates(rows, bill_date):
+    """Re-count every payment-schedule row's due date from the supplier's invoice date.
+
+    An invoice mapped from a purchase order counts its due dates from TODAY (or the PO date);
+    the supplier's terms count from the invoice date. Left alone, the due date ends up later than
+    ERPNext allows and the insert is refused with "Due Date cannot be after ...". Returns
+    (new_due_dates_in_row_order, the_invoice_due_date = the latest row). Nothing to do without a
+    bill date or rows: both come back None and the caller leaves the invoice as it is.
+    """
+    if not bill_date or not rows:
+        return None, None
+    dues = [term_due_date(bill_date, r) for r in rows]
+    known = [d for d in dues if d]
+    return dues, (max(known) if known else None)
+
+
 def tax_due_date(expected_delivery_to_port, days_after=DEFAULT_TAX_DAYS_AFTER_LANDING):
     if not expected_delivery_to_port:
         return None

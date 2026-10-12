@@ -42,6 +42,29 @@ class TestDates(unittest.TestCase):
         self.assertIsNone(rules.tax_due_date(None))
 
 
+class TestRebaseDueDates(unittest.TestCase):
+    """Bill from a PO: the mapped schedule counts from today, the terms count from the invoice date."""
+
+    def test_rows_recounted_from_bill_date_and_invoice_due_is_the_latest(self):
+        # Bill date 23/09/2026 + 180 days = 22/03/2027 (the date ERPNext quoted).
+        dues, last = rules.rebase_due_dates([DAYS_180], "2026-09-23")
+        self.assertEqual(dues, ["2027-03-22"])
+        self.assertEqual(last, "2027-03-22")
+
+    def test_two_rows_take_the_latest(self):
+        dues, last = rules.rebase_due_dates([DAYS_180, {"due_date_based_on": "Day(s) after invoice date", "credit_days": 0}], "2026-09-23")
+        self.assertEqual(dues, ["2027-03-22", "2026-09-23"])
+        self.assertEqual(last, "2027-03-22")
+
+    def test_end_of_month_terms(self):
+        dues, last = rules.rebase_due_dates([EOM_60], "2026-09-23")
+        self.assertEqual(last, rules.term_due_date("2026-09-23", EOM_60))
+
+    def test_nothing_to_do_without_a_bill_date_or_rows(self):
+        self.assertEqual(rules.rebase_due_dates([DAYS_180], None), (None, None))
+        self.assertEqual(rules.rebase_due_dates([], "2026-09-23"), (None, None))
+
+
 class TestCurrency(unittest.TestCase):
     def test_kes_to_usd_at_the_rate(self):
         self.assertAlmostEqual(rules.kes_to_doc(1160085.97, 129.61, "USD"), 8950.59, 2)
