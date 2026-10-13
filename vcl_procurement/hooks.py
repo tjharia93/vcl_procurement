@@ -55,5 +55,7 @@ scheduler_events = {
     "cron": {
         # Mondays 07:00: chase import invoices that still have no ACD reference code
         "0 7 * * 1": ["vcl_procurement.api.acd.monday_reminder"],
+        # every 15 minutes: say so when a submitted queue row has waited over 30 min for the box to push it
+        "*/15 * * * *": ["vcl_procurement.api.push_watch.alert_stuck_push_rows"],
     },
 }
