@@ -56,16 +56,16 @@ FIELDS = [
 _Q = "QBO Bill Push Queue"
 FIELDS += [
     {"dt": _Q, "fieldname": "qbo_txn_type", "label": "Send to QuickBooks as", "fieldtype": "Select",
-     "options": "Bill\nExpense", "default": "Bill", "insert_after": "qbo_memo"},
-    {"dt": _Q, "fieldname": "pay_bank_account", "label": "Paying bank account (QBO id)", "fieldtype": "Data", "insert_after": "qbo_txn_type"},
-    {"dt": _Q, "fieldname": "pay_bank_name", "label": "Paying bank account", "fieldtype": "Data", "insert_after": "pay_bank_account"},
-    {"dt": _Q, "fieldname": "pay_cheque_no", "label": "Cheque number", "fieldtype": "Data", "insert_after": "pay_bank_name"},
-    {"dt": _Q, "fieldname": "pay_amount", "label": "Cheque amount (KES)", "fieldtype": "Currency", "insert_after": "pay_cheque_no"},
-    {"dt": _Q, "fieldname": "pay_date", "label": "Cheque date", "fieldtype": "Date", "insert_after": "pay_amount"},
-    {"dt": _Q, "fieldname": "vat_line_manual", "label": "VAT as its own line (typed amount)", "fieldtype": "Check", "insert_after": "pay_date"},
-    {"dt": _Q, "fieldname": "vat_line_account", "label": "VAT account (QBO id)", "fieldtype": "Data", "insert_after": "vat_line_manual"},
-    {"dt": _Q, "fieldname": "vat_line_account_name", "label": "VAT account", "fieldtype": "Data", "insert_after": "vat_line_account"},
-    {"dt": _Q, "fieldname": "vat_line_amount", "label": "VAT amount (KES)", "fieldtype": "Currency", "insert_after": "vat_line_account_name"},
+     "options": "Bill\nExpense", "default": "Bill", "allow_on_submit": 1, "insert_after": "qbo_memo"},
+    {"dt": _Q, "fieldname": "pay_bank_account", "label": "Paying bank account (QBO id)", "fieldtype": "Data", "allow_on_submit": 1, "insert_after": "qbo_txn_type"},
+    {"dt": _Q, "fieldname": "pay_bank_name", "label": "Paying bank account", "fieldtype": "Data", "allow_on_submit": 1, "insert_after": "pay_bank_account"},
+    {"dt": _Q, "fieldname": "pay_cheque_no", "label": "Cheque number", "fieldtype": "Data", "allow_on_submit": 1, "insert_after": "pay_bank_name"},
+    {"dt": _Q, "fieldname": "pay_amount", "label": "Cheque amount (KES)", "fieldtype": "Currency", "allow_on_submit": 1, "insert_after": "pay_cheque_no"},
+    {"dt": _Q, "fieldname": "pay_date", "label": "Cheque date", "fieldtype": "Date", "allow_on_submit": 1, "insert_after": "pay_amount"},
+    {"dt": _Q, "fieldname": "vat_line_manual", "label": "VAT as its own line (typed amount)", "fieldtype": "Check", "allow_on_submit": 1, "insert_after": "pay_date"},
+    {"dt": _Q, "fieldname": "vat_line_account", "label": "VAT account (QBO id)", "fieldtype": "Data", "allow_on_submit": 1, "insert_after": "vat_line_manual"},
+    {"dt": _Q, "fieldname": "vat_line_account_name", "label": "VAT account", "fieldtype": "Data", "allow_on_submit": 1, "insert_after": "vat_line_account"},
+    {"dt": _Q, "fieldname": "vat_line_amount", "label": "VAT amount (KES)", "fieldtype": "Currency", "allow_on_submit": 1, "insert_after": "vat_line_account_name"},
 ]
 
 
