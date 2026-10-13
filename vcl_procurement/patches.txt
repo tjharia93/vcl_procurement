@@ -4,3 +4,4 @@
 vcl_procurement.patches.add_reel_batch_fields
 vcl_procurement.patches.add_purchase_invoice_kra_fields
 vcl_procurement.patches.add_acd_fields
+vcl_procurement.patches.add_qbo_expense_fields
