@@ -181,10 +181,13 @@ def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
 
     doc = frappe.new_doc("Purchase Order")
     doc.supplier = supplier
-    doc.transaction_date = getdate(order_date) if order_date else nowdate()
+    # Stored as text, not a date object: with payment terms set, ERPNext passes
+    # transaction_date to get_payment_term_details, whose type hint is `str | None`,
+    # and a datetime.date there fails the save with FrappeTypeError (16/10/2026).
+    doc.transaction_date = str(getdate(order_date)) if order_date else nowdate()
     if order_date:      # only a date the caller chose is checked; today vs an old schedule date is not new
         try:
-            rules.check_order_date(doc.transaction_date, wanted)
+            rules.check_order_date(getdate(doc.transaction_date), wanted)
         except rules.RuleError as e:
             frappe.throw(str(e))
     doc.schedule_date = wanted

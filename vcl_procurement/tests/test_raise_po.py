@@ -156,6 +156,13 @@ class RaisingAPurchaseOrder(unittest.TestCase):
         self.call(schedule_date="2026-09-30")
         self.assertEqual(self.doc.schedule_date, datetime.date(2026, 9, 30))
 
+    def test_a_chosen_order_date_is_stored_as_text(self):
+        # ERPNext's payment-terms lookup takes the order date typed `str | None`;
+        # a date object made every PO with payment terms fail (FrappeTypeError).
+        self.call(order_date="2026-10-16", schedule_date="2026-10-23")
+        self.assertEqual(self.doc.transaction_date, "2026-10-16")
+        self.assertIsInstance(self.doc.transaction_date, str)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
