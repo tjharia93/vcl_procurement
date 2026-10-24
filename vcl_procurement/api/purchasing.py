@@ -106,7 +106,10 @@ def open_orders(status=None, supplier=None):
         fields=["name", "supplier", "transaction_date", "schedule_date", "status",
                 "base_grand_total", "grand_total", "per_received", "per_billed", "currency",
                 "custom_order_type", "order_confirmation_no", "custom_file_number"],
-        order_by="transaction_date asc", limit_page_length=500)
+        # Open orders oldest first (the late ones lead); a finished list newest first,
+        # or the 500 cap would hide this month behind years of history.
+        order_by="transaction_date desc" if status in ("Completed", "Closed") else "transaction_date asc",
+        limit_page_length=500)
     links = _links_for([r.name for r in rows])
     ordered = _ordered_for([r.name for r in rows])
 

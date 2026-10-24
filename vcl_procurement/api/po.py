@@ -68,9 +68,18 @@ def _connections(po_name):
     return out
 
 
+SUBMIT = "Submit"
+
+
 def _workflow_actions(doc):
-    """The actions THIS user may take now. Asked of the workflow, never assumed."""
-    from frappe.model.workflow import get_transitions
+    """The actions THIS user may take now. Asked of the workflow, never assumed.
+
+    With no workflow on Purchase Order a draft is approved by submitting it, so
+    a user who may submit is offered that one action; po_act carries it out.
+    """
+    from frappe.model.workflow import get_transitions, get_workflow_name
+    if not get_workflow_name(PO):
+        return [{"action": SUBMIT, "next_state": None}] if doc.docstatus == 0 and doc.has_permission("submit") else []
     try:
         seen, out = set(), []
         for t in get_transitions(doc) or []:
@@ -155,6 +164,7 @@ def po_page(name):
         "pending": rules.pending_lines([{"qty": ln["qty"], "received_qty": ln["received_qty"], "uom": ln["uom"],
                                          "amount": ln["amount"], "billed_amt": ln["billed_amt"]} for ln in lines]),
         "actions": _workflow_actions(doc) if doc.docstatus == 0 else [],
+        "sent": _sent(doc.name),
         "payment_terms_options": _payment_terms() if doc.docstatus == 0 else [],
         "tax_template_options": _tax_templates() if doc.docstatus == 0 else [],
         "desk_url": f"/app/purchase-order/{doc.name}",
@@ -321,11 +331,47 @@ def po_act(name, action):
     from frappe.model.workflow import apply_workflow
     doc = frappe.get_doc(PO, name)
     doc.check_permission("read")
+    from frappe.model.workflow import get_workflow_name
     allowed = {a["action"] for a in _workflow_actions(doc)}
     if action not in allowed:
         frappe.throw(_("The action {0} is not available on {1} right now.").format(action, name))
-    apply_workflow(doc, action)
+    if action == SUBMIT and not get_workflow_name(PO):
+        doc.submit()
+    else:
+        apply_workflow(doc, action)
     return po_page(name)
+
+
+SHARED_PREFIX = "Shared with the supplier"
+
+
+def _sent(name):
+    """Whether, how and when the order went to the supplier, from the record:
+    an email sent from ERPNext (Desk or phone), or a share the phone logged."""
+    mails = frappe.get_all("Communication", filters={"reference_doctype": PO, "reference_name": name,
+                                                      "communication_medium": "Email", "sent_or_received": "Sent"},
+                           fields=["creation", "owner"], order_by="creation desc", limit_page_length=1)
+    shares = frappe.get_all("Comment", filters={"reference_doctype": PO, "reference_name": name,
+                                                 "comment_type": "Info", "content": ["like", SHARED_PREFIX + "%"]},
+                            fields=["creation", "owner", "content"], order_by="creation desc", limit_page_length=1)
+    last = sorted([(str(m.creation), "email", m.owner) for m in mails]
+                  + [(str(c.creation), "share", c.owner) for c in shares], reverse=True)
+    return {"sent": bool(last), "by_email": bool(mails), "by_share": bool(shares),
+            "last_at": last[0][0][:19] if last else None, "last_via": last[0][1] if last else None}
+
+
+@frappe.whitelist(methods=["POST"])
+def po_mark_shared(name, channel="WhatsApp"):
+    """Record that the order went to the supplier outside email (a WhatsApp share
+    from the phone), so every screen, not just the one phone, knows it was sent."""
+    _assert_purchasing_role()
+    doc = frappe.get_doc(PO, name)
+    doc.check_permission("read")
+    if doc.docstatus != 1:
+        frappe.throw(_("Approve {0} before sending it.").format(name))
+    channel = (str(channel or "WhatsApp").strip() or "WhatsApp")[:40]
+    doc.add_comment("Info", f"{SHARED_PREFIX} via {channel} by {frappe.session.user}")
+    return _sent(name)
 
 
 # --- close / re-open ------------------------------------------------------------
