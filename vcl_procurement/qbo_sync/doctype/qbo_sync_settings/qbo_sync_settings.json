@@ -24,7 +24,7 @@
         {"fieldname": "auto_push_polling_minutes", "fieldtype": "Int", "label": "Runner Push Poll Interval (min)", "default": "5", "description": "Informational. The external runner reads this to size its push-poll cron cadence."}
     ],
     "links": [],
-    "modified": "2026-04-29 00:00:00.000000",
+    "modified": "2026-10-24 20:00:00.000000",
     "modified_by": "Administrator",
     "module": "QBO Sync",
     "name": "QBO Sync Settings",
@@ -36,5 +36,5 @@
     ],
     "sort_field": "modified",
     "sort_order": "DESC",
-    "track_changes": 1
+    "track_changes": 0
 }
