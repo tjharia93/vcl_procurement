@@ -55,3 +55,4 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - `pi_page`: `file_no` falls back to the proforma (`file_no_source`); `shipment.days_free` falls back to the shipment's free days (`days_free_source`); `shipment.record` (the Import Shipment: BL match first, else the order's only shipment), `shipment.records_on_order`, `shipment.acd_code`, `shipment.export_received`; `lines[].po_detail`; `qbo_memo_standard`; `total_tax_kes` is now base grand total - base net total.
 - `qbo_prepare`: every invoice's queue memo carries the order and the ERPNext invoice (blank memo -> the standard one; a typed memo lacking them gets them appended).
 - `container_search`: also Import Shipments by BL (`kind: 'shipment'`, `invoice: null`, `shipment`).
+- `schedule_preview`: also takes the edit keys (`lines`, `remove_lines`, `taxes`, `conversion_rate`) and works the amounts due out on them, so the Due dates preview follows the lines as typed.

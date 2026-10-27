@@ -665,13 +665,22 @@ def schedule_preview(name, payload):
 
     Keeps the calculation on the server (rules.import_schedule) so the screen never
     holds a second copy of it. payload: {terms_template, tax_days_after_landing,
-    bill_date, expected_delivery, taxes_kes?}. Anything omitted is read from the invoice;
-    `taxes_kes` lets the screen preview typed-but-unsaved tax amounts.
+    bill_date, expected_delivery, taxes_kes?, lines?, remove_lines?, taxes?, conversion_rate?}. Anything
+    omitted is read from the invoice; the edit keys (as pi_save takes them) are applied to an unsaved copy
+    so the amounts due follow lines and taxes as typed. `taxes_kes` is the older way to pass typed taxes.
     """
     _assert_purchasing_role()
     payload = frappe.parse_json(payload) or {}
     doc = frappe.get_doc(PI, name)
     doc.check_permission("read")
+    edit = {k: payload[k] for k in ("lines", "remove_lines", "taxes", "conversion_rate") if k in payload}
+    if edit and doc.docstatus == 0:
+        # The amounts due follow the edit as typed (def-mvqeayxy), not the last save: same apply as pi_save.
+        data = {"conversion_rate": flt(edit["conversion_rate"])} if flt(edit.get("conversion_rate")) > 0 else {}
+        data.update(_lines_and_taxes(doc, edit, data.get("conversion_rate")))
+        doc.update(data)
+        doc.calculate_taxes_and_totals()
+        payload.pop("taxes_kes", None)      # the edit's own taxes are in the totals now
     try:
         term, term_name = _term_row(payload.get("terms_template"))
     except ValueError as e:

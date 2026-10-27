@@ -143,6 +143,29 @@ class Refit(unittest.TestCase):
         self.assertIsNone(rules.refit_schedule([], 1, 1, False))
 
 
+class SchedulePreviewFollowsTheEdit(unittest.TestCase):
+    """The Due dates preview while editing: amounts from the lines as typed, not the last save."""
+
+    def test_local_row_is_the_new_total(self):
+        doc = Doc(name="PINV-2", docstatus=0, currency="KES", conversion_rate=1, net_total=1000, grand_total=1160,
+                  rounded_total=0, bill_date="2026-10-01", custom_purchase_invoice_type="Local Purchase",
+                  items=[Row(name="r1", idx=1, qty=10, rate=100), Row(name="r2", idx=2, qty=1, rate=0)], taxes=[])
+
+        def update(data):
+            for k, v in data.items():
+                setattr(doc, k, v)
+
+        def calc():
+            doc.net_total = sum(float(r["qty"]) * float(r["rate"]) for r in doc.items)
+            doc.grand_total = round(doc.net_total * 1.16, 2)
+        doc.update, doc.calculate_taxes_and_totals = update, calc
+        frappe.get_doc = lambda dt, n=None: doc
+        saved, pi._term_row = pi._term_row, lambda t: ({"due_date_based_on": "Day(s) after invoice date", "credit_days": 30, "credit_months": 0}, "30 Days")
+        self.addCleanup(setattr, pi, "_term_row", saved)
+        out = pi.schedule_preview("PINV-2", {"terms_template": "30 Days", "lines": [{"name": "r1", "qty": 5, "rate": 100}], "remove_lines": ["r2"]})
+        self.assertEqual([r["payment_amount"] for r in out["rows"]], [580.0])
+
+
 # --- item 3: def-mvqebvoi, remove a PO line the invoice does not bill ------------------
 
 class RemoveLines(unittest.TestCase):
