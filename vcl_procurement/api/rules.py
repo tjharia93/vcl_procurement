@@ -506,3 +506,106 @@ def qbo_checks(docnumber, txn_date, vendor, lines, pi_net, category, tolerance=0
                 "why": f"lines {total:,.2f}, invoice {float(pi_net or 0):,.2f}"})
     out.append({"ok": category != "BLOCKED", "label": "Staging", "why": "blocked at staging" if category == "BLOCKED" else (category or "not staged")})
     return out
+
+
+# --- receiving: which receipt row is which PO line (27/10/2026) -------------------
+
+def receipt_qty_by_row(wanted, po_rows, pr_rows):
+    """The quantity for each row of a receipt mapped from a PO, or None to drop the row.
+
+    `wanted` is {PO line idx: qty}, as every client sends it. The mapped receipt holds only
+    the PENDING lines and numbers them again from 1, so its own `idx` says nothing about which
+    PO line a row is: with line 1 already received, receipt row 1 is PO line 2. The row's
+    `purchase_order_item` (the PO row's name) is the only safe key. `po_rows` carry `name` and
+    `idx`; `pr_rows` carry `purchase_order_item`.
+    """
+    idx_of = {r.get("name"): r.get("idx") for r in po_rows}
+    out = []
+    for r in pr_rows:
+        idx = idx_of.get(r.get("purchase_order_item"))
+        qty = wanted.get(int(idx)) if idx is not None else None
+        out.append(float(qty) if qty is not None and float(qty) > 0 else None)
+    return out
+
+
+# --- payment schedule follows the invoice total (27/10/2026) -----------------------
+
+def refit_schedule(rows, net, grand, is_import):
+    """The saved schedule re-fitted to a changed invoice total, or None when it needs nothing.
+
+    ERPNext keeps each row's PORTION and scales the amount from it, so after a line or tax edit
+    an import's "net" row stops being the net total and the "taxes" row stops being the taxes.
+    An import's two-row schedule (net, then taxes) gets its amounts back; a single row becomes the
+    whole invoice. Any other shape is left to ERPNext. Due dates are never touched.
+    """
+    net, grand = round(float(net or 0), 2), round(float(grand or 0), 2)
+    if not rows or grand <= 0:
+        return None
+    if is_import and len(rows) == 2:
+        portion = round(net / grand * 100, 8)
+        want = [(portion, net), (round(100 - portion, 8), round(grand - net, 2))]
+    elif len(rows) == 1:
+        want = [(100.0, grand)]
+    else:
+        return None
+    same = all(abs(float(r.get("payment_amount") or 0) - amt) < 0.005 and abs(float(r.get("invoice_portion") or 0) - por) < 1e-6
+               for r, (por, amt) in zip(rows, want))
+    if same:
+        return None
+    return [{**r, "invoice_portion": por, "payment_amount": amt} for r, (por, amt) in zip(rows, want)]
+
+
+# --- references every bill carries (27/10/2026) --------------------------------------
+
+def file_no(po_file, pi_file, proforma):
+    """(file number, where it came from). The PO's own, else the invoice's, else the proforma
+    (the reference the PO stands in when it has none of its own; resolved on read, never copied)."""
+    for v, src in ((po_file, "the PO"), (pi_file, "this invoice"), (proforma, "the proforma (the PO has no file no.)")):
+        if str(v or "").strip():
+            return str(v).strip(), src
+    return None, None
+
+
+def qbo_memo(pi_name, bill_no, pos, proforma=None, file_number=None, bl_no=None, containers=(), currency=None, total=None):
+    """The QuickBooks memo for ANY purchase invoice: the references a person needs to find this bill
+    again from QuickBooks - the order, the supplier's invoice and the ERPNext invoice - plus, on an
+    import, the BL and containers. Short enough for QuickBooks' 4000-character private note."""
+    pos = [p for p in (pos or []) if p]
+    conts = [str(c).strip() for c in (containers or []) if str(c or "").strip()]
+    parts = [
+        "BL " + str(bl_no).strip() if str(bl_no or "").strip() else "",
+        "Containers " + ", ".join(conts) if conts else "",
+        "Supplier inv " + str(bill_no).strip() if str(bill_no or "").strip() else "",
+        ("Order " + ", ".join(pos) + (f" (proforma {proforma})" if proforma else "")) if pos else (f"Proforma {proforma}" if proforma else ""),
+        "File no " + str(file_number).strip() if str(file_number or "").strip() else "",
+        "ERPNext " + pi_name if pi_name else "",
+        f"{currency} {float(total or 0):,.2f}" if currency else "",
+    ]
+    return " · ".join(p for p in parts if p)[:4000]
+
+
+def memo_has_refs(memo, pi_name, pos):
+    """Does a memo already carry the order and the ERPNext invoice? A typed memo that does is kept."""
+    m = str(memo or "")
+    return bool(m.strip()) and all(p in m for p in (pos or [])) and (not pi_name or pi_name in m)
+
+
+# --- the shipment record an import invoice belongs to (27/10/2026) -----------------
+
+def norm_ref(v):
+    return re.sub(r"[^A-Z0-9]", "", str(v or "").upper())
+
+
+def pick_shipment(shipments, bl_no, pos):
+    """The Import Shipment an invoice belongs to, or None.
+
+    A BL is one voyage, so a BL match wins. Without one, the order's shipment - but only when the
+    order has a single one: a split order has a shipment per voyage and guessing between them would
+    put this invoice's vessel on the wrong one. `shipments` carry name, bl_number, purchase_order."""
+    bl = norm_ref(bl_no)
+    if bl:
+        for s in shipments:
+            if norm_ref(s.get("bl_number")) == bl:
+                return s
+    mine = [s for s in shipments if s.get("purchase_order") in set(pos or [])]
+    return mine[0] if len(mine) == 1 else None

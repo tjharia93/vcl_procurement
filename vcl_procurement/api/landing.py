@@ -90,7 +90,8 @@ def pi_list():
 
 @frappe.whitelist()
 def container_search(q=""):
-    """Invoices matching `q` by container number or by bill of lading (spaces, dashes and case ignored).
+    """Invoices matching `q` by container number or by bill of lading (spaces, dashes and case ignored),
+    then Import Shipments matching it by bill of lading (kind 'shipment', no invoice yet).
 
     Each hit says what it matched in `kind`: 'container' (the existing hits, unchanged otherwise) or
     'bl'. A BL hit has no container, so `container` and `size` are None. Cancelled invoices never match.
@@ -106,8 +107,9 @@ def container_search(q=""):
     bl_rows = R.bl_hits(frappe.get_all(
         "Purchase Invoice", filters={"docstatus": ["<", 2], "custom_bill_of_lading_number": ["is", "set"]},
         fields=["name", "docstatus", "custom_bill_of_lading_number"], limit_page_length=0), q)
+    ships = _shipment_hits(q)
     if not hits and not bl_rows:
-        return []
+        return ships
     parents = sorted({h.parent for h in hits} | {b.name for b in bl_rows})
     inv = {r.name: r for r in frappe.get_all(
         "Purchase Invoice", filters={"name": ["in", parents]},
@@ -134,4 +136,25 @@ def container_search(q=""):
     for b in bl_rows:
         out.append({"kind": "bl", "container": None, "size": None,
                     **base(b.name), "bl_no": str(b.custom_bill_of_lading_number or "").strip()})
-    return out[:30]
+    return (out + ships)[:30]
+
+
+def _shipment_hits(q):
+    """Import Shipments whose BL matches (def-pc1027-03): a BL is known at the draft BL, weeks before the
+    goods invoice exists, so a search over invoices alone could not find it. kind 'shipment', no invoice."""
+    try:
+        if not frappe.db.exists("DocType", "Import Shipment"):
+            return []
+        rows = frappe.get_all("Import Shipment", filters={"bl_number": ["is", "set"]},
+                              fields=["name", "bl_number", "purchase_order", "supplier", "stage", "proforma_no"],
+                              limit_page_length=0)
+    except Exception:
+        return []
+    out = []
+    for r in rows:
+        if R.bl_matches(r.get("bl_number"), q):
+            out.append({"kind": "shipment", "container": None, "size": None, "invoice": None,
+                        "shipment": r.name, "supplier": r.supplier, "bill_no": None,
+                        "pos": [r.purchase_order] if r.purchase_order else [], "bl_no": str(r.bl_number or "").strip(),
+                        "stage": r.stage, "proforma_no": r.proforma_no, "draft": False})
+    return out

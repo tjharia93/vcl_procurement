@@ -376,12 +376,13 @@ def pi_doc(**kw):
 
 
 def stub_pi_helpers():
-    saved = {n: getattr(pi, n) for n in ("_payments", "_attachments", "_qbo", "_receive_from", "_suggested_terms")}
+    saved = {n: getattr(pi, n) for n in ("_payments", "_attachments", "_qbo", "_receive_from", "_suggested_terms", "_shipment_for")}
     pi._payments = lambda n: []
     pi._attachments = lambda n: []
     pi._qbo = lambda d: None
     pi._receive_from = lambda d: None
     pi._suggested_terms = lambda d: (None, None)
+    pi._shipment_for = lambda d: (None, 0)
     return saved
 
 

@@ -44,3 +44,14 @@ Additive contract changes for the ported Compass screens (no existing key remove
 - `open_orders` / `draft_orders` rows: `stale`, `ordered {text, more}`, `order_confirmation_no`, `file_no` (drafts also `confirmation_no`).
 - `container_search`: hits carry `kind` ('container' | 'bl'); BL matches on `custom_bill_of_lading_number`; cancelled invoices excluded. `pi_list` rows: `bl_no`.
 - `pi_page`: a draft's `invoice_type`/`is_import` follow its PO, plus `type_follows_po`; `pi_save` forces that type. `bill_from_po`: sets type and file number from the PO, refreshes the exchange rate, returns `invoice_type` and `conversion_rate`.
+
+## Added 27/10/2026 (Purchasing defects triage)
+Additive; no key removed. One patch (`add_40hc_container_size`): **migrate needed**.
+- `create_receipt`: `lines` is `{PO line idx: qty}` and is matched to the mapped receipt by `purchase_order_item`, never by the receipt's own idx (it renumbers the pending lines from 1). Fixes a partial receipt landing on the wrong line when an earlier line was already received (pur-def-receipt-idx). `rules.receipt_qty_by_row`.
+- `receipt_preview` items: `description` (plain text, blank when it only repeats the item name).
+- `pi_save`: `remove_lines: [row name]` drops invoice rows the supplier did not bill (at least one stays); `custom_acd_reference_code`, `custom_export_entry_received`; `shipment_record {vessel, voyage_no, bl_date, idf_number, port_of_loading, packing_list_gross_kg, packing_list_net_kg, packing_list_packages}` written to the invoice's Import Shipment through `vcl_imports.api.shipments.update_shipment`. When the schedule is not rebuilt, its amounts are re-fitted to the new totals (`rules.refit_schedule`: import net/taxes rows, or one row = the whole invoice).
+- `tax_preview(name, payload)`: ERPNext's own calculate_taxes_and_totals on an unsaved copy with the edit applied; the screen's preview now comes from here.
+- `pi_set_ship(name, fields)`: ACD code / export tick, replacing the screen's REST write.
+- `pi_page`: `file_no` falls back to the proforma (`file_no_source`); `shipment.days_free` falls back to the shipment's free days (`days_free_source`); `shipment.record` (the Import Shipment: BL match first, else the order's only shipment), `shipment.records_on_order`, `shipment.acd_code`, `shipment.export_received`; `lines[].po_detail`; `qbo_memo_standard`; `total_tax_kes` is now base grand total - base net total.
+- `qbo_prepare`: every invoice's queue memo carries the order and the ERPNext invoice (blank memo -> the standard one; a typed memo lacking them gets them appended).
+- `container_search`: also Import Shipments by BL (`kind: 'shipment'`, `invoice: null`, `shipment`).

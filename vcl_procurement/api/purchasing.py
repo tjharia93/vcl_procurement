@@ -305,6 +305,8 @@ def receipt_preview(po, pi=None):
             "idx": it.idx,
             "item_code": it.item_code,
             "item_name": it.item_name,
+            # The PO line's own words (size, grade, reel spec): what the storeman checks the delivery against.
+            "description": rules.plain_text(it.description) if it.description and rules.plain_text(it.description) != (it.item_name or "") else "",
             "uom": it.uom,
             "warehouse": it.warehouse,
             "ordered": flt(it.qty),
@@ -341,7 +343,7 @@ def receipt_preview(po, pi=None):
 def create_receipt(po, lines=None, posting_date=None, supplier_delivery_note=None, submit=0):
     """Create a Purchase Receipt against a PO - a draft, or (submit=1) a submitted one.
 
-    `lines` is an optional {idx: qty} map for a partial receipt; omitted means
+    `lines` is an optional {PO line idx: qty} map for a partial receipt; omitted means
     receive everything still pending. A quantity above what is pending is
     accepted up to the item's over-receipt allowance (checked here, then by
     ERPNext on save). `posting_date` is the day the goods arrived.
@@ -366,10 +368,13 @@ def create_receipt(po, lines=None, posting_date=None, supplier_delivery_note=Non
             rules.check_receipt_lines(wanted, {idx: mx for idx, (_p, mx) in limits.items()})
         except rules.RuleError as e:
             frappe.throw(str(e))
+        # Match on the PO row, never on the receipt's own idx: the mapped receipt holds only the
+        # pending lines, numbered again from 1 (pur-def-receipt-idx, 27/10/2026).
+        qtys = rules.receipt_qty_by_row(wanted, [{"name": r.name, "idx": r.idx} for r in po_doc.items],
+                                        [{"purchase_order_item": r.purchase_order_item} for r in pr.items])
         keep = []
-        for row in pr.items:
-            qty = wanted.get(int(row.idx))
-            if qty is None or qty <= 0:
+        for row, qty in zip(pr.items, qtys):
+            if qty is None:
                 continue
             row.qty = qty
             row.received_qty = qty

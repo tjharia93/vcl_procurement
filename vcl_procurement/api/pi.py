@@ -40,6 +40,7 @@ _SIMPLE = {
     "custom_bill_of_lading_number": "custom_bill_of_lading_number",
     "custom_shipping_line": "custom_shipping_line",
     "custom_expected_date_of_delivery_to_port": "custom_expected_date_of_delivery_to_port",
+    "custom_acd_reference_code": "custom_acd_reference_code",
     "remarks": "remarks",
 }
 _CONTAINER_FIELDS = ("container_reference", "description_of_packaging_eg_51_reels_or_515_packages",
@@ -217,16 +218,39 @@ def _qbo_review(doc, queue_name):
             "checks": checks, "ready": all(c["ok"] for c in checks)}
 
 
+def _memo_for(doc, memo):
+    """The memo to write on the queue row, or None to leave it as it is."""
+    pos = _linked_pos(doc)
+    if rules.memo_has_refs(memo, doc.name, pos):
+        return None
+    proforma = _from_po(doc, "order_confirmation_no") or doc.get("custom_proforma_invoice_number_importation_link")
+    file_number, _src = rules.file_no(_from_po(doc, "custom_file_number"), doc.get("custom_file_number"), proforma)
+    if not (memo or "").strip():
+        return rules.qbo_memo(doc.name, doc.bill_no, pos, proforma, file_number, doc.get("custom_bill_of_lading_number"),
+                              [c.container_reference for c in doc.get("custom_container_details_table") or []],
+                              doc.currency, doc.grand_total)
+    refs = rules.qbo_memo(doc.name, None, [p for p in pos if p not in memo], None, None)
+    refs = " · ".join(x for x in refs.split(" · ") if x not in memo)
+    return (memo.strip() + " · " + refs)[:4000] if refs else None
+
+
 @frappe.whitelist(methods=["POST"])
 def qbo_prepare(name):
-    """Before a push: put the right bill number on the draft queue row (an import uses the KRA customs entry number).
+    """Before a push: put the right bill number on the draft queue row (an import uses the KRA customs entry number)
+    and the order / invoice references in its memo (every invoice).
 
     Never touches a row that has been submitted. Returns the refreshed page.
     """
     _assert_purchasing_role()
     doc = frappe.get_doc(PI, name)
     doc.check_permission("read")
-    row = frappe.get_all("QBO Bill Push Queue", filters={"pi": name, "docstatus": 0}, fields=["name", "qbo_docnumber_override", "txn_date"], limit_page_length=1)
+    row = frappe.get_all("QBO Bill Push Queue", filters={"pi": name, "docstatus": 0}, fields=["name", "qbo_docnumber_override", "txn_date", "qbo_memo"], limit_page_length=1)
+    if row:
+        # Every bill carries its order and invoice references in the memo (cr-mvqewpg9): a blank memo
+        # gets the standard one, a typed one that lacks them gets them added at the end.
+        memo = _memo_for(doc, row[0].qbo_memo)
+        if memo is not None:
+            frappe.db.set_value("QBO Bill Push Queue", row[0].name, "qbo_memo", memo, update_modified=True)
     if row and rules.is_import(doc.get("custom_purchase_invoice_type")):
         want = (doc.get("custom_kra_import_number") or "").strip()
         when = rules.qbo_txn_date(doc.get("custom_purchase_invoice_type"), doc.get("custom_kra_entry_date"), None, None)
@@ -273,6 +297,16 @@ def pi_page(name):
 
     missing = _missing(doc)
     outstanding = flt(doc.outstanding_amount)
+    ship_row, ship_count = _shipment_for(doc) if imp else (None, 0)
+    pos = _linked_pos(doc)
+    proforma = _from_po(doc, "order_confirmation_no") or doc.get("custom_proforma_invoice_number_importation_link") \
+        or (ship_row or {}).get("proforma_no")
+    file_number, file_src = rules.file_no(_from_po(doc, "custom_file_number"), doc.get("custom_file_number"), proforma)
+    # Days free: the invoice's own figure, else the shipment's (def-pc1027-08). 0 is "not entered", not "no free days".
+    days_free, days_src = flt(doc.get("custom_number_of_days_free")), "this invoice"
+    if not days_free and ship_row and flt(ship_row.get("free_days")):
+        days_free, days_src = flt(ship_row.get("free_days")), "the shipment " + ship_row["name"]
+    containers = [c.container_reference for c in doc.get("custom_container_details_table") or []]
     return {
         "name": doc.name, "docstatus": doc.docstatus, "status": doc.status,
         "supplier": doc.supplier, "supplier_name": doc.supplier_name or doc.supplier,
@@ -284,15 +318,18 @@ def pi_page(name):
                   "clearance_date": rules.iso(doc.get("clearance_date"))},
         "kra_entry_number": doc.get("custom_kra_import_number"),
         # Filled from the linked PO and not edited on the invoice.
-        "proforma_no": _from_po(doc, "order_confirmation_no") or doc.get("custom_proforma_invoice_number_importation_link"),
-        "file_no": _from_po(doc, "custom_file_number") or doc.get("custom_file_number"),
-        "purchase_orders": _linked_pos(doc),
+        "proforma_no": proforma,
+        "file_no": file_number, "file_no_source": file_src,
+        "purchase_orders": pos,
         "update_stock": int(doc.update_stock or 0),
         "shipment": {
             "bill_of_lading_no": doc.get("custom_bill_of_lading_number"),
             "shipping_line": doc.get("custom_shipping_line"),
             "expected_delivery_to_port": rules.iso(doc.get("custom_expected_date_of_delivery_to_port")),
-            "days_free": flt(doc.get("custom_number_of_days_free")),
+            "days_free": days_free, "days_free_source": days_src if days_free else None,
+            "acd_code": doc.get("custom_acd_reference_code"),
+            "export_received": 1 if doc.get("custom_export_entry_received") else 0,
+            "record": _shipment_page(ship_row, ship_count)["record"], "records_on_order": ship_count,
             "containers": [{"name": c.name, "container_reference": c.container_reference,
                             "packaging": c.description_of_packaging_eg_51_reels_or_515_packages,
                             "gross_weight": flt(c.gross_weight), "net_weight": flt(c.net_weight),
@@ -301,9 +338,11 @@ def pi_page(name):
         "lines": [{"name": i.name, "item_code": i.item_code, "item_name": i.item_name or i.item_code,
                    "qty": flt(i.qty), "uom": i.uom, "rate": flt(i.rate), "amount": flt(i.amount),
                    "warehouse": i.warehouse, "expense_account": i.expense_account,
-                   "purchase_order": i.purchase_order} for i in doc.items],
+                   "purchase_order": i.purchase_order, "po_detail": i.get("po_detail")} for i in doc.items],
         "net_total": flt(doc.net_total), "base_net_total": flt(doc.base_net_total),
-        "taxes": taxes, "total_tax_kes": rules.signed_sum(taxes, "kes"),
+        # ERPNext's own figure (grand - net), so it agrees with the grand total even when a row is
+        # for valuation only; the old signed sum of the rows did not (def-pc1027-06).
+        "taxes": taxes, "total_tax_kes": flt(doc.base_grand_total) - flt(doc.base_net_total),
         "taxes_all_actual": bool(taxes) and all(t["charge_type"] == "Actual" for t in taxes),
         "grand_total": flt(doc.grand_total), "base_grand_total": flt(doc.base_grand_total),
         "outstanding": outstanding,
@@ -314,6 +353,8 @@ def pi_page(name):
                            "tax_days_after_landing": rules.DEFAULT_TAX_DAYS_AFTER_LANDING},
         "payments": _payments(doc.name),
         "qbo": _qbo(doc),
+        "qbo_memo_standard": rules.qbo_memo(doc.name, doc.bill_no, pos, proforma, file_number,
+                                            doc.get("custom_bill_of_lading_number"), containers, cur, doc.grand_total),
         "attachments": _attachments(doc.name),
         "requirements": {"missing": missing, "ready": not missing},
         "receive_from": _receive_from(doc),
@@ -328,7 +369,178 @@ def pi_page(name):
     }
 
 
+# --- the Import Shipment an import invoice belongs to (vcl_imports) ------------------
+
+SHIP = "Import Shipment"
+# Voyage facts the shipment record owns (vcl_imports: "the shipment owns them and the PI is never
+# consulted again"). The last four arrive with the vcl_imports migrate of 27/10/2026; until then they
+# are simply not read or offered.
+SHIP_FIELDS = ("vessel", "voyage_no", "bl_date", "idf_number", "port_of_loading",
+               "packing_list_gross_kg", "packing_list_net_kg", "packing_list_packages")
+SHIP_READ = ("name", "bl_number", "purchase_order", "stage", "free_days", "proforma_no") + SHIP_FIELDS
+
+
+def _ship_fields():
+    if not frappe.db.exists("DocType", SHIP):
+        return None
+    meta = frappe.get_meta(SHIP)
+    return [f for f in SHIP_READ if f == "name" or meta.has_field(f)]
+
+
+def _shipment_for(doc):
+    """(shipment row or None, how many shipments the order has). Never raises: tracking is optional."""
+    try:
+        fields = _ship_fields()
+        pos = _linked_pos(doc)
+        if not fields or not (pos or doc.get("custom_bill_of_lading_number")):
+            return None, 0
+        rows = frappe.get_all(SHIP, filters={"purchase_order": ["in", pos]}, fields=fields,
+                              order_by="name asc", limit_page_length=50) if pos else []
+        if doc.get("custom_bill_of_lading_number") and not any(
+                rules.norm_ref(r.get("bl_number")) == rules.norm_ref(doc.get("custom_bill_of_lading_number")) for r in rows):
+            rows = rows + frappe.get_all(SHIP, filters={"bl_number": ["is", "set"]}, fields=fields,
+                                         limit_page_length=0)
+        hit = rules.pick_shipment(rows, doc.get("custom_bill_of_lading_number"), pos)
+        return hit, len([r for r in rows if r.get("purchase_order") in pos])
+    except Exception:
+        frappe.log_error(title="vcl_procurement: shipment lookup failed", message=frappe.get_traceback())
+        return None, 0
+
+
+def _shipment_page(row, count):
+    if not row:
+        return {"record": None, "count": count}
+    rec = {k: (rules.iso(v) if k == "bl_date" else v) for k, v in row.items()}
+    rec["editable"] = [f for f in SHIP_FIELDS if f in row]
+    rec["href"] = "/compass/imports?ship=" + row["name"]
+    return {"record": rec, "count": count}
+
+
+def _save_shipment_record(doc, fields):
+    """Write the voyage facts typed on the invoice to its shipment, through vcl_imports' own whitelisted
+    update (its roles and its list of editable fields). Returns notes, never raises."""
+    if not fields:
+        return []
+    row, count = _shipment_for(doc)
+    if not row:
+        return ["The vessel, BL date, IDF and packing-list figures were not saved: this invoice has no shipment record"
+                + (f" (its order has {count}; enter the BL number so the right one is found)." if count > 1 else ".")]
+    allowed = set(_ship_fields() or [])
+    want = {k: (v if v not in ("",) else None) for k, v in fields.items() if k in SHIP_FIELDS and k in allowed}
+    changed = {k: v for k, v in want.items() if str(row.get(k) or "") != str(v or "")}
+    if not changed:
+        return []
+    frappe.db.savepoint("pi_shipment_record")
+    try:
+        from vcl_imports.api.shipments import update_shipment
+        update_shipment(row["name"], changed)
+        return []
+    except Exception as e:
+        # The invoice save stands; only the shipment's half is undone.
+        frappe.db.rollback(save_point="pi_shipment_record")
+        frappe.clear_messages()
+        return [f"The invoice was saved, but shipment {row['name']} was not: {getattr(e, 'message', None) or e}"]
+
+
+@frappe.whitelist(methods=["POST"])
+def pi_set_ship(name, fields):
+    """The two shipment ticks that stay editable after submit: the ACD reference code and the export
+    entry. Replaces the screen's direct REST write. Returns the two saved values."""
+    _assert_purchasing_role()
+    fields = frappe.parse_json(fields) or {}
+    doc = frappe.get_doc(PI, name)
+    doc.check_permission("write")
+    if doc.docstatus == 2:
+        frappe.throw(_("{0} is cancelled.").format(name))
+    if "custom_acd_reference_code" in fields:
+        doc.custom_acd_reference_code = (str(fields["custom_acd_reference_code"] or "").strip() or None)
+    if "custom_export_entry_received" in fields:
+        doc.custom_export_entry_received = 1 if fields["custom_export_entry_received"] else 0
+    doc.save()
+    return {"custom_acd_reference_code": doc.get("custom_acd_reference_code"),
+            "custom_export_entry_received": doc.get("custom_export_entry_received")}
+
+
+@frappe.whitelist()
+def tax_preview(name, payload):
+    """The taxes and totals a save WOULD give, worked out by ERPNext itself on an unsaved copy.
+
+    The screen used to run its own copy of the tax chain and on imports it disagreed with the saved
+    figures (def-pc1027-06). Now the preview is ERPNext's calculate_taxes_and_totals on the same
+    lines, rate and typed taxes `pi_save` would write - nothing is saved.
+    """
+    _assert_purchasing_role()
+    payload = frappe.parse_json(payload) or {}
+    doc = frappe.get_doc(PI, name)
+    doc.check_permission("read")
+    if doc.docstatus != 0:
+        frappe.throw(_("{0} is not a draft.").format(name))
+    data = {}
+    if flt(payload.get("conversion_rate")) > 0:
+        data["conversion_rate"] = flt(payload["conversion_rate"])
+    data.update(_lines_and_taxes(doc, payload, data.get("conversion_rate")))
+    doc.update(data)
+    doc.calculate_taxes_and_totals()
+    rate = flt(doc.conversion_rate) or 1
+    return {
+        "net_total": flt(doc.net_total), "base_net_total": flt(doc.base_net_total),
+        "taxes": [{"name": t.name, "idx": t.idx, "tax_amount": flt(t.tax_amount),
+                   "kes": flt(t.base_tax_amount) if t.base_tax_amount is not None else rules.doc_to_kes(t.tax_amount, rate, doc.currency)}
+                  for t in doc.get("taxes") or []],
+        "total_tax_kes": flt(doc.base_grand_total) - flt(doc.base_net_total),
+        "grand_total": flt(doc.grand_total), "base_grand_total": flt(doc.base_grand_total),
+    }
+
+
 # --- writing ------------------------------------------------------------------
+
+def _lines_and_taxes(doc, payload, conversion_rate=None):
+    """{items?, taxes?} for an edit of a DRAFT: quantities and rates, lines removed, taxes typed in KES.
+
+    Shared by `pi_save` and `tax_preview`, so the preview is worked out on exactly what a save would
+    write. `remove_lines` drops invoice rows the supplier did not bill (a PO line the invoice does
+    not carry, def-mvqebvoi); at least one line has to stay.
+    """
+    out = {}
+    remove = {n for n in (payload.get("remove_lines") or []) if n}
+    if "lines" in payload or remove:
+        unknown = remove - {i.name for i in doc.items}
+        if unknown:
+            frappe.throw(_("Not a line of {0}: {1}").format(doc.name, ", ".join(sorted(unknown))))
+        if remove and len(remove) >= len(doc.items):
+            frappe.throw(_("An invoice needs at least one line. Cancel or delete the draft instead."))
+        want = {ln["name"]: ln for ln in payload.get("lines") or [] if ln.get("name")}
+        rows = []
+        for i in doc.items:
+            if i.name in remove:
+                continue
+            row = i.as_dict()
+            if i.name in want:
+                row["qty"] = flt(want[i.name].get("qty"))
+                rate_ = flt(want[i.name].get("rate"))
+                row["rate"] = rate_
+                # `rate` is the only price field: keep ERPNext from re-deriving it (see po_price_guard).
+                row.update(price_list_rate=rate_, base_price_list_rate=rate_, margin_type="", rate_with_margin=0,
+                           base_rate_with_margin=0, margin_rate_or_amount=0, discount_percentage=0, discount_amount=0)
+            rows.append(row)
+        for n, row in enumerate(rows, 1):
+            row["idx"] = n
+        out["items"] = rows
+
+    tx = payload.get("taxes") or {}
+    if tx.get("mode") == "actual":
+        rate = flt(conversion_rate or doc.conversion_rate) or 1
+        kes_by_name = {r["name"]: r.get("kes") for r in tx.get("rows") or [] if r.get("name")}
+        rows = []
+        for t in doc.get("taxes") or []:
+            row = t.as_dict()
+            row["charge_type"] = "Actual"
+            row["row_id"] = None
+            if t.name in kes_by_name:
+                row["tax_amount"] = rules.kes_to_doc(kes_by_name[t.name], rate, doc.currency)
+            rows.append(row)
+        out["taxes"] = rows
+    return out
 
 @frappe.whitelist()
 def pi_save(name, payload):
@@ -337,8 +549,9 @@ def pi_save(name, payload):
     payload keys (all optional): bill_no, bill_date, custom_purchase_invoice_type,
     custom_kra_import_number, custom_kra_entry_date, posting_date (non-import only),
     conversion_rate, update_stock, remarks, shipment fields, containers[], lines
-    [{name, qty, rate}], taxes {mode: "actual"|"calculated", rows: [{name, kes}]},
-    schedule {terms_template, tax_days_after_landing}.
+    [{name, qty, rate}], remove_lines [name], taxes {mode: "actual"|"calculated", rows: [{name, kes}]},
+    schedule {terms_template, tax_days_after_landing}, custom_acd_reference_code,
+    custom_export_entry_received, shipment_record {vessel, bl_date, ...} (written to the Import Shipment).
     """
     _assert_purchasing_role()
     payload = frappe.parse_json(payload) or {}
@@ -356,6 +569,8 @@ def pi_save(name, payload):
         data["custom_number_of_days_free"] = flt(payload["custom_number_of_days_free"])
     if "update_stock" in payload:
         data["update_stock"] = 1 if payload["update_stock"] else 0
+    if "custom_export_entry_received" in payload:
+        data["custom_export_entry_received"] = 1 if payload["custom_export_entry_received"] else 0
     if "conversion_rate" in payload:
         if flt(payload["conversion_rate"]) <= 0:
             frappe.throw(_("The exchange rate must be greater than zero."))
@@ -388,38 +603,11 @@ def pi_save(name, payload):
              "gross_weight": flt(c.get("gross_weight")), "net_weight": flt(c.get("net_weight"))}
             for c in (payload["containers"] or [])]
 
-    if "lines" in payload:
-        want = {ln["name"]: ln for ln in payload["lines"] if ln.get("name")}
-        rows = []
-        for i in doc.items:
-            row = i.as_dict()
-            if i.name in want:
-                row["qty"] = flt(want[i.name].get("qty"))
-                rate_ = flt(want[i.name].get("rate"))
-                row["rate"] = rate_
-                # `rate` is the only price field: keep ERPNext from re-deriving it (see po_price_guard).
-                row.update(price_list_rate=rate_, base_price_list_rate=rate_, margin_type="", rate_with_margin=0,
-                           base_rate_with_margin=0, margin_rate_or_amount=0, discount_percentage=0, discount_amount=0)
-            rows.append(row)
-        data["items"] = rows
-
-    tx = payload.get("taxes") or {}
-    if tx.get("mode") == "actual":
-        rate = flt(data.get("conversion_rate") or doc.conversion_rate) or 1
-        kes_by_name = {r["name"]: r.get("kes") for r in tx.get("rows") or [] if r.get("name")}
-        rows = []
-        for t in doc.get("taxes") or []:
-            row = t.as_dict()
-            row["charge_type"] = "Actual"
-            row["row_id"] = None
-            if t.name in kes_by_name:
-                row["tax_amount"] = rules.kes_to_doc(kes_by_name[t.name], rate, doc.currency)
-            rows.append(row)
-        data["taxes"] = rows
-
+    data.update(_lines_and_taxes(doc, payload, data.get("conversion_rate")))
     doc.update(data)
 
     sched = payload.get("schedule")
+    sched_set = False
     if sched and not rules.is_import(itype):
         doc.calculate_taxes_and_totals()
         try:
@@ -433,6 +621,7 @@ def pi_save(name, payload):
         else:
             doc.payment_terms_template = None
             doc.set("payment_schedule", rows)
+            sched_set = True
     elif sched and rules.is_import(itype):
         doc.calculate_taxes_and_totals()
         try:
@@ -452,8 +641,21 @@ def pi_save(name, payload):
             # A template on the invoice would make ERPNext rebuild the schedule from it and discard these rows.
             doc.payment_terms_template = None
             doc.set("payment_schedule", rows)
+            sched_set = True
+
+    if not sched_set and doc.get("payment_schedule"):
+        # The amounts due follow the invoice (def-mvqeayxy): after a line or tax edit an import's
+        # net and taxes rows are put back to the new net and taxes, a single row to the new total.
+        doc.calculate_taxes_and_totals()
+        total = flt(doc.rounded_total) or flt(doc.grand_total)
+        rows = rules.refit_schedule([r.as_dict() for r in doc.payment_schedule], doc.net_total, total, rules.is_import(itype))
+        if rows:
+            for r, new in zip(doc.payment_schedule, rows):
+                r.invoice_portion = new["invoice_portion"]
+                r.payment_amount = new["payment_amount"]
 
     doc.save()
+    notes += _save_shipment_record(doc, payload.get("shipment_record"))
     return {"page": pi_page(name), "notes": notes}
 
 
