@@ -81,12 +81,18 @@ class Doc:
     def insert(self):
         self.inserted = True
 
+    def save(self):
+        self.saved = True
+
 
 class RaisingAPurchaseOrder(unittest.TestCase):
 
     def setUp(self):
         self.doc = Doc()
         frappe.new_doc = lambda _dt: self.doc
+        self.tables = {}
+        frappe.get_all = lambda dt, filters=None, fields=None, pluck=None, **k: (
+            [r[pluck] for r in self.tables.get(dt, [])] if pluck else [Row(r) for r in self.tables.get(dt, [])])
 
     def call(self, **kw):
         kw.setdefault("supplier", "LABCHEM LTD")
@@ -155,6 +161,53 @@ class RaisingAPurchaseOrder(unittest.TestCase):
     def test_an_explicit_delivery_date_wins(self):
         self.call(schedule_date="2026-09-30")
         self.assertEqual(self.doc.schedule_date, datetime.date(2026, 9, 30))
+
+
+    def test_a_line_that_lost_its_request_is_linked_back(self):
+        """PUR-ORD-2026-00270: Clear Glue copied from the last order, MR-00079 left at 0%."""
+        self.tables = {
+            "Material Request Item": [{"name": "fnohibsijm", "parent": "MAT-MR-2026-00079",
+                                       "item_code": "Clear Glue", "stock_qty": 500, "ordered_qty": 0}],
+            "Material Request": [{"name": "MAT-MR-2026-00079"}],
+        }
+        self.call(lines=[{"item_code": "Clear Glue", "qty": 500, "rate": 65}])
+        line = self.doc.items[0]
+        self.assertEqual(line.material_request, "MAT-MR-2026-00079")
+        self.assertEqual(line.material_request_item, "fnohibsijm")
+        self.assertTrue(getattr(self.doc, "saved", False))
+
+    def test_no_open_request_means_no_link_and_no_second_save(self):
+        self.call()
+        self.assertIsNone(self.doc.items[0].material_request)
+        self.assertFalse(getattr(self.doc, "saved", False))
+
+
+class MatchingLinesToRequests(unittest.TestCase):
+    from vcl_procurement.api import rules as R
+    match = staticmethod(R.match_material_requests)
+
+    def row(self, mri, item="Clear Glue", pending=500, mr="MR1"):
+        return {"material_request": mr, "material_request_item": mri, "item_code": item, "pending": pending}
+
+    def test_one_open_request_with_room_is_linked(self):
+        out = self.match([{"item_code": "Clear Glue", "stock_qty": 500}], [self.row("a")])
+        self.assertEqual([(i, r["material_request_item"]) for i, r in out], [(0, "a")])
+
+    def test_two_open_requests_for_the_item_is_left_to_the_buyer(self):
+        out = self.match([{"item_code": "Clear Glue", "stock_qty": 100}],
+                         [self.row("a"), self.row("b", mr="MR2")])
+        self.assertEqual(out, [])
+
+    def test_ordering_more_than_the_request_left_does_not_link(self):
+        self.assertEqual(self.match([{"item_code": "Clear Glue", "stock_qty": 600}], [self.row("a")]), [])
+
+    def test_a_line_already_linked_is_left_alone_and_uses_up_its_row(self):
+        lines = [{"item_code": "Clear Glue", "stock_qty": 400, "material_request": "MR1", "material_request_item": "a"},
+                 {"item_code": "Clear Glue", "stock_qty": 200}]
+        self.assertEqual(self.match(lines, [self.row("a")]), [])
+
+    def test_a_different_item_never_links(self):
+        self.assertEqual(self.match([{"item_code": "Hot Melt", "stock_qty": 5}], [self.row("a")]), [])
 
 
 if __name__ == "__main__":

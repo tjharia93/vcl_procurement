@@ -215,6 +215,42 @@ def pending_lines(items):
             "to_bill": round(to_bill, 2)}
 
 
+def match_material_requests(lines, open_rows):
+    """Which unlinked PO lines belong to an open material request: [(line index, row)].
+
+    A line keeps its request only if it was started from the request's own "Use Lines".
+    Swap the item, or copy the supplier's last order, and the link was gone, so the
+    request sat at 0% ordered with the goods already on order (MAT-MR-2026-00079 /
+    PUR-ORD-2026-00270, 28/10/2026). Linking every PO line through this is why that
+    can't happen again, whichever screen raised it.
+
+    `lines`: [{item_code, stock_qty, material_request?, material_request_item?}].
+    `open_rows`: [{material_request, material_request_item, item_code, pending}],
+    with `pending` in stock units. A line is linked only when exactly ONE open row for
+    its item still has room for its whole quantity. Two requests for the same item is a
+    buyer's call, not a guess.
+    """
+    room = {r["material_request_item"]: float(r.get("pending") or 0) for r in open_rows}
+    for ln in lines:                     # explicit links use up their row first
+        mri = ln.get("material_request_item")
+        if mri in room:
+            room[mri] -= float(ln.get("stock_qty") or 0)
+    out = []
+    for i, ln in enumerate(lines):
+        if ln.get("material_request") or not ln.get("item_code"):
+            continue
+        qty = float(ln.get("stock_qty") or 0)
+        if qty <= 0:
+            continue
+        rows = [r for r in open_rows if r["item_code"] == ln["item_code"]
+                and room[r["material_request_item"]] > 1e-9]
+        if len(rows) != 1 or room[rows[0]["material_request_item"]] + 1e-9 < qty:
+            continue
+        room[rows[0]["material_request_item"]] -= qty
+        out.append((i, rows[0]))
+    return out
+
+
 def po_open_for_receipt(docstatus, status, per_received):
     """(ok, why) - can goods still be received against this purchase order?"""
     if docstatus != 1:

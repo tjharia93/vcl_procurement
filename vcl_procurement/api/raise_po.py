@@ -134,6 +134,74 @@ def material_request_lines(name):
     return {"name": doc.name, "lines": out}
 
 
+def _open_request_rows(item_codes, exclude_po=None):
+    """Open purchase-request lines for these items, with what is still to order (stock units).
+
+    ERPNext only counts a SUBMITTED PO in `ordered_qty`, so quantity already sitting on
+    other draft POs is taken off too; otherwise two drafts could both claim one request.
+    """
+    codes = sorted({c for c in item_codes if c})
+    if not codes:
+        return []
+    rows = frappe.get_all("Material Request Item",
+                          filters={"item_code": ["in", codes], "docstatus": 1},
+                          fields=["name", "parent", "item_code", "stock_qty", "ordered_qty"])
+    if not rows:
+        return []
+    open_mrs = set(frappe.get_all("Material Request", pluck="name", filters={
+        "name": ["in", sorted({r.parent for r in rows})], "docstatus": 1,
+        "material_request_type": "Purchase", "status": ["not in", ["Stopped", "Cancelled"]]}))
+    rows = [r for r in rows if r.parent in open_mrs]
+    on_drafts = {}
+    if rows:
+        f = {"material_request_item": ["in", [r.name for r in rows]], "docstatus": 0}
+        if exclude_po:
+            f["parent"] = ["!=", exclude_po]
+        for d in frappe.get_all("Purchase Order Item", filters=f,
+                                fields=["material_request_item", "stock_qty"]):
+            on_drafts[d.material_request_item] = on_drafts.get(d.material_request_item, 0) + flt(d.stock_qty)
+    return [{"material_request": r.parent, "material_request_item": r.name, "item_code": r.item_code,
+             "pending": flt(r.stock_qty) - flt(r.ordered_qty) - on_drafts.get(r.name, 0)}
+            for r in rows]
+
+
+def _requests_for(doc):
+    """[(PO row, request row)] for the lines of `doc` that belong to an open request."""
+    from vcl_procurement.api import rules
+    lines = [{"item_code": r.item_code, "stock_qty": flt(r.stock_qty) or flt(r.qty) * (flt(r.conversion_factor) or 1),
+              "material_request": r.material_request, "material_request_item": r.material_request_item}
+             for r in doc.items]
+    found = rules.match_material_requests(lines, _open_request_rows([r.item_code for r in doc.items], doc.name))
+    return [(doc.items[i], row) for i, row in found]
+
+
+@frappe.whitelist()
+def link_material_requests(purchase_order):
+    """Tie an existing PO's unlinked lines to their open material request.
+
+    For orders raised before the link was automatic (PUR-ORD-2026-00270). On a submitted
+    PO the link fields are not editable, so they are written directly and ERPNext's own
+    updaters are then run, exactly as on submit: the request's ordered % and status, and
+    the bin's requested quantity.
+    """
+    _assert_purchasing_role()
+    doc = frappe.get_doc("Purchase Order", purchase_order)
+    doc.check_permission("write")
+    if doc.docstatus == 2:
+        frappe.throw(_("{0} is cancelled.").format(doc.name))
+    found = _requests_for(doc)
+    for row, req in found:
+        row.db_set({"material_request": req["material_request"],
+                    "material_request_item": req["material_request_item"]}, update_modified=False)
+    if found and doc.docstatus == 1:
+        doc.update_prevdoc_status()
+        doc.update_requested_qty()
+    if found:
+        doc.add_comment("Info", _("Linked to {0}").format(", ".join(sorted({r["material_request"] for _, r in found}))))
+    return {"name": doc.name,
+            "linked": [{"item_code": row.item_code, "material_request": req["material_request"]} for row, req in found]}
+
+
 @frappe.whitelist()
 def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
                           order_type="Local", order_confirmation_no=None, file_no=None,
@@ -238,6 +306,13 @@ def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
             doc.append("taxes", r)
 
     doc.insert()
+    # After insert, so every line has its stock quantity whatever unit it was typed in.
+    found = _requests_for(doc)
+    for row, req in found:
+        row.material_request = req["material_request"]
+        row.material_request_item = req["material_request_item"]
+    if found:
+        doc.save()
     return {
         "name": doc.name,
         "supplier": doc.supplier,
