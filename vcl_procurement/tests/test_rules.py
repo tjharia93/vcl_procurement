@@ -41,6 +41,16 @@ class TestDates(unittest.TestCase):
         self.assertEqual(rules.tax_due_date("2026-10-01", 5), "2026-10-06")
         self.assertIsNone(rules.tax_due_date(None))
 
+    def test_taxes_due_is_the_earlier_of_landing_and_thirty_days_from_invoice(self):
+        # invoice 11/08 -> cap 10/09; lands 16/09 -> 18/09: the cap is earlier
+        self.assertEqual(rules.tax_due_date("2026-09-16", 2, "2026-08-11"), "2026-09-10")
+        # invoice 20/09 -> cap 20/10; lands 01/10 -> 03/10: landing is earlier
+        self.assertEqual(rules.tax_due_date("2026-10-01", 2, "2026-09-20"), "2026-10-03")
+        # no landing date: unknown, the cap alone is not a due date
+        self.assertIsNone(rules.tax_due_date(None, 2, "2026-08-11"))
+        # no invoice date: landing rule only
+        self.assertEqual(rules.tax_due_date("2026-10-01", 2, None), "2026-10-03")
+
 
 class TestRebaseDueDates(unittest.TestCase):
     """Bill from a PO: the mapped schedule counts from today, the terms count from the invoice date."""
@@ -115,9 +125,10 @@ class TestImportSchedule(unittest.TestCase):
         rows, missing = rules.import_schedule(41529.0486, 8949.9214, "2026-08-11", DAYS_180, "180 Days", "2026-09-16")
         self.assertEqual(missing, [])
         self.assertEqual(rows[0]["due_date"], "2027-02-07")
-        self.assertEqual(rows[1]["due_date"], "2026-09-18")
+        # 2 days after landing is 18/09, but 30 days from the 11/08 invoice date is 10/09: the earlier wins.
+        self.assertEqual(rows[1]["due_date"], "2026-09-10")
         self.assertEqual(rows[0]["payment_term"], "180 Days")
-        self.assertIsNone(rows[1]["payment_term"])
+        self.assertEqual(rows[1]["payment_term"], "Import Taxes")
         self.assertAlmostEqual(rows[0]["invoice_portion"] + rows[1]["invoice_portion"], 100.0, 6)
         # ERPNext recomputes each amount from the portion, so it must not be rounded to 2 dp:
         # 41,528.379 / 50,478.97 = 82.2683...%, not 82.27%.
@@ -135,7 +146,7 @@ class TestImportSchedule(unittest.TestCase):
         self.assertEqual(missing, ["payment terms"])
 
     def test_custom_days_after_landing(self):
-        rows, _ = rules.import_schedule(100, 20, "2026-08-11", DAYS_180, "180 Days", "2026-10-01", 5)
+        rows, _ = rules.import_schedule(100, 20, "2026-09-20", DAYS_180, "180 Days", "2026-10-01", 5)
         self.assertEqual(rows[1]["due_date"], "2026-10-06")
         self.assertIn("5 days", rows[1]["description"])
 

@@ -32,6 +32,10 @@ import re
 IMPORT = "Importation"
 COMPANY_CURRENCY = "KES"
 DEFAULT_TAX_DAYS_AFTER_LANDING = 2
+# Import taxes fall due on the EARLIER of N days after landing and this many days from the supplier invoice date (Tanuj, 08/10/2026, TRK-00147).
+TAX_DAYS_FROM_INVOICE = 30
+# The Payment Term on the Taxes row. Without a term a payment cannot be credited to the row (ERPNext matches by term).
+IMPORT_TAXES_TERM = "Import Taxes"
 
 CHARGE_TYPES = ["Actual", "On Net Total", "On Previous Row Amount",
                 "On Previous Row Total", "On Item Quantity"]
@@ -113,10 +117,19 @@ def rebase_due_dates(rows, bill_date):
     return dues, (max(known) if known else None)
 
 
-def tax_due_date(expected_delivery_to_port, days_after=DEFAULT_TAX_DAYS_AFTER_LANDING):
+def tax_due_date(expected_delivery_to_port, days_after=DEFAULT_TAX_DAYS_AFTER_LANDING, bill_date=None):
+    """Earlier of (days_after the vessel lands) and (30 days from the supplier invoice date).
+
+    The landing date is still required: without it the due date is unknown, and the invoice-date
+    cap alone is only an upper bound. ISO date strings compare correctly as text."""
     if not expected_delivery_to_port:
         return None
-    return add_days(expected_delivery_to_port, days_after)
+    due = add_days(expected_delivery_to_port, days_after)
+    if bill_date:
+        cap = add_days(bill_date, TAX_DAYS_FROM_INVOICE)
+        if str(cap) < str(due):
+            return cap
+    return due
 
 
 # --- currency ----------------------------------------------------------------
@@ -279,7 +292,7 @@ def import_schedule(net, taxes, bill_date, term, term_name, expected_delivery_to
         missing.append("payment terms")
     elif not net_due:
         missing.append("supplier invoice date (bill date)")
-    tax_due = tax_due_date(expected_delivery_to_port, tax_days_after_landing)
+    tax_due = tax_due_date(expected_delivery_to_port, tax_days_after_landing, bill_date)
     if not tax_due:
         missing.append("expected delivery to port")
     if missing:
@@ -290,8 +303,8 @@ def import_schedule(net, taxes, bill_date, term, term_name, expected_delivery_to
     return [
         {"payment_term": term_name, "description": "Net total: paid as per supplier terms",
          "due_date": net_due, "invoice_portion": portion, "payment_amount": net},
-        {"payment_term": None,
-         "description": f"Taxes: due {int(tax_days_after_landing)} days after the vessel lands",
+        {"payment_term": IMPORT_TAXES_TERM,
+         "description": f"Taxes: due the earlier of {int(tax_days_after_landing)} days after the vessel lands or {TAX_DAYS_FROM_INVOICE} days from the supplier invoice date",
          "due_date": tax_due, "invoice_portion": round(100 - portion, 8), "payment_amount": taxes},
     ], []
 
