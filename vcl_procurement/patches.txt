@@ -7,3 +7,4 @@ vcl_procurement.patches.add_acd_fields
 vcl_procurement.patches.add_qbo_expense_fields
 vcl_procurement.patches.add_40hc_container_size
 vcl_procurement.patches.fix_pinv_00594_schedule
+vcl_procurement.patches.add_supplier_reference_field

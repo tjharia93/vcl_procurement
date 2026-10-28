@@ -41,6 +41,7 @@ _SIMPLE = {
     "custom_shipping_line": "custom_shipping_line",
     "custom_expected_date_of_delivery_to_port": "custom_expected_date_of_delivery_to_port",
     "custom_acd_reference_code": "custom_acd_reference_code",
+    "custom_supplier_reference_no": "custom_supplier_reference_no",
     "remarks": "remarks",
 }
 _CONTAINER_FIELDS = ("container_reference", "description_of_packaging_eg_51_reels_or_515_packages",
@@ -313,6 +314,7 @@ def pi_page(name):
         "currency": cur, "conversion_rate": rate, "company": doc.company,
         "invoice_type": itype, "is_import": imp, "type_follows_po": bool(derived),
         "bill_no": doc.bill_no,
+        "supplier_ref_no": doc.get("custom_supplier_reference_no"),
         "dates": {"bill_date": rules.iso(doc.bill_date), "kra_entry_date": rules.iso(doc.get("custom_kra_entry_date")),
                   "posting_date": rules.iso(doc.posting_date), "due_date": rules.iso(doc.due_date),
                   "clearance_date": rules.iso(doc.get("clearance_date"))},
@@ -456,9 +458,12 @@ def pi_set_ship(name, fields):
         doc.custom_acd_reference_code = (str(fields["custom_acd_reference_code"] or "").strip() or None)
     if "custom_export_entry_received" in fields:
         doc.custom_export_entry_received = 1 if fields["custom_export_entry_received"] else 0
+    if "custom_supplier_reference_no" in fields:
+        doc.custom_supplier_reference_no = (str(fields["custom_supplier_reference_no"] or "").strip() or None)
     doc.save()
     return {"custom_acd_reference_code": doc.get("custom_acd_reference_code"),
-            "custom_export_entry_received": doc.get("custom_export_entry_received")}
+            "custom_export_entry_received": doc.get("custom_export_entry_received"),
+            "custom_supplier_reference_no": doc.get("custom_supplier_reference_no")}
 
 
 @frappe.whitelist()

@@ -61,11 +61,15 @@ def pr_list():
 def pi_list():
     """Purchase invoices (drafts and submitted, not returns), newest first, with linked POs and containers."""
     _assert_purchasing_role()
+    fields = ["name", "supplier", "supplier_name", "bill_no", "bill_date", "posting_date", "due_date",
+              "status", "docstatus", "grand_total", "base_grand_total", "outstanding_amount",
+              "conversion_rate", "currency", "custom_purchase_invoice_type", "custom_bill_of_lading_number"]
+    # The field arrives with the patch; a site that has not migrated yet still lists its invoices.
+    has_ref = frappe.get_meta("Purchase Invoice").has_field("custom_supplier_reference_no")
+    if has_ref:
+        fields.append("custom_supplier_reference_no")
     rows = frappe.get_all(
-        "Purchase Invoice", filters={"docstatus": ["<", 2], "is_return": 0},
-        fields=["name", "supplier", "supplier_name", "bill_no", "bill_date", "posting_date", "due_date",
-                "status", "docstatus", "grand_total", "base_grand_total", "outstanding_amount",
-                "conversion_rate", "currency", "custom_purchase_invoice_type", "custom_bill_of_lading_number"],
+        "Purchase Invoice", filters={"docstatus": ["<", 2], "is_return": 0}, fields=fields,
         order_by="posting_date desc, creation desc", limit_page_length=R.LIMIT)
     names = [r.name for r in rows]
     pos = R.group_pos(_children("Purchase Invoice Item", "Purchase Invoice", names, ["parent", "purchase_order"]))
@@ -76,7 +80,8 @@ def pi_list():
             conts.setdefault(c.get("parent"), []).append(n)
     return [{
         "name": r.name, "supplier": r.supplier, "supplier_name": r.supplier_name or r.supplier,
-        "bill_no": r.bill_no, "bill_date": str(r.bill_date) if r.bill_date else None,
+        "bill_no": r.bill_no, "supplier_ref_no": (r.get("custom_supplier_reference_no") or None) if has_ref else None,
+        "bill_date": str(r.bill_date) if r.bill_date else None,
         "posting_date": str(r.posting_date) if r.posting_date else None,
         "due_date": str(r.due_date) if r.due_date else None,
         "status": r.status, "docstatus": r.docstatus, "total": flt(r.grand_total),

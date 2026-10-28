@@ -32,6 +32,18 @@ FIELDS = [
     },
     {
         "dt": "Purchase Invoice",
+        "fieldname": "custom_supplier_reference_no",
+        "label": "Supplier Reference No",
+        "fieldtype": "Data",
+        "allow_on_submit": 1,
+        "in_standard_filter": 1,
+        "search_index": 1,
+        "insert_after": "bill_date",
+        "description": ("The supplier's own reference for this invoice (order, delivery or account reference), "
+                        "separate from the supplier invoice number."),
+    },
+    {
+        "dt": "Purchase Invoice",
         "fieldname": "custom_acd_reference_code",
         "label": "ACD Reference Code",
         "fieldtype": "Data",
