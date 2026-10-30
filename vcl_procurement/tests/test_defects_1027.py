@@ -199,11 +199,18 @@ class References(unittest.TestCase):
 
     def test_local_memo_carries_order_and_invoice(self):
         m = rules.qbo_memo("ACC-PINV-2026-00700", "INV-88", ["PUR-ORD-2026-03952"], None, None, None, [], "KES", 11600)
-        self.assertEqual(m, "Supplier inv INV-88 · Order PUR-ORD-2026-03952 · ERPNext ACC-PINV-2026-00700 · KES 11,600.00")
+        self.assertEqual(m, "Supplier inv INV-88 · Order PUR-ORD-2026-03952 · ERPNext ACC-PINV-2026-00700 · KES 11,600.00 net")
 
     def test_import_memo_keeps_bl_and_containers(self):
         m = rules.qbo_memo("PINV-9", "CI-1", ["PO-9"], "S3399", "MPPA 3334", "MEDU123", ["MSKU1", "MSKU2"], "USD", 50000)
         self.assertTrue(m.startswith("BL MEDU123 · Containers MSKU1, MSKU2 · Supplier inv CI-1 · Order PO-9 (proforma S3399) · File no MPPA 3334"))
+
+    def test_memo_is_net_with_the_rate_on_the_invoice_date(self):
+        # cr-mvqewpg9: the amount is the net (no taxes), and a USD bill carries its rate and date.
+        m = rules.qbo_memo("PINV-9", "CI-1", ["PO-9"], None, None, None, [], "USD", 103115.6, 130.05, "2026-09-14")
+        self.assertTrue(m.endswith("ERPNext PINV-9 · USD 103,115.60 net · rate 130.05 on 14/09/2026"), m)
+        self.assertTrue(rules.qbo_memo("P", None, [], currency="USD", total=10, rate=129.5).endswith("USD 10.00 net · rate 129.5"))
+        self.assertNotIn("rate", rules.qbo_memo("P", None, [], currency="KES", total=10, rate=1))
 
     def test_typed_memo_kept_only_when_it_has_the_refs(self):
         self.assertTrue(rules.memo_has_refs("paper for PO-9 ref PINV-9", "PINV-9", ["PO-9"]))

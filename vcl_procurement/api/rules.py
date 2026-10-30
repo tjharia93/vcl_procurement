@@ -615,10 +615,14 @@ def file_no(po_file, pi_file, proforma):
     return None, None
 
 
-def qbo_memo(pi_name, bill_no, pos, proforma=None, file_number=None, bl_no=None, containers=(), currency=None, total=None):
+def qbo_memo(pi_name, bill_no, pos, proforma=None, file_number=None, bl_no=None, containers=(), currency=None, total=None,
+             rate=None, rate_date=None):
     """The QuickBooks memo for ANY purchase invoice: the references a person needs to find this bill
     again from QuickBooks - the order, the supplier's invoice and the ERPNext invoice - plus, on an
-    import, the BL and containers. Short enough for QuickBooks' 4000-character private note."""
+    import, the BL and containers. Short enough for QuickBooks' 4000-character private note.
+
+    `total` is the NET amount, before taxes (cr-mvqewpg9). On a foreign-currency invoice the
+    exchange rate it was booked at follows it, with the invoice date: "USD 103,115.60 net · rate 130.05 on 14/09/2026"."""
     pos = [p for p in (pos or []) if p]
     conts = [str(c).strip() for c in (containers or []) if str(c or "").strip()]
     parts = [
@@ -628,9 +632,23 @@ def qbo_memo(pi_name, bill_no, pos, proforma=None, file_number=None, bl_no=None,
         ("Order " + ", ".join(pos) + (f" (proforma {proforma})" if proforma else "")) if pos else (f"Proforma {proforma}" if proforma else ""),
         "File no " + str(file_number).strip() if str(file_number or "").strip() else "",
         "ERPNext " + pi_name if pi_name else "",
-        f"{currency} {float(total or 0):,.2f}" if currency else "",
+        f"{currency} {float(total or 0):,.2f} net" if currency else "",
+        _memo_rate(currency, rate, rate_date),
     ]
     return " · ".join(p for p in parts if p)[:4000]
+
+
+def _memo_rate(currency, rate, rate_date):
+    """"rate 130.05 on 14/09/2026" for a foreign-currency invoice; "" for KES or no rate."""
+    try:
+        r = float(rate or 0)
+    except (TypeError, ValueError):
+        r = 0
+    if not currency or str(currency).upper() == "KES" or r <= 0 or abs(r - 1) < 1e-9:
+        return ""
+    d = iso(rate_date) if rate_date else ""
+    on = f" on {d[8:10]}/{d[5:7]}/{d[:4]}" if len(d) >= 10 else ""
+    return f"rate {r:,.4f}".rstrip("0").rstrip(".") + on
 
 
 def memo_has_refs(memo, pi_name, pos):

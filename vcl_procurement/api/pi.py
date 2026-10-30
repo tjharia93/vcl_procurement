@@ -229,7 +229,7 @@ def _memo_for(doc, memo):
     if not (memo or "").strip():
         return rules.qbo_memo(doc.name, doc.bill_no, pos, proforma, file_number, doc.get("custom_bill_of_lading_number"),
                               [c.container_reference for c in doc.get("custom_container_details_table") or []],
-                              doc.currency, doc.grand_total)
+                              doc.currency, doc.get("net_total"), doc.get("conversion_rate"), doc.get("bill_date") or doc.get("posting_date"))
     refs = rules.qbo_memo(doc.name, None, [p for p in pos if p not in memo], None, None)
     refs = " · ".join(x for x in refs.split(" · ") if x not in memo)
     return (memo.strip() + " · " + refs)[:4000] if refs else None
@@ -356,7 +356,8 @@ def pi_page(name):
         "payments": _payments(doc.name),
         "qbo": _qbo(doc),
         "qbo_memo_standard": rules.qbo_memo(doc.name, doc.bill_no, pos, proforma, file_number,
-                                            doc.get("custom_bill_of_lading_number"), containers, cur, doc.grand_total),
+                                            doc.get("custom_bill_of_lading_number"), containers, cur, doc.net_total,
+                                            doc.conversion_rate, doc.bill_date or doc.posting_date),
         "attachments": _attachments(doc.name),
         "requirements": {"missing": missing, "ready": not missing},
         "receive_from": _receive_from(doc),
