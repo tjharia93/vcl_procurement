@@ -1,6 +1,6 @@
 # MEMORY — read this first
 
-Last updated: **2026-10-28**
+Last updated: **2026-10-31**
 
 ## State
 - Version in `__init__.py`: 1.1.2.
@@ -15,6 +15,13 @@ Last updated: **2026-10-28**
 - Open branches on origin: `claude/purchasing-defects`, `feat/raise-po`, `po-price-guard`,
   `drop-import-local-filter`, `fix/po-order-date-type`, `qbo-push-page-export-20260616`,
   `store-qbo-last-updated`. Whether any hold unmerged work: unknown.
+
+## Purchase Invoice change requests — 2026-10-31 (branch `claude/pi-change-requests`, NOT merged)
+- Server half of vcl_compass's same-named branch; deploy this app first. No DocType, no patch, no migrate.
+- New whitelisted: `pi.kra_check`, `pi.bill_totals`, `pi.bill_save`, `pi.qbo_history`, `pi.cancel_review`, `pi.pi_cancel`, `search.purchasing_search`. Changed: `pi.qbo_prepare(name, date_reviewed=0)` refuses a local bill whose date needs review; `pi_page` adds `receipt_check` and `qbo.stage_hint`; `bill_preview` adds quantities, terms, drafts; lists add `created`.
+- Pure rules (tested in `tests/test_rules.py`, wiring in `tests/test_cr_1031.py`): `bill_date_review` + `DATE_RULE_POLICY` (the one place for Tanuj's open policy questions a–d), `loose_date`, `dmy`, `stage_hint`, `receipt_cover`, `billed_qty`, `mapping_history`, `doc_search`, `cancel_check`.
+- `staging_enabled` in QBO Sync Settings defaults to 0: submitted PIs are not auto-staged until it is ticked.
+- `tests/test_port_api.py` already had 2 failing tests before this branch (get_meta stub, transaction_date type).
 
 ## What happened in dev
 - 2026-10-28 Import payment schedule: taxes due the earlier of landing + N days and 30 days from
