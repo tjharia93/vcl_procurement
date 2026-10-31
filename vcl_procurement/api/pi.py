@@ -865,11 +865,72 @@ def bill_preview(po):
         "per_received": flt(doc.per_received),
         "per_billed": flt(doc.per_billed),
         "lines": [{
-            "idx": i.idx, "item_code": i.item_code, "item_name": i.item_name, "uom": i.uom,
+            "idx": i.idx, "po_detail": i.name, "item_code": i.item_code, "item_name": i.item_name, "uom": i.uom,
+            "description": i.description,
             "qty": flt(i.qty), "received_qty": flt(i.received_qty), "rate": flt(i.rate), "left": left[i.idx],
+            # Quantities as well as money, so the workspace can show ordered / received / billed / left (CR-006).
+            "billed_qty": rules.billed_qty(i.billed_amt, i.rate, i.qty),
+            "left_qty": max(0.0, round(flt(i.qty) - rules.billed_qty(i.billed_amt, i.rate, i.qty), 6)),
         } for i in doc.items if i.idx in left],
         "left_total": round(sum(left.values()), 2),
+        "terms": _bill_terms(doc),
+        "drafts": _draft_bills(po),
     }
+
+
+def _bill_terms(po_doc):
+    """Payment terms for a new bill: the supplier's default, else the PO's, with the choices."""
+    dflt = frappe.db.get_value("Supplier", po_doc.supplier, "payment_terms")
+    sel, src = (dflt, "supplier default") if dflt else (po_doc.get("payment_terms_template"), "from the PO") if po_doc.get("payment_terms_template") else (None, None)
+    return {"selected": sel, "source": src,
+            "options": frappe.get_all("Payment Terms Template", pluck="name", order_by="name asc", limit_page_length=200)}
+
+
+def _draft_bills(po):
+    """Draft invoices already billing this order: [{name, bill_no}]. A second draft is usually a mistake."""
+    names = sorted({r.parent for r in frappe.get_all("Purchase Invoice Item", filters={"purchase_order": po, "docstatus": 0},
+                                                      fields=["parent"], limit_page_length=50)})
+    return [{"name": n, "bill_no": frappe.db.get_value(PI, n, "bill_no")} for n in names]
+
+
+def _shape_bill(pi, payload):
+    """Apply the workspace's choices to an unsaved invoice mapped from the PO (CR-006).
+
+    payload: lines [{po_detail, qty, rate, include}], posting_date, supplier_ref, update_stock.
+    Lines not included are dropped; at least one must stay. Quantities above what is left to bill are refused.
+    """
+    want = {ln.get("po_detail"): ln for ln in payload.get("lines") or [] if ln.get("po_detail")}
+    keep = []
+    for i in pi.items:
+        ln = want.get(i.get("po_detail"))
+        if ln is not None and not ln.get("include", True):
+            continue
+        if ln is not None:
+            q, r = flt(ln.get("qty")), flt(ln.get("rate"))
+            if q <= 0:
+                frappe.throw(_("Quantity must be more than zero ({0}). Untick the line to leave it off this bill.").format(i.item_name or i.item_code))
+            if q - flt(i.qty) > 1e-6:
+                frappe.throw(_("{0}: {1} is more than the {2} left to bill on the order.").format(i.item_name or i.item_code, q, flt(i.qty)))
+            if r < 0:
+                frappe.throw(_("Rate cannot be negative ({0}).").format(i.item_name or i.item_code))
+            i.qty = q
+            i.rate = r
+            i.update({"price_list_rate": r, "base_price_list_rate": r, "margin_type": "", "rate_with_margin": 0,
+                      "base_rate_with_margin": 0, "margin_rate_or_amount": 0, "discount_percentage": 0, "discount_amount": 0})
+        keep.append(i)
+    if not keep:
+        frappe.throw(_("An invoice needs at least one line. Tick a line to bill."))
+    pi.set("items", keep)
+    for n, i in enumerate(pi.items, 1):
+        i.idx = n
+    if (payload.get("supplier_ref") or "").strip():
+        pi.custom_supplier_reference_no = payload["supplier_ref"].strip()
+    if "update_stock" in payload:
+        pi.update_stock = 1 if payload["update_stock"] else 0
+    if payload.get("posting_date") and not rules.is_import(pi.get("custom_purchase_invoice_type")):
+        pi.posting_date = rules.iso(payload["posting_date"])
+        pi.set_posting_time = 0 if pi.posting_date == rules.iso(nowdate()) else 1
+    return pi
 
 
 @frappe.whitelist()
@@ -881,6 +942,15 @@ def bill_from_po(po, bill_date=None, bill_no=None):
     optional and can be added on the invoice page.
     """
     _assert_purchasing_role()
+    pi = _mapped_bill(po, bill_date, bill_no)
+    pi.insert()
+    return {"name": pi.name, "docstatus": pi.docstatus, "po": po,
+            "invoice_type": pi.get("custom_purchase_invoice_type"),
+            "conversion_rate": flt(pi.conversion_rate) or 1}
+
+
+def _mapped_bill(po, bill_date, bill_no=None):
+    """An UNSAVED draft invoice for the unbilled balance of `po`, dated and typed as bill_from_po always did."""
     if not bill_date:
         frappe.throw(_("Enter the supplier invoice date."))
     from erpnext.buying.doctype.purchase_order.purchase_order import make_purchase_invoice
@@ -917,11 +987,59 @@ def bill_from_po(po, bill_date=None, bill_no=None):
         except Exception:
             looked_up = 0      # keep the PO's rate rather than fail the bill
         pi.conversion_rate = rules.rate_after_lookup(pi.conversion_rate, looked_up)
+    return pi
 
+
+@frappe.whitelist()
+def bill_totals(po, payload):
+    """What the bill WOULD come to, worked out by ERPNext on an unsaved copy: net, VAT, gross and the due date (CR-006).
+    payload: bill_date, terms, and the workspace's lines / posting date. Nothing is saved."""
+    _assert_purchasing_role()
+    payload = frappe.parse_json(payload) or {}
+    frappe.get_doc("Purchase Order", po).check_permission("read")
+    pi = _shape_bill(_mapped_bill(po, payload.get("bill_date") or nowdate()), payload)
+    pi.calculate_taxes_and_totals()
+    total = flt(pi.rounded_total) or flt(pi.grand_total)
+    due, due_note = None, None
+    if not rules.is_import(pi.get("custom_purchase_invoice_type")):
+        try:
+            term, term_name = _term_row(payload.get("terms"))
+            rows, missing = rules.local_schedule(total, payload.get("bill_date"), term, term_name)
+            due = rows[0]["due_date"] if rows else None
+            due_note = None if rows else "Needs the " + ", ".join(missing) + "."
+        except ValueError as e:
+            due_note = str(e)
+    else:
+        due_note = "An import's amounts due are set on the invoice page (supplier terms and the taxes row)."
+    return {"currency": pi.currency, "net_total": flt(pi.net_total), "base_net_total": flt(pi.base_net_total),
+            "taxes": [{"description": t.description, "kes": flt(t.base_tax_amount)} for t in pi.get("taxes") or []],
+            "total_tax_kes": flt(pi.base_grand_total) - flt(pi.base_net_total),
+            "grand_total": flt(pi.grand_total), "base_grand_total": flt(pi.base_grand_total),
+            "rounded_total": flt(pi.rounded_total), "due_date": rules.iso(due), "due_note": due_note,
+            "lines": len(pi.items)}
+
+
+@frappe.whitelist(methods=["POST"])
+def bill_save(po, payload):
+    """Create the draft bill from the workspace in one go (CR-006). Returns {name, existing, page, notes}.
+
+    A draft already billing this order under the same supplier invoice no. is returned instead of a second one,
+    so a double click or a retry after a timeout cannot duplicate the bill.
+    """
+    _assert_purchasing_role()
+    payload = frappe.parse_json(payload) or {}
+    bill_no = (payload.get("bill_no") or "").strip()
+    if bill_no:
+        for d in _draft_bills(po):
+            if (d.get("bill_no") or "").strip() == bill_no:
+                return {"name": d["name"], "existing": True, "page": pi_page(d["name"]), "notes": []}
+    pi = _shape_bill(_mapped_bill(po, payload.get("bill_date"), bill_no), payload)
     pi.insert()
-    return {"name": pi.name, "docstatus": pi.docstatus, "po": po,
-            "invoice_type": pi.get("custom_purchase_invoice_type"),
-            "conversion_rate": flt(pi.conversion_rate) or 1}
+    notes = []
+    if payload.get("terms") and not rules.is_import(pi.get("custom_purchase_invoice_type")):
+        r = pi_save(pi.name, {"schedule": {"terms_template": payload["terms"]}})
+        notes = r.get("notes") or []
+    return {"name": pi.name, "existing": False, "page": pi_page(pi.name), "notes": notes}
 
 
 # --- payments -----------------------------------------------------------------

@@ -64,7 +64,8 @@ def _setup(test, kra, itype="Local Purchase", bill_date="2026-11-01", exempt=0):
         return kra
     pi = _stub_frappe()
     f = pi.frappe
-    saved = {k: getattr(f, k, None) for k in ("get_doc", "get_attr", "get_all", "throw", "get_roles", "_", "session")}
+    saved = {k: getattr(f, k, None) for k in ("get_doc", "get_attr", "get_all", "throw", "get_roles", "_", "session", "parse_json")}
+    f.parse_json = lambda v: v
     f.get_doc = lambda dt, name: doc
     f.get_attr = lambda path: validate_cuin
     f.get_all = lambda *a, **k: []
@@ -128,3 +129,54 @@ class KraCheck(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Item(types.SimpleNamespace):
+    def get(self, k, d=None):
+        return getattr(self, k, d)
+
+    def update(self, d):
+        for k, v in d.items():
+            setattr(self, k, v)
+
+
+class Bill(types.SimpleNamespace):
+    def get(self, k, d=None):
+        return getattr(self, k, d)
+
+    def set(self, k, v):
+        setattr(self, k, v)
+
+
+def _bill():
+    return Bill(custom_purchase_invoice_type="Local Purchase", posting_date="2026-10-31", update_stock=0, items=[
+        Item(po_detail="P1", item_name="Tape", item_code="T", qty=2160.0, rate=43.0, idx=1),
+        Item(po_detail="P2", item_name="Box", item_code="B", qty=10.0, rate=5.0, idx=2)])
+
+
+class Workspace(unittest.TestCase):
+    def setUp(self):
+        _, _, self.pi = _setup(self, {"valid": False})
+
+    def test_lines_are_trimmed_re_priced_and_numbered(self):
+        b = self.pi._shape_bill(_bill(), {"lines": [{"po_detail": "P1", "qty": 1000, "rate": 42.5}, {"po_detail": "P2", "include": False}],
+                                          "supplier_ref": " DN-7 ", "update_stock": 1, "posting_date": "2026-10-30"})
+        self.assertEqual([(i.po_detail, i.qty, i.rate, i.idx) for i in b.items], [("P1", 1000, 42.5, 1)])
+        self.assertEqual((b.custom_supplier_reference_no, b.update_stock, b.posting_date, b.set_posting_time), ("DN-7", 1, "2026-10-30", 1))
+
+    def test_refusals(self):
+        for lines, word in (([{"po_detail": "P1", "qty": 0}], "more than zero"), ([{"po_detail": "P1", "qty": 3000}], "left to bill"),
+                            ([{"po_detail": "P1", "include": False}, {"po_detail": "P2", "include": False}], "at least one line")):
+            with self.assertRaises(_Thrown) as e:
+                self.pi._shape_bill(_bill(), {"lines": lines})
+            self.assertIn(word, str(e.exception))
+
+    def test_same_supplier_invoice_no_returns_the_existing_draft(self):
+        pi = self.pi
+        saved = pi._draft_bills, pi.pi_page, pi._mapped_bill
+        pi._draft_bills = lambda po: [{"name": "ACC-PINV-1", "bill_no": "0430146720000082785"}]
+        pi.pi_page = lambda n: {"name": n}
+        self.addCleanup(lambda: (setattr(pi, "_draft_bills", saved[0]), setattr(pi, "pi_page", saved[1]), setattr(pi, "_mapped_bill", saved[2])))
+        pi._mapped_bill = lambda *a, **k: self.fail("must not create a second bill")
+        r = pi.bill_save("PO-1", {"bill_no": " 0430146720000082785 ", "bill_date": "2026-10-27"})
+        self.assertEqual((r["name"], r["existing"]), ("ACC-PINV-1", True))

@@ -643,6 +643,14 @@ def stage_hint(staging_enabled, earliest_posting_date, posting_date):
 
 # --- the receipt choice on an invoice (CR-006, 31/10/2026) ---------------------------
 
+def billed_qty(billed_amt, rate, qty):
+    """How much of a PO line is billed, in units: ERPNext keeps only the amount. Never more than the line."""
+    r = float(rate or 0)
+    if r <= 0:
+        return 0.0
+    return round(min(float(qty or 0), float(billed_amt or 0) / r), 6)
+
+
 def receipt_cover(lines, update_stock):
     """Do recorded receipts cover what this invoice bills, or would receiving through it count goods twice?
 

@@ -477,3 +477,11 @@ class ReceiptCover(unittest.TestCase):
         self.assertTrue(rules.bill_date_review(None, "2026-10-31", strict)["review"])
         r = rules.bill_date_review("2026-10-31", "2026-11-01", strict)
         self.assertEqual((r["block"], r["review"], r["ok"]), (True, False, False))
+
+
+class BilledQty(unittest.TestCase):
+    def test_units_from_amount(self):
+        self.assertEqual(rules.billed_qty(43000, 43, 2160), 1000)
+        self.assertEqual(rules.billed_qty(0, 43, 2160), 0)
+        self.assertEqual(rules.billed_qty(999999, 43, 2160), 2160)
+        self.assertEqual(rules.billed_qty(10, 0, 5), 0)
