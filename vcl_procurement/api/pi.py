@@ -288,6 +288,9 @@ def qbo_prepare(name, date_reviewed=0):
     doc.check_permission("read")
     if not rules.is_import(doc.get("custom_purchase_invoice_type")):
         review = _date_check(doc)
+        if review.get("block"):
+            frappe.throw(_("{0} KRA's invoice date is {1}; the bill date is {2}. Correct the bill date before pushing.").format(
+                review["text"], rules.dmy(review["kra_date"]), rules.dmy(review["bill_date"])), title=_("Bill date refused"))
         if review["review"]:
             if not int(date_reviewed or 0):
                 frappe.throw(_("{0} KRA's invoice date is {1}; the bill date is {2}. Correct the bill date, or tick "

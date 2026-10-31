@@ -470,3 +470,10 @@ class ReceiptCover(unittest.TestCase):
 
     def test_no_po_lines(self):
         self.assertTrue(rules.receipt_cover([], 0)["ok"])
+
+    def test_policy_lives_in_one_constant(self):
+        self.assertEqual(rules.DATE_RULE_POLICY["unverified"], "accept")
+        strict = {**rules.DATE_RULE_POLICY, "unverified": "review", "cross_month": "block"}
+        self.assertTrue(rules.bill_date_review(None, "2026-10-31", strict)["review"])
+        r = rules.bill_date_review("2026-10-31", "2026-11-01", strict)
+        self.assertEqual((r["block"], r["review"], r["ok"]), (True, False, False))

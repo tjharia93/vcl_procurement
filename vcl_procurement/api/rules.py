@@ -86,7 +86,26 @@ def loose_date(v):
 
 # --- the bill date against KRA's invoice date (CR-010, policy from 31/10/2026) ------
 
-def bill_date_review(kra_date, bill_date):
+# What each case does at push, in one place while Tanuj's policy questions (a)-(d) are open.
+# "accept": goes through; "review": needs the Bill date reviewed tick; "block": refused outright.
+# Compass follows the `review` / `ok` flags this produces and keeps no copy of its own.
+DATE_RULE_POLICY = {
+    "same_day": "accept",
+    "same_month": "accept",
+    "cross_month": "review",
+    "earlier": "review",
+    "unverified": "accept",     # KRA silent or no date: shown as not checked, does not hold the push
+}
+
+
+def bill_date_review(kra_date, bill_date, policy=None):
+    """Apply DATE_RULE_POLICY (or `policy`) to _bill_date_state: ok, review and block follow it."""
+    r = _bill_date_state(kra_date, bill_date)
+    act = (policy or DATE_RULE_POLICY).get(r["state"], "review")
+    return {**r, "ok": act == "accept" and r["state"] != "unverified", "review": act == "review", "block": act == "block"}
+
+
+def _bill_date_state(kra_date, bill_date):
     """Is the bill date acceptable against the supplier invoice date KRA holds for the CUIN?
 
     VCL's rule (Tanuj, 31/10/2026): a bill date later than KRA's date is accepted when both are in
