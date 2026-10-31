@@ -52,7 +52,7 @@ class Doc(types.SimpleNamespace):
         self.comments.append(text)
 
 
-def _setup(test, kra, itype="Local Purchase", bill_date="2026-11-01", exempt=0):
+def _setup(test, kra, itype="Local Purchase", bill_date="2026-11-01", exempt=0, roles=("Purchase User", "Purchase Manager")):
     doc = Doc(name="ACC-PINV-X", bill_no="0430146720000082785", bill_date=bill_date, custom_purchase_invoice_type=itype,
               custom_kra_cuin_exempt=exempt, comments=[])
     calls = []
@@ -71,7 +71,7 @@ def _setup(test, kra, itype="Local Purchase", bill_date="2026-11-01", exempt=0):
     f.get_all = lambda *a, **k: []
     f.throw = _throw
     f._ = lambda s: s
-    f.get_roles = lambda *a: ["Purchase User"]
+    f.get_roles = lambda *a: list(roles)
     f.session = types.SimpleNamespace(user="t@x")
     page = pi.pi_page
     pi.pi_page = lambda name: "page"
@@ -253,3 +253,74 @@ class CancelInCompass(unittest.TestCase):
         done = self._doc(docstatus=2)
         self.assertTrue(self._go(done, {"blockers": [], "warnings": [], "needs_qbo_ack": False}, reason="x")["already"])
         self.assertFalse(done.cancelled)
+
+
+class DatePolicyAtPush(unittest.TestCase):
+    """(a)-(c) enforced in qbo_prepare from frappe.get_roles, not only on the screen."""
+
+    def test_a_purchase_user_is_refused_cross_month_even_with_the_tick(self):
+        _, _, pi = _setup(self, {"valid": True, "inv_date": "31/10/2026"}, roles=("Purchase User",))
+        with self.assertRaises(_Thrown) as e:
+            pi.qbo_prepare("ACC-PINV-X", date_reviewed=1)
+        self.assertIn("ask a Purchase Manager", str(e.exception))
+
+    def test_b_earlier_bill_date_is_refused_for_everyone_with_the_cancel_route(self):
+        _, _, pi = _setup(self, {"valid": True, "inv_date": "2026-11-05"}, bill_date="2026-11-01")
+        with self.assertRaises(_Thrown) as e:
+            pi.qbo_prepare("ACC-PINV-X", date_reviewed=1)
+        self.assertIn("05/11/2026", str(e.exception))
+        self.assertIn("Cancel invoice", str(e.exception))
+
+    def test_c_kra_silent_manager_pushes_unverified_with_a_comment_user_refused(self):
+        doc, _, pi = _setup(self, {"valid": False, "error": "timed out"})
+        self.assertEqual(pi.qbo_prepare("ACC-PINV-X"), "page")
+        self.assertIn("unverified", doc.comments[0])
+        _, _, pi = _setup(self, {"valid": False, "error": "timed out"}, roles=("Purchase User",))
+        with self.assertRaises(_Thrown) as e:
+            pi.qbo_prepare("ACC-PINV-X")
+        self.assertIn("Only a Purchase Manager", str(e.exception))
+
+    def test_kra_check_offers_the_fix_on_a_draft_and_the_cancel_route_when_posted(self):
+        doc, _, pi = _setup(self, {"valid": True, "inv_date": "2026-11-05"}, bill_date="2026-11-01")
+        doc.docstatus = 0
+        r = pi.kra_check("ACC-PINV-X")["date"]
+        self.assertEqual((r["fix"], r["fix_date"], r["fix_route"]), (True, "2026-11-05", "set"))
+        doc.docstatus = 1
+        self.assertEqual(pi.kra_check("ACC-PINV-X")["date"]["fix_route"], "cancel")
+
+
+class AlreadyReceived(unittest.TestCase):
+    """(d) receiving through the invoice is refused once a submitted receipt holds those goods."""
+
+    def _pi(self, refusal):
+        _, _, pi = _setup(self, {"valid": False})
+        saved = pi._receipt_refusal
+        pi._receipt_refusal = lambda d: refusal if int(d.update_stock or 0) else ""
+        self.addCleanup(lambda: setattr(pi, "_receipt_refusal", saved))
+        return pi
+
+    def test_pi_set_stock_refuses_and_does_not_save(self):
+        pi = self._pi("Not received through this invoice: MAT-PRE-1 already received these goods")
+        d = Doc(name="ACC-PINV-X", docstatus=0, update_stock=0, saved=False)
+        d.save = lambda: setattr(d, "saved", True)
+        pi.frappe.get_doc = lambda dt, n: d
+        with self.assertRaises(_Thrown) as e:
+            pi.pi_set_stock("ACC-PINV-X", 1)
+        self.assertIn("MAT-PRE-1", str(e.exception))
+        self.assertFalse(d.saved)
+        self.assertEqual(pi.pi_set_stock("ACC-PINV-X", 0), {"update_stock": 0})
+
+    def test_receipt_refusal_reads_the_po_line_and_names_the_receipt(self):
+        _, _, pi = _setup(self, {"valid": False})
+        f = pi.frappe
+        saved = (getattr(f, "db", None), f.get_all)
+        f.db = types.SimpleNamespace(get_value=lambda dt, n, fields, as_dict=False: Item(qty=2160, received_qty=2160, billed_amt=0, rate=43))
+        f.get_all = lambda dt, **k: [Item(parent="MAT-PRE-2026-00099")] if dt == "Purchase Receipt Item" else []
+        self.addCleanup(lambda: (setattr(f, "db", saved[0]), setattr(f, "get_all", saved[1])))
+        d = Doc(name="ACC-PINV-X", docstatus=0, update_stock=1,
+                items=[Item(po_detail="P1", purchase_order="PO-1", item_name="Tape", item_code="T", qty=2160, uom="Nos")])
+        why = pi._receipt_refusal(d)
+        self.assertIn("MAT-PRE-2026-00099", why)
+        self.assertIn("Tape: 2160 Nos", why)
+        d.update_stock = 0
+        self.assertEqual(pi._receipt_refusal(d), "")

@@ -397,7 +397,7 @@ class BillDateReview(unittest.TestCase):
         self.assertEqual(r["kra_date"], "2026-10-27")
 
     def test_cross_month_needs_review_even_a_day_apart(self):
-        r = rules.bill_date_review("2026-10-31", "2026-11-01")
+        r = rules.bill_date_review("2026-10-31", "2026-11-01", ["Purchase Manager"])
         self.assertEqual((r["state"], r["ok"], r["review"]), ("cross_month", False, True))
 
     def test_same_month_number_other_year_is_cross_month(self):
@@ -405,8 +405,8 @@ class BillDateReview(unittest.TestCase):
 
     def test_same_day_and_earlier(self):
         self.assertEqual(rules.bill_date_review("2026-10-27", "2026-10-27")["state"], "same_day")
-        r = rules.bill_date_review("2026-10-27", "2026-10-20")
-        self.assertEqual((r["state"], r["review"]), ("earlier", True))
+        r = rules.bill_date_review("2026-10-27", "2026-10-20", ["Purchase Manager"])
+        self.assertEqual((r["state"], r["fix"], r["fix_date"]), ("earlier", True, "2026-10-27"))
 
     def test_missing_or_unreadable_kra_date_stays_unverified(self):
         for k in (None, "", "not a date"):
@@ -472,11 +472,9 @@ class ReceiptCover(unittest.TestCase):
         self.assertTrue(rules.receipt_cover([], 0)["ok"])
 
     def test_policy_lives_in_one_constant(self):
-        self.assertEqual(rules.DATE_RULE_POLICY["unverified"], "accept")
-        strict = {**rules.DATE_RULE_POLICY, "unverified": "review", "cross_month": "block"}
-        self.assertTrue(rules.bill_date_review(None, "2026-10-31", strict)["review"])
-        r = rules.bill_date_review("2026-10-31", "2026-11-01", strict)
-        self.assertEqual((r["block"], r["review"], r["ok"]), (True, False, False))
+        self.assertEqual(rules.DATE_RULE_POLICY["cross_month"], ("review", "block"))
+        loose = {**rules.DATE_RULE_POLICY, "cross_month": ("accept", "accept")}
+        self.assertTrue(rules.bill_date_review("2026-10-31", "2026-11-01", ["Purchase User"], loose)["ok"])
 
 
 class BilledQty(unittest.TestCase):
@@ -557,3 +555,49 @@ class CancelCheck(unittest.TestCase):
         r = rules.cancel_check(1, [], [], 1, "Pushed", "1234")
         self.assertEqual((r["blockers"], r["needs_qbo_ack"]), ([], True))
         self.assertIn("1234", r["warnings"][0])
+
+
+class DatePolicyByRole(unittest.TestCase):
+    """Tanuj's answers of 31/10/2026 to (a)-(c)."""
+    U, M = ["Purchase User"], ["Purchase User", "Purchase Manager"]
+
+    def test_a_cross_month_blocks_a_purchase_user_and_asks_a_manager_for_the_tick(self):
+        u = rules.bill_date_review("2026-10-31", "2026-11-01", self.U)
+        self.assertEqual((u["block"], u["review"]), (True, False))
+        self.assertIn("ask a Purchase Manager", u["text"])
+        m = rules.bill_date_review("2026-10-31", "2026-11-01", self.M)
+        self.assertEqual((m["block"], m["review"]), (False, True))
+
+    def test_b_an_earlier_bill_date_must_become_kras_date_for_everyone(self):
+        for roles in (self.U, self.M, ["System Manager"]):
+            r = rules.bill_date_review("27/10/2026", "2026-10-20", roles)
+            self.assertEqual((r["fix"], r["fix_date"], r["review"], r["ok"]), (True, "2026-10-27", False, False))
+            self.assertIn("27/10/2026", r["text"])
+
+    def test_c_no_kra_date_only_a_manager_pushes_unverified(self):
+        u = rules.bill_date_review(None, "2026-10-31", self.U)
+        self.assertEqual((u["block"], u["unverified"]), (True, False))
+        self.assertIn("Only a Purchase Manager", u["text"])
+        m = rules.bill_date_review(None, "2026-10-31", self.M)
+        self.assertEqual((m["block"], m["unverified"], m["ok"]), (False, True, False))
+
+    def test_accepted_cases_are_the_same_for_everyone(self):
+        for roles in (self.U, self.M):
+            self.assertTrue(rules.bill_date_review("27/10/2026", "2026-10-31", roles)["ok"])
+            self.assertTrue(rules.bill_date_review("31/10/2026", "2026-10-31", roles)["ok"])
+
+    def test_system_manager_counts_as_manager_and_no_roles_as_user(self):
+        self.assertTrue(rules.is_date_manager(["System Manager"]))
+        self.assertTrue(rules.bill_date_review("2026-10-31", "2026-11-01", None)["block"])
+
+
+class ReceiptRefusal(unittest.TestCase):
+    def test_d_names_the_receipt_and_the_goods(self):
+        cover = rules.receipt_cover([{"item": "Tape", "bill_qty": 2160, "po_qty": 2160, "received": 2160, "billed_before": 0, "uom": "Nos"}], 1)
+        why = rules.receipt_refusal(cover, ["MAT-PRE-2026-00099"])
+        self.assertIn("MAT-PRE-2026-00099", why)
+        self.assertIn("Tape: 2160 Nos", why)
+
+    def test_nothing_received_or_ledger_only_is_not_refused(self):
+        self.assertEqual(rules.receipt_refusal(rules.receipt_cover([{"item": "Tape", "bill_qty": 5, "received": 0}], 1), []), "")
+        self.assertEqual(rules.receipt_refusal(rules.receipt_cover([{"item": "Tape", "bill_qty": 5, "received": 5}], 0), ["X"]), "")

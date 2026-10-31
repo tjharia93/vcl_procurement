@@ -86,23 +86,50 @@ def loose_date(v):
 
 # --- the bill date against KRA's invoice date (CR-010, policy from 31/10/2026) ------
 
-# What each case does at push, in one place while Tanuj's policy questions (a)-(d) are open.
-# "accept": goes through; "review": needs the Bill date reviewed tick; "block": refused outright.
-# Compass follows the `review` / `ok` flags this produces and keeps no copy of its own.
+# What each case does at push, by role: Tanuj's answers of 31/10/2026 to policy questions (a)-(c).
+#   accept      goes through
+#   review      needs the "Bill date reviewed" tick (recorded as a comment on the invoice)
+#   unverified  goes through, labelled unverified (recorded as a comment)
+#   block       refused for this role
+#   fix         refused for everyone until the bill date is changed to KRA's date
+# Compass follows the flags bill_date_review returns and keeps no copy.
+DATE_RULE_MANAGER_ROLES = {"Purchase Manager", "System Manager"}
 DATE_RULE_POLICY = {
-    "same_day": "accept",
-    "same_month": "accept",
-    "cross_month": "review",
-    "earlier": "review",
-    "unverified": "accept",     # KRA silent or no date: shown as not checked, does not hold the push
+    #               (manager,      anyone else)
+    "same_day":     ("accept",     "accept"),
+    "same_month":   ("accept",     "accept"),
+    "cross_month":  ("review",     "block"),       # (a) "outright for purchase user, purchase manager is tick"
+    "earlier":      ("fix",        "fix"),         # (b) "KRA date": the bill date must be KRA's invoice date
+    "unverified":   ("unverified", "block"),       # (c) "Yes but only purchase manager"
 }
 
 
-def bill_date_review(kra_date, bill_date, policy=None):
-    """Apply DATE_RULE_POLICY (or `policy`) to _bill_date_state: ok, review and block follow it."""
+def is_date_manager(roles):
+    return bool(set(roles or []) & DATE_RULE_MANAGER_ROLES)
+
+
+def bill_date_review(kra_date, bill_date, roles=None, policy=None):
+    """The date rule for one person: _bill_date_state, then what DATE_RULE_POLICY lets their roles do.
+
+    Returns the state, kra_date, bill_date and: action; ok (accepted as it is), review (needs the tick),
+    block (refused for these roles), fix (bill date must become fix_date), unverified (going through
+    without KRA's date); text in words for the screen. `roles` None means "anyone else" (the stricter column).
+    """
     r = _bill_date_state(kra_date, bill_date)
-    act = (policy or DATE_RULE_POLICY).get(r["state"], "review")
-    return {**r, "ok": act == "accept" and r["state"] != "unverified", "review": act == "review", "block": act == "block"}
+    mgr = is_date_manager(roles)
+    action = (policy or DATE_RULE_POLICY).get(r["state"], ("review", "block"))[0 if mgr else 1]
+    out = {**r, "action": action, "manager": mgr, "ok": action == "accept" and r["state"] != "unverified",
+           "review": action == "review", "block": action == "block", "fix": action == "fix",
+           "unverified": action == "unverified", "fix_date": r["kra_date"] if action == "fix" else None}
+    if action == "block" and r["state"] == "cross_month":
+        out["text"] = "Cross-month date difference: ask a Purchase Manager to review it, or correct the bill date."
+    elif action == "block" and r["state"] == "unverified":
+        out["text"] = r["text"] + " Only a Purchase Manager can push it unverified."
+    elif action == "fix":
+        out["text"] = f"The bill date is before KRA's invoice date. The bill date must be KRA's date, {dmy(r['kra_date'])}."
+    elif action == "unverified":
+        out["text"] = r["text"] + " A Purchase Manager may push it, recorded as unverified."
+    return out
 
 
 def _bill_date_state(kra_date, bill_date):
@@ -642,6 +669,19 @@ def stage_hint(staging_enabled, earliest_posting_date, posting_date):
 
 
 # --- the receipt choice on an invoice (CR-006, 31/10/2026) ---------------------------
+
+def receipt_refusal(cover, receipts):
+    """(d) Tanuj, 31/10/2026: once a submitted goods receipt covers these PO lines, the invoice may not receive
+    them again. `cover` is receipt_cover(..., update_stock=1); `receipts` the submitted receipts on those lines.
+    Returns the refusal in words, or '' when nothing on the invoice is already received."""
+    lines = [l for l in (cover or {}).get("lines", []) if float(l.get("overlap") or 0) > 1e-9]
+    if not lines:
+        return ""
+    what = "; ".join(f"{l.get('item')}: {float(l['overlap']):g}{(' ' + l['uom']) if l.get('uom') else ''}" for l in lines)
+    by = ", ".join(receipts) if receipts else "a Purchase Receipt"
+    return (f"Not received through this invoice: {by} already received these goods ({what}). "
+            "Keep 'Use a recorded goods receipt', so the stock is not counted twice.")
+
 
 def billed_qty(billed_amt, rate, qty):
     """How much of a PO line is billed, in units: ERPNext keeps only the amount. Never more than the line."""

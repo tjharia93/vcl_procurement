@@ -134,6 +134,21 @@ def _receive_from(doc):
     return {"po": po, "ok": ok, "why": why}
 
 
+def _receipt_refusal(doc):
+    """(d) '' unless the invoice would receive goods a submitted Purchase Receipt already holds; then the refusal."""
+    if not int(doc.update_stock or 0):
+        return ""
+    details = [i.get("po_detail") for i in doc.items if i.get("po_detail")]
+    if not details:
+        return ""
+    cover = (_receipt_check(doc) or {}) if doc.docstatus != 2 else {}
+    if cover.get("mode") != "invoice":
+        return ""
+    receipts = sorted({r.parent for r in frappe.get_all("Purchase Receipt Item", filters={"purchase_order_item": ["in", details], "docstatus": 1},
+                                                         fields=["parent"], limit_page_length=50)})
+    return rules.receipt_refusal(cover, receipts)
+
+
 def _receipt_check(doc):
     """CR-006: per invoice line billed from a PO line, what the PO has received and billed, judged by rules.receipt_cover.
     Also the submitted Purchase Receipts against the invoice's orders. None on a cancelled invoice."""
@@ -154,6 +169,11 @@ def _receipt_check(doc):
         lines.append({"item": i.item_name or i.item_code, "bill_qty": flt(i.qty), "po_qty": flt(d.qty),
                       "received": flt(d.received_qty), "billed_before": round(before, 6), "uom": i.uom})
     out = rules.receipt_cover(lines, doc.update_stock)
+    # (d) Would "receive through this invoice" be refused? Said in advance so the screen can grey the option.
+    details = [i.get("po_detail") for i in doc.items if i.get("po_detail")]
+    covering = sorted({r.parent for r in frappe.get_all("Purchase Receipt Item", filters={"purchase_order_item": ["in", details], "docstatus": 1},
+                                                         fields=["parent"], limit_page_length=50)}) if details else []
+    out["through_invoice_refusal"] = rules.receipt_refusal(rules.receipt_cover(lines, 1), covering)
     pos = _linked_pos(doc)
     out["receipts"] = sorted({r.parent for r in frappe.get_all("Purchase Receipt Item", filters={"purchase_order": ["in", pos], "docstatus": 1},
                                                                 fields=["parent"], limit_page_length=50)}) if pos else []
@@ -325,17 +345,22 @@ def qbo_prepare(name, date_reviewed=0):
     doc.check_permission("read")
     if not rules.is_import(doc.get("custom_purchase_invoice_type")):
         review = _date_check(doc)
-        if review.get("block"):
-            frappe.throw(_("{0} KRA's invoice date is {1}; the bill date is {2}. Correct the bill date before pushing.").format(
-                review["text"], rules.dmy(review["kra_date"]), rules.dmy(review["bill_date"])), title=_("Bill date refused"))
+        dates = _("KRA's invoice date is {0}; the bill date is {1}.").format(rules.dmy(review["kra_date"]) or "unknown", rules.dmy(review["bill_date"]) or "unknown")
+        if review["fix"]:
+            # (b) A posted invoice's bill date cannot be edited: cancel it and bill again on KRA's date (CR-011).
+            frappe.throw(_("{0} {1} This invoice is posted, so cancel it (More actions > Cancel invoice) and bill it again dated {2}.")
+                         .format(review["text"], dates, rules.dmy(review["fix_date"])), title=_("Bill date must be KRA's date"))
+        if review["block"]:
+            frappe.throw(_("{0} {1}").format(review["text"], dates), title=_("Bill date refused"))
         if review["review"]:
             if not int(date_reviewed or 0):
-                frappe.throw(_("{0} KRA's invoice date is {1}; the bill date is {2}. Correct the bill date, or tick "
-                               "\"Bill date reviewed\" in the push review to push it as it is.").format(
-                    review["text"], rules.dmy(review["kra_date"]), rules.dmy(review["bill_date"])),
-                    title=_("Bill date needs review"))
+                frappe.throw(_("{0} {1} Correct the bill date, or tick \"Bill date reviewed\" in the push review to push it as it is.")
+                             .format(review["text"], dates), title=_("Bill date needs review"))
             doc.add_comment("Comment", _("Bill date reviewed before the QuickBooks push: KRA invoice date {0}, bill date {1} ({2}).")
                             .format(rules.dmy(review["kra_date"]), rules.dmy(review["bill_date"]), review["state"].replace("_", " ")))
+        if review["unverified"]:
+            doc.add_comment("Comment", _("Pushed to QuickBooks unverified: KRA's invoice date could not be checked (bill date {0}).")
+                            .format(rules.dmy(review["bill_date"]) or "not set"))
     row = frappe.get_all("QBO Bill Push Queue", filters={"pi": name, "docstatus": 0}, fields=["name", "qbo_docnumber_override", "txn_date", "qbo_memo"], limit_page_length=1)
     if row:
         # Every bill carries its order and invoice references in the memo (cr-mvqewpg9): a blank memo
@@ -371,15 +396,20 @@ def _kra_lookup(cuin):
         return {"valid": False, "error": str(e)}
 
 
-def _date_check(doc, kra=None):
-    """The date rule for a local invoice. `kra` is a validate_cuin answer already in hand, if any."""
+def _date_check(doc, kra=None, roles=None):
+    """The date rule for a local invoice, for the person asking (their roles decide, DATE_RULE_POLICY).
+    `kra` is a validate_cuin answer already in hand, if any. A CUIN-exempt supplier is not asked of KRA
+    and is not held: there is no KRA date to compare with."""
+    roles = frappe.get_roles() if roles is None else roles
     if doc.get("custom_kra_cuin_exempt"):
-        return {**rules.bill_date_review(None, doc.bill_date), "text": "Date not checked: the supplier is CUIN-exempt."}
+        r = rules.bill_date_review(None, doc.bill_date, roles)
+        return {**r, "action": "accept", "ok": True, "block": False, "review": False, "unverified": False, "fix": False,
+                "text": "Date not checked: the supplier is CUIN-exempt."}
     cuin = (doc.bill_no or "").strip()
     if kra is None and cuin:
         kra = _kra_lookup(cuin)
     kra_date = (kra or {}).get("inv_date") if (kra or {}).get("valid") else None
-    return rules.bill_date_review(kra_date, doc.bill_date)
+    return rules.bill_date_review(kra_date, doc.bill_date, roles)
 
 
 @frappe.whitelist()
@@ -396,7 +426,10 @@ def kra_check(name):
         return {"kra": None, "date": {**rules.bill_date_review(None, None), "text": "An import is dated on its KRA customs entry."}}
     cuin = (doc.bill_no or "").strip()
     kra = _kra_lookup(cuin) if cuin and not doc.get("custom_kra_cuin_exempt") else None
-    return {"kra": kra, "date": _date_check(doc, kra if kra is not None else {})}
+    date = _date_check(doc, kra if kra is not None else {})
+    # (b) On a draft the fix is one click on the screen (pi_save bill_date); on a posted invoice it is cancel and bill again.
+    date["fix_route"] = ("set" if doc.docstatus == 0 else "cancel") if date.get("fix") else None
+    return {"kra": kra, "date": date}
 
 
 @frappe.whitelist()
@@ -794,6 +827,10 @@ def pi_save(name, payload):
                 r.invoice_portion = new["invoice_portion"]
                 r.payment_amount = new["payment_amount"]
 
+    if "update_stock" in payload:
+        why = _receipt_refusal(doc)
+        if why:
+            frappe.throw(why, title=_("Already received"))
     doc.save()
     notes += _save_shipment_record(doc, payload.get("shipment_record"))
     return {"page": pi_page(name), "notes": notes}
@@ -852,6 +889,9 @@ def pi_set_stock(name, on):
     if doc.docstatus != 0:
         frappe.throw(_("{0} is not a draft.").format(name))
     doc.update_stock = 1 if int(on) else 0
+    why = _receipt_refusal(doc)
+    if why:
+        frappe.throw(why, title=_("Already received"))
     doc.save()
     return {"update_stock": int(doc.update_stock)}
 
@@ -871,6 +911,9 @@ def pi_submit(name):
     missing = _missing(doc)
     if missing:
         frappe.throw(_("Not submitted. Still pending:<br>{0}").format("<br>".join(missing)))
+    why = _receipt_refusal(doc)
+    if why:
+        frappe.throw(_("Not submitted. {0}").format(why), title=_("Already received"))
     gate_before_submit(doc)   # the same rule the before_submit event applies
     doc.submit()
     return pi_page(name)
@@ -912,7 +955,18 @@ def bill_preview(po):
         "left_total": round(sum(left.values()), 2),
         "terms": _bill_terms(doc),
         "drafts": _draft_bills(po),
+        # (d) the whole unbilled balance received through a new invoice: refused if a receipt already holds it.
+        "through_invoice_refusal": _po_receipt_refusal(doc, left),
     }
+
+
+def _po_receipt_refusal(po_doc, left):
+    lines = [{"item": i.item_name or i.item_code, "bill_qty": max(0.0, flt(i.qty) - rules.billed_qty(i.billed_amt, i.rate, i.qty)),
+              "po_qty": flt(i.qty), "received": flt(i.received_qty), "billed_before": rules.billed_qty(i.billed_amt, i.rate, i.qty), "uom": i.uom}
+             for i in po_doc.items if i.idx in left]
+    receipts = sorted({r.parent for r in frappe.get_all("Purchase Receipt Item", filters={"purchase_order": po_doc.name, "docstatus": 1},
+                                                         fields=["parent"], limit_page_length=50)})
+    return rules.receipt_refusal(rules.receipt_cover(lines, 1), receipts)
 
 
 def _bill_terms(po_doc):
@@ -1071,6 +1125,9 @@ def bill_save(po, payload):
             if (d.get("bill_no") or "").strip() == bill_no:
                 return {"name": d["name"], "existing": True, "page": pi_page(d["name"]), "notes": []}
     pi = _shape_bill(_mapped_bill(po, payload.get("bill_date"), bill_no), payload)
+    why = _receipt_refusal(pi)
+    if why:
+        frappe.throw(why, title=_("Already received"))
     pi.insert()
     notes = []
     if payload.get("terms") and not rules.is_import(pi.get("custom_purchase_invoice_type")):
