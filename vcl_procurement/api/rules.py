@@ -76,7 +76,7 @@ def loose_date(v):
     if not t:
         return None
     head = t.replace("T", " ").split(" ")[0]
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d-%b-%Y", "%d %b %Y", "%Y/%m/%d"):
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%d-%b-%Y", "%d %b %Y", "%Y/%m/%d"):
         try:
             return datetime.datetime.strptime(head if fmt != "%d %b %Y" else t[:11], fmt).date()
         except ValueError:

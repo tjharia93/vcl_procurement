@@ -413,9 +413,22 @@ class BillDateReview(unittest.TestCase):
             r = rules.bill_date_review(k, "2026-10-31")
             self.assertEqual((r["state"], r["ok"], r["review"]), ("unverified", False, False))
 
+    def test_december_to_january_is_cross_month(self):
+        self.assertEqual(rules.bill_date_review("31/12/2026", "2027-01-02")["state"], "cross_month")
+
+    def test_same_day_number_in_another_year_is_cross_month(self):
+        self.assertEqual(rules.bill_date_review("27/10/2025", "2026-10-27")["state"], "cross_month")
+
+    def test_impossible_kra_dates_are_unverified(self):
+        for k in ("31/02/2026", "2026-13-01", "00/10/2026"):
+            self.assertEqual(rules.bill_date_review(k, "2026-10-31")["state"], "unverified", k)
+
     def test_kra_formats(self):
-        for k in ("2026-10-27", "27/10/2026", "27-10-2026", "27-Oct-2026", "2026-10-27T00:00:00", "27/10/2026 10:15:00"):
+        for k in ("2026-10-27", "27/10/2026", "27-10-2026", "27.10.2026", "27-Oct-2026", "2026-10-27T00:00:00", "27/10/2026 10:15:00"):
             self.assertEqual(rules.loose_date(k).isoformat(), "2026-10-27", k)
+        self.assertEqual(rules.loose_date(" 27/10/2026 ").isoformat(), "2026-10-27")
+        self.assertEqual(rules.loose_date("7-1-2026").isoformat(), "2026-01-07")
+        self.assertIsNone(rules.loose_date("rubbish"))
 
     def test_dmy(self):
         self.assertEqual(rules.dmy("2026-10-27"), "27/10/2026")
