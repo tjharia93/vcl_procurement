@@ -622,6 +622,39 @@ def stage_hint(staging_enabled, earliest_posting_date, posting_date):
     return "It should have been queued on submit; the Error Log may say why. Use Stage for QBO."
 
 
+# --- the receipt choice on an invoice (CR-006, 31/10/2026) ---------------------------
+
+def receipt_cover(lines, update_stock):
+    """Do recorded receipts cover what this invoice bills, or would receiving through it count goods twice?
+
+    `lines`: [{item, bill_qty, po_qty, received, billed_before}] per invoice line billed from a PO line;
+    `received` is the PO line's received qty, `billed_before` what submitted invoices already billed of it.
+    Recorded receipts (update_stock off): a line is short by what this bill needs beyond what is received.
+    Through this invoice (update_stock on): a line overlaps by what is already received beyond what was
+    billed before, which the invoice would receive a second time.
+    Returns {mode, lines, short, overlap, ok, text}. Nothing here blocks: it is shown before submit.
+    """
+    mode = "invoice" if int(update_stock or 0) else "receipts"
+    out, short, overlap = [], 0, 0
+    for l in lines:
+        bill, rec, before = float(l.get("bill_qty") or 0), float(l.get("received") or 0), float(l.get("billed_before") or 0)
+        need = before + bill
+        sh = round(max(0.0, need - rec), 6) if mode == "receipts" else 0.0
+        ov = round(min(bill, max(0.0, rec - before)), 6) if mode == "invoice" else 0.0
+        short += sh > 1e-9
+        overlap += ov > 1e-9
+        out.append({**l, "need": need, "short": sh, "overlap": ov})
+    if not out:
+        text = "No Purchase Order lines on this invoice, so there are no receipts to match."
+    elif mode == "receipts":
+        text = ("Recorded receipts cover every line." if not short
+                else f"{short} line{'s' if short != 1 else ''} not fully received yet: receive the goods against the PO, or this bill stays ledger-only for them.")
+    else:
+        text = ("The goods go into stock when this invoice is submitted." if not overlap
+                else f"{overlap} line{'s' if overlap != 1 else ''} already received on a Purchase Receipt: receiving through this invoice would count those goods twice.")
+    return {"mode": mode, "lines": out, "short": short, "overlap": overlap, "ok": not (short or overlap), "text": text}
+
+
 # --- receiving: which receipt row is which PO line (27/10/2026) -------------------
 
 def receipt_qty_by_row(wanted, po_rows, pr_rows):

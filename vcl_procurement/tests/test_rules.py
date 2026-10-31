@@ -432,3 +432,28 @@ class StageHint(unittest.TestCase):
         self.assertIn("switched off", rules.stage_hint(0, "2026-04-01", "2026-10-31"))
         self.assertIn("before the QuickBooks cutoff 01/04/2026", rules.stage_hint(1, "2026-04-01", "2026-03-31"))
         self.assertIn("Error Log", rules.stage_hint(1, "2026-04-01", "2026-10-31"))
+
+
+class ReceiptCover(unittest.TestCase):
+    L = {"item": "TAPE", "bill_qty": 2160, "po_qty": 2160}
+
+    def test_recorded_receipts_cover_or_fall_short(self):
+        ok = rules.receipt_cover([{**self.L, "received": 2160, "billed_before": 0}], 0)
+        self.assertEqual((ok["mode"], ok["ok"], ok["short"]), ("receipts", True, 0))
+        short = rules.receipt_cover([{**self.L, "received": 0, "billed_before": 0}], 0)
+        self.assertEqual((short["ok"], short["lines"][0]["short"]), (False, 2160))
+        self.assertIn("not fully received", short["text"])
+
+    def test_a_second_part_bill_needs_receipts_for_both_parts(self):
+        r = rules.receipt_cover([{**self.L, "bill_qty": 1000, "received": 1500, "billed_before": 1000}], 0)
+        self.assertEqual(r["lines"][0]["short"], 500)
+
+    def test_receiving_through_the_invoice_flags_goods_already_received(self):
+        clean = rules.receipt_cover([{**self.L, "received": 0, "billed_before": 0}], 1)
+        self.assertEqual((clean["mode"], clean["ok"]), ("invoice", True))
+        twice = rules.receipt_cover([{**self.L, "received": 2160, "billed_before": 0}], 1)
+        self.assertEqual((twice["ok"], twice["lines"][0]["overlap"]), (False, 2160))
+        self.assertIn("twice", twice["text"])
+
+    def test_no_po_lines(self):
+        self.assertTrue(rules.receipt_cover([], 0)["ok"])

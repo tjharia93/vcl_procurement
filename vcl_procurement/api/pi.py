@@ -134,6 +134,32 @@ def _receive_from(doc):
     return {"po": po, "ok": ok, "why": why}
 
 
+def _receipt_check(doc):
+    """CR-006: per invoice line billed from a PO line, what the PO has received and billed, judged by rules.receipt_cover.
+    Also the submitted Purchase Receipts against the invoice's orders. None on a cancelled invoice."""
+    if doc.docstatus == 2:
+        return None
+    lines = []
+    for i in doc.items:
+        if not i.get("po_detail"):
+            continue
+        d = frappe.db.get_value("Purchase Order Item", i.po_detail, ["qty", "received_qty", "billed_amt", "rate"], as_dict=True)
+        if not d:
+            continue
+        rate = flt(d.rate)
+        # Submitted invoices only; once this one is submitted its own amount is in billed_amt, so take it back out.
+        before = flt(d.billed_amt) / rate if rate else 0.0
+        if doc.docstatus == 1:
+            before = max(0.0, before - flt(i.qty))
+        lines.append({"item": i.item_name or i.item_code, "bill_qty": flt(i.qty), "po_qty": flt(d.qty),
+                      "received": flt(d.received_qty), "billed_before": round(before, 6), "uom": i.uom})
+    out = rules.receipt_cover(lines, doc.update_stock)
+    pos = _linked_pos(doc)
+    out["receipts"] = sorted({r.parent for r in frappe.get_all("Purchase Receipt Item", filters={"purchase_order": ["in", pos], "docstatus": 1},
+                                                                fields=["parent"], limit_page_length=50)}) if pos else []
+    return out
+
+
 def _payments(name):
     """Payment Entries referencing this invoice, drafts included."""
     refs = frappe.get_all("Payment Entry Reference", filters={"reference_doctype": PI, "reference_name": name},
@@ -428,6 +454,7 @@ def pi_page(name):
         "attachments": _attachments(doc.name),
         "requirements": {"missing": missing, "ready": not missing},
         "receive_from": _receive_from(doc),
+        "receipt_check": _receipt_check(doc),
         "invoice_types": INVOICE_TYPES,
         "can": {
             "edit": draft,
