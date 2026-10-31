@@ -93,7 +93,8 @@ def loose_date(v):
 #   block       refused for this role
 #   fix         refused for everyone until the bill date is changed to KRA's date
 # Compass follows the flags bill_date_review returns and keeps no copy.
-DATE_RULE_MANAGER_ROLES = {"Purchase Manager", "System Manager"}
+# Tanuj, 31/10/2026: "Purchase Manager and Accounts Manager" (Accounts Manager is also who may push to QuickBooks).
+DATE_RULE_MANAGER_ROLES = {"Purchase Manager", "Accounts Manager"}
 DATE_RULE_POLICY = {
     #               (manager,      anyone else)
     "same_day":     ("accept",     "accept"),
@@ -122,13 +123,13 @@ def bill_date_review(kra_date, bill_date, roles=None, policy=None):
            "review": action == "review", "block": action == "block", "fix": action == "fix",
            "unverified": action == "unverified", "fix_date": r["kra_date"] if action == "fix" else None}
     if action == "block" and r["state"] == "cross_month":
-        out["text"] = "Cross-month date difference: ask a Purchase Manager to review it, or correct the bill date."
+        out["text"] = "Cross-month date difference: ask a Purchase Manager or Accounts Manager to review it, or correct the bill date."
     elif action == "block" and r["state"] == "unverified":
-        out["text"] = r["text"] + " Only a Purchase Manager can push it unverified."
+        out["text"] = r["text"] + " Only a Purchase Manager or Accounts Manager can push it unverified."
     elif action == "fix":
         out["text"] = f"The bill date is before KRA's invoice date. The bill date must be KRA's date, {dmy(r['kra_date'])}."
     elif action == "unverified":
-        out["text"] = r["text"] + " A Purchase Manager may push it, recorded as unverified."
+        out["text"] = r["text"] + " A Purchase Manager or Accounts Manager may push it, recorded as unverified."
     return out
 
 

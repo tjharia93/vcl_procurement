@@ -569,7 +569,7 @@ class DatePolicyByRole(unittest.TestCase):
         self.assertEqual((m["block"], m["review"]), (False, True))
 
     def test_b_an_earlier_bill_date_must_become_kras_date_for_everyone(self):
-        for roles in (self.U, self.M, ["System Manager"]):
+        for roles in (self.U, self.M, ["Accounts Manager"]):
             r = rules.bill_date_review("27/10/2026", "2026-10-20", roles)
             self.assertEqual((r["fix"], r["fix_date"], r["review"], r["ok"]), (True, "2026-10-27", False, False))
             self.assertIn("27/10/2026", r["text"])
@@ -586,8 +586,11 @@ class DatePolicyByRole(unittest.TestCase):
             self.assertTrue(rules.bill_date_review("27/10/2026", "2026-10-31", roles)["ok"])
             self.assertTrue(rules.bill_date_review("31/10/2026", "2026-10-31", roles)["ok"])
 
-    def test_system_manager_counts_as_manager_and_no_roles_as_user(self):
-        self.assertTrue(rules.is_date_manager(["System Manager"]))
+    def test_managers_are_purchase_and_accounts_managers_and_no_roles_is_a_user(self):
+        self.assertTrue(rules.is_date_manager(["Accounts Manager"]))
+        self.assertTrue(rules.is_date_manager(["Purchase Manager"]))
+        self.assertFalse(rules.is_date_manager(["Purchase User", "System Manager"]))
+        self.assertTrue(rules.bill_date_review("2026-10-31", "2026-11-01", ["Accounts Manager"])["review"])
         self.assertTrue(rules.bill_date_review("2026-10-31", "2026-11-01", None)["block"])
 
 
