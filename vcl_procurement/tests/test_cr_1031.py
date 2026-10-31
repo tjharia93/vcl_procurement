@@ -1,0 +1,119 @@
+"""Purchase Invoice change requests of 31/10/2026 (CR-010 date rule at push), with `frappe` stubbed.
+
+    python3 -m unittest vcl_procurement.tests.test_cr_1031
+"""
+import datetime
+import sys
+import types
+import unittest
+
+
+class _Thrown(Exception):
+    pass
+
+
+def _throw(msg, exc=None, title=None):
+    raise _Thrown(msg)
+
+
+frappe = sys.modules.get("frappe") or types.ModuleType("frappe")
+frappe.whitelist = lambda *a, **k: (lambda f: f)
+frappe.throw = _throw
+frappe._ = lambda s: s
+frappe.PermissionError = PermissionError
+frappe.get_roles = lambda *a: ["Purchase User"]
+frappe.session = types.SimpleNamespace(user="t@x")
+frappe.db = types.SimpleNamespace(get_default=lambda k: "KES", get_value=lambda *a, **k: None,
+                                  set_value=lambda *a, **k: None, exists=lambda *a, **k: True)
+utils = sys.modules.get("frappe.utils") or types.ModuleType("frappe.utils")
+utils.flt = lambda v, *a: float(v or 0)
+utils.nowdate = lambda: "2026-10-31"
+utils.getdate = lambda v: v if isinstance(v, datetime.date) else datetime.date.fromisoformat(str(v)[:10])
+utils.today = utils.nowdate
+utils.add_days = lambda d, n: d
+utils.date_diff = lambda a, b: (utils.getdate(a) - utils.getdate(b)).days
+frappe.utils = utils
+sys.modules["frappe"] = frappe
+sys.modules["frappe.utils"] = utils
+for m in ("erpnext", "erpnext.buying", "erpnext.buying.doctype", "erpnext.buying.doctype.purchase_order",
+          "erpnext.buying.doctype.purchase_order.purchase_order"):
+    sys.modules.setdefault(m, types.ModuleType(m))
+
+sys.path.insert(0, __file__.rsplit("/vcl_procurement/tests/", 1)[0])
+from vcl_procurement.api import pi  # noqa: E402
+
+
+class Doc(types.SimpleNamespace):
+    def get(self, k, d=None):
+        return getattr(self, k, d)
+
+    def check_permission(self, *a):
+        pass
+
+    def add_comment(self, kind, text):
+        self.comments.append(text)
+
+
+def _setup(test, kra, itype="Local Purchase", bill_date="2026-11-01", exempt=0):
+    doc = Doc(name="ACC-PINV-X", bill_no="0430146720000082785", bill_date=bill_date, custom_purchase_invoice_type=itype,
+              custom_kra_cuin_exempt=exempt, comments=[])
+    calls = []
+
+    def validate_cuin(invoice_no):
+        calls.append(invoice_no)
+        if isinstance(kra, Exception):
+            raise kra
+        return kra
+    frappe.get_doc = lambda dt, name: doc
+    frappe.get_attr = lambda path: validate_cuin
+    frappe.get_all = lambda *a, **k: []
+    test._page = pi.pi_page
+    pi.pi_page = lambda name: "page"
+    test.addCleanup(lambda: setattr(pi, "pi_page", test._page))
+    return doc, calls
+
+
+class DateRuleAtPush(unittest.TestCase):
+    def test_cross_month_is_refused_until_reviewed(self):
+        doc, _ = _setup(self, {"valid": True, "inv_date": "31/10/2026"})
+        with self.assertRaises(_Thrown) as e:
+            pi.qbo_prepare("ACC-PINV-X")
+        self.assertIn("Cross-month", str(e.exception))
+        self.assertIn("31/10/2026", str(e.exception))
+        self.assertEqual(pi.qbo_prepare("ACC-PINV-X", date_reviewed=1), "page")
+        self.assertEqual(len(doc.comments), 1)
+        self.assertIn("Bill date reviewed", doc.comments[0])
+
+    def test_same_month_late_posting_goes_through_without_a_comment(self):
+        doc, _ = _setup(self, {"valid": True, "inv_date": "2026-10-27"}, bill_date="2026-10-31")
+        self.assertEqual(pi.qbo_prepare("ACC-PINV-X"), "page")
+        self.assertEqual(doc.comments, [])
+
+    def test_kra_down_leaves_it_unverified_and_does_not_block(self):
+        _setup(self, RuntimeError("iTax unreachable"))
+        self.assertEqual(pi.qbo_prepare("ACC-PINV-X"), "page")
+        _setup(self, {"valid": False, "error": "timed out"})
+        self.assertEqual(pi.qbo_prepare("ACC-PINV-X"), "page")
+
+    def test_an_import_is_not_asked_of_kra(self):
+        _, calls = _setup(self, {"valid": True, "inv_date": "2026-01-01"}, itype="Importation")
+        self.assertEqual(pi.qbo_prepare("ACC-PINV-X"), "page")
+        self.assertEqual(calls, [])
+
+
+class KraCheck(unittest.TestCase):
+    def test_one_call_gives_kra_and_the_verdict(self):
+        _, calls = _setup(self, {"valid": True, "inv_date": "27/10/2026", "tax_amt": "14860.80"}, bill_date="2026-10-31")
+        r = pi.kra_check("ACC-PINV-X")
+        self.assertEqual(calls, ["0430146720000082785"])
+        self.assertEqual(r["kra"]["tax_amt"], "14860.80")
+        self.assertEqual((r["date"]["state"], r["date"]["ok"]), ("same_month", True))
+
+    def test_exempt_supplier_is_not_asked(self):
+        _, calls = _setup(self, {"valid": True, "inv_date": "2026-10-27"}, exempt=1)
+        r = pi.kra_check("ACC-PINV-X")
+        self.assertEqual((calls, r["kra"], r["date"]["state"]), ([], None, "unverified"))
+
+
+if __name__ == "__main__":
+    unittest.main()

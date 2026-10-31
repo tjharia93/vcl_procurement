@@ -63,6 +63,61 @@ def iso(v):
     return d.isoformat() if d else None
 
 
+def loose_date(v):
+    """A date as other systems write it: 2026-10-27, 27/10/2026, 27-10-2026, 27-Oct-2026, with or without a time.
+
+    None when it cannot be read. KRA's iTax answer is not always ISO.
+    """
+    if v is None:
+        return None
+    if isinstance(v, (datetime.date, datetime.datetime)):
+        return to_date(v)
+    t = str(v).strip()
+    if not t:
+        return None
+    head = t.replace("T", " ").split(" ")[0]
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d-%b-%Y", "%d %b %Y", "%Y/%m/%d"):
+        try:
+            return datetime.datetime.strptime(head if fmt != "%d %b %Y" else t[:11], fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+# --- the bill date against KRA's invoice date (CR-010, policy from 31/10/2026) ------
+
+def bill_date_review(kra_date, bill_date):
+    """Is the bill date acceptable against the supplier invoice date KRA holds for the CUIN?
+
+    VCL's rule (Tanuj, 31/10/2026): a bill date later than KRA's date is accepted when both are in
+    the same calendar month and year. A different month or year needs the bill date reviewed before
+    the bill is pushed. An earlier bill date is not covered by the rule, so it is reviewed too.
+    Returns {state, ok, review, kra_date, bill_date, text}; state is one of same_day, same_month,
+    cross_month, earlier, unverified.
+    """
+    k, b = loose_date(kra_date), loose_date(bill_date)
+    out = {"kra_date": iso(k), "bill_date": iso(b)}
+    if not k or not b:
+        missing = "KRA's invoice date" if not k else "the bill date"
+        return {**out, "state": "unverified", "ok": False, "review": False,
+                "text": f"Date not checked: {missing} is not known."}
+    if k == b:
+        return {**out, "state": "same_day", "ok": True, "review": False, "text": "Bill date matches KRA's invoice date."}
+    if b < k:
+        return {**out, "state": "earlier", "ok": False, "review": True,
+                "text": "Bill date is before KRA's invoice date: review the bill date."}
+    if (b.year, b.month) == (k.year, k.month):
+        return {**out, "state": "same_month", "ok": True, "review": False, "text": "Same-month late posting accepted."}
+    return {**out, "state": "cross_month", "ok": False, "review": True,
+            "text": "Cross-month date difference: review the bill date before pushing."}
+
+
+def dmy(v):
+    """dd/mm/yyyy, as the screens show dates. '' when there is none."""
+    d = to_date(v)
+    return d.strftime("%d/%m/%Y") if d else ""
+
+
 def add_days(v, n):
     return iso(to_date(v) + datetime.timedelta(days=int(n)))
 

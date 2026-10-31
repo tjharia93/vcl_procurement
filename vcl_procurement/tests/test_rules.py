@@ -388,3 +388,35 @@ class QboTxnDate(unittest.TestCase):
     def test_a_local_purchase_keeps_the_supplier_bill_date(self):
         self.assertEqual(rules.qbo_txn_date("Local Purchase", "2026-09-28", "2026-08-27", "2026-09-28"), "2026-08-27")
         self.assertEqual(rules.qbo_txn_date("Local Purchase", None, None, "2026-09-28"), "2026-09-28")
+
+
+class BillDateReview(unittest.TestCase):
+    def test_same_month_late_posting_is_accepted(self):
+        r = rules.bill_date_review("27/10/2026", "2026-10-31")
+        self.assertEqual((r["state"], r["ok"], r["review"]), ("same_month", True, False))
+        self.assertEqual(r["kra_date"], "2026-10-27")
+
+    def test_cross_month_needs_review_even_a_day_apart(self):
+        r = rules.bill_date_review("2026-10-31", "2026-11-01")
+        self.assertEqual((r["state"], r["ok"], r["review"]), ("cross_month", False, True))
+
+    def test_same_month_number_other_year_is_cross_month(self):
+        self.assertEqual(rules.bill_date_review("2025-10-27", "2026-10-28")["state"], "cross_month")
+
+    def test_same_day_and_earlier(self):
+        self.assertEqual(rules.bill_date_review("2026-10-27", "2026-10-27")["state"], "same_day")
+        r = rules.bill_date_review("2026-10-27", "2026-10-20")
+        self.assertEqual((r["state"], r["review"]), ("earlier", True))
+
+    def test_missing_or_unreadable_kra_date_stays_unverified(self):
+        for k in (None, "", "not a date"):
+            r = rules.bill_date_review(k, "2026-10-31")
+            self.assertEqual((r["state"], r["ok"], r["review"]), ("unverified", False, False))
+
+    def test_kra_formats(self):
+        for k in ("2026-10-27", "27/10/2026", "27-10-2026", "27-Oct-2026", "2026-10-27T00:00:00", "27/10/2026 10:15:00"):
+            self.assertEqual(rules.loose_date(k).isoformat(), "2026-10-27", k)
+
+    def test_dmy(self):
+        self.assertEqual(rules.dmy("2026-10-27"), "27/10/2026")
+        self.assertEqual(rules.dmy(None), "")

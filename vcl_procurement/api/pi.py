@@ -236,15 +236,29 @@ def _memo_for(doc, memo):
 
 
 @frappe.whitelist(methods=["POST"])
-def qbo_prepare(name):
+def qbo_prepare(name, date_reviewed=0):
     """Before a push: put the right bill number on the draft queue row (an import uses the KRA customs entry number)
     and the order / invoice references in its memo (every invoice).
+
+    A local invoice whose bill date fails the date rule against KRA's invoice date (CR-010) is refused
+    until the person pushing says the bill date has been reviewed (`date_reviewed=1`); that is recorded
+    as a comment on the invoice. If KRA does not answer the date stays unverified and does not block.
 
     Never touches a row that has been submitted. Returns the refreshed page.
     """
     _assert_purchasing_role()
     doc = frappe.get_doc(PI, name)
     doc.check_permission("read")
+    if not rules.is_import(doc.get("custom_purchase_invoice_type")):
+        review = _date_check(doc)
+        if review["review"]:
+            if not int(date_reviewed or 0):
+                frappe.throw(_("{0} KRA's invoice date is {1}; the bill date is {2}. Correct the bill date, or tick "
+                               "\"Bill date reviewed\" in the push review to push it as it is.").format(
+                    review["text"], rules.dmy(review["kra_date"]), rules.dmy(review["bill_date"])),
+                    title=_("Bill date needs review"))
+            doc.add_comment("Comment", _("Bill date reviewed before the QuickBooks push: KRA invoice date {0}, bill date {1} ({2}).")
+                            .format(rules.dmy(review["kra_date"]), rules.dmy(review["bill_date"]), review["state"].replace("_", " ")))
     row = frappe.get_all("QBO Bill Push Queue", filters={"pi": name, "docstatus": 0}, fields=["name", "qbo_docnumber_override", "txn_date", "qbo_memo"], limit_page_length=1)
     if row:
         # Every bill carries its order and invoice references in the memo (cr-mvqewpg9): a blank memo
@@ -264,6 +278,48 @@ def qbo_prepare(name):
         if str(row[0].txn_date or "")[:10] != str(when)[:10]:
             frappe.db.set_value("QBO Bill Push Queue", row[0].name, "txn_date", when, update_modified=True)
     return pi_page(name)
+
+
+# --- KRA's view of a local invoice, and the date rule (CR-010) -----------------------
+
+def _kra_lookup(cuin):
+    """What KRA's iTax holds for a CUIN, through vcl_kra_validation. None when that app is not installed."""
+    try:
+        fn = frappe.get_attr("vcl_kra_validation.api.validate_cuin")
+    except Exception:
+        return None
+    try:
+        return fn(invoice_no=cuin)
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+
+def _date_check(doc, kra=None):
+    """The date rule for a local invoice. `kra` is a validate_cuin answer already in hand, if any."""
+    if doc.get("custom_kra_cuin_exempt"):
+        return {**rules.bill_date_review(None, doc.bill_date), "text": "Date not checked: the supplier is CUIN-exempt."}
+    cuin = (doc.bill_no or "").strip()
+    if kra is None and cuin:
+        kra = _kra_lookup(cuin)
+    kra_date = (kra or {}).get("inv_date") if (kra or {}).get("valid") else None
+    return rules.bill_date_review(kra_date, doc.bill_date)
+
+
+@frappe.whitelist()
+def kra_check(name):
+    """KRA's answer for this invoice's CUIN and the server's verdict on the bill date, in one call.
+
+    {kra: validate_cuin's answer or None, date: bill_date_review}. An import has no CUIN check
+    (its customs entry is not on the iTax invoice checker): date.state is "unverified".
+    """
+    _assert_purchasing_role()
+    doc = frappe.get_doc(PI, name)
+    doc.check_permission("read")
+    if rules.is_import(doc.get("custom_purchase_invoice_type")):
+        return {"kra": None, "date": {**rules.bill_date_review(None, None), "text": "An import is dated on its KRA customs entry."}}
+    cuin = (doc.bill_no or "").strip()
+    kra = _kra_lookup(cuin) if cuin and not doc.get("custom_kra_cuin_exempt") else None
+    return {"kra": kra, "date": _date_check(doc, kra if kra is not None else {})}
 
 
 @frappe.whitelist()
