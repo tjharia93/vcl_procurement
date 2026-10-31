@@ -220,6 +220,43 @@ def _stage_hint(doc):
     return rules.stage_hint(st.get("staging_enabled"), st.get("earliest_posting_date"), doc.posting_date)
 
 
+@frappe.whitelist()
+def qbo_history(name):
+    """CR-009: the last three successful QuickBooks postings of each item on this invoice, for the same supplier.
+
+    Suggestions only: nothing is applied here. Successful = the queue row was submitted, has a QuickBooks bill id,
+    did not fail, and its invoice is not cancelled. A destination no longer active in QuickBooks is left out.
+    Returns {scope, items: {erp_item: [...]}}.
+    """
+    _assert_purchasing_role()
+    doc = frappe.get_doc(PI, name)
+    doc.check_permission("read")
+    items = sorted({i.item_code for i in doc.items if i.item_code})
+    QD, QL = "QBO Bill Push Queue", "QBO Bill Push Queue Line"
+    if not items or not frappe.db.exists("DocType", QD):
+        return {"scope": "same supplier and item", "items": {i: [] for i in items}}
+    rows = frappe.get_all(QD, filters={"supplier": doc.supplier, "docstatus": 1, "qbo_bill_id": ["is", "set"], "pi": ["!=", doc.name]},
+                          fields=["name", "pi", "txn_date", "push_status", "tax_qbo_taxcode"], order_by="txn_date desc, creation desc",
+                          limit_page_length=60)
+    cancelled = {r.name for r in frappe.get_all(PI, filters={"name": ["in", [r.pi for r in rows if r.pi] or ["-"]], "docstatus": 2}, fields=["name"])}
+    parents = [{"name": r.name, "pi": r.pi, "date": r.txn_date, "taxcode": r.tax_qbo_taxcode} for r in rows
+               if (r.push_status or "") != "Failed" and r.pi not in cancelled]
+    lines = frappe.get_all(QL, filters={"parent": ["in", [p["name"] for p in parents] or ["-"]], "parenttype": QD, "erp_item_code": ["in", items]},
+                           fields=["parent", "erp_item_code", "routing_kind", "qbo_item_override as item_id", "qbo_item_name as item_name",
+                                   "qbo_account_override as account_id", "qbo_account_name as account_name", "qbo_taxcode_override as taxcode"],
+                           parent_doctype=QD, limit_page_length=500) if parents else []
+    cache = {}
+
+    def active(kind, did):
+        key = (kind, did)
+        if key not in cache:
+            dt = "QBO Item" if kind == "Item" else "QBO Account"
+            v = frappe.db.get_value(dt, did, "active") if frappe.db.exists(dt, did) else None
+            cache[key] = bool(v)
+        return cache[key]
+    return {"scope": "same supplier and item", "items": rules.mapping_history(parents, [dict(l) for l in lines], items, active)}
+
+
 def _qbo_review(doc, queue_name):
     """What will be posted to QuickBooks, read off the queue row, with the checks that gate the push."""
     try:

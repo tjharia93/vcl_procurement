@@ -485,3 +485,23 @@ class BilledQty(unittest.TestCase):
         self.assertEqual(rules.billed_qty(0, 43, 2160), 0)
         self.assertEqual(rules.billed_qty(999999, 43, 2160), 2160)
         self.assertEqual(rules.billed_qty(10, 0, 5), 0)
+
+
+class MappingHistory(unittest.TestCase):
+    P = [{"name": "Q3", "pi": "PI-3", "date": "2026-10-20", "taxcode": "8"}, {"name": "Q2", "pi": "PI-2", "date": "2026-09-01", "taxcode": "8"},
+         {"name": "Q1", "pi": "PI-1", "date": "2026-08-01", "taxcode": "8"}, {"name": "Q0", "pi": "PI-0", "date": "2026-07-01", "taxcode": "8"}]
+
+    def test_newest_three_per_item_one_per_invoice_inactive_left_out(self):
+        L = [{"parent": "Q1", "erp_item_code": "TAPE", "account_id": "A1", "account_name": "Purchase Trading"},
+             {"parent": "Q3", "erp_item_code": "TAPE", "account_id": "A1", "account_name": "Purchase Trading"},
+             {"parent": "Q3", "erp_item_code": "TAPE", "account_id": "A1", "account_name": "Purchase Trading"},
+             {"parent": "Q2", "erp_item_code": "TAPE", "item_id": "I9", "item_name": "Old item"},
+             {"parent": "Q0", "erp_item_code": "TAPE", "account_id": "A2", "account_name": "Printing"},
+             {"parent": "Q2", "erp_item_code": "BOX", "account_id": "A1"},
+             {"parent": "QX", "erp_item_code": "TAPE", "account_id": "A1"}]
+        h = rules.mapping_history(self.P, L, ["TAPE", "GLUE"], active=lambda kind, i: i != "I9")
+        self.assertEqual([(x["queue"], x["route"], x["dest_name"]) for x in h["TAPE"]],
+                         [("Q3", "Account", "Purchase Trading"), ("Q1", "Account", "Purchase Trading"), ("Q0", "Account", "Printing")])
+        self.assertEqual(h["GLUE"], [])
+        self.assertNotIn("BOX", h)
+        self.assertEqual(h["TAPE"][0]["date"], "2026-10-20")

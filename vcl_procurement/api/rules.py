@@ -682,6 +682,40 @@ def receipt_cover(lines, update_stock):
     return {"mode": mode, "lines": out, "short": short, "overlap": overlap, "ok": not (short or overlap), "text": text}
 
 
+# --- the last successful postings for a supplier and item (CR-009, 31/10/2026) ------
+
+def mapping_history(parents, lines, items, active, limit=3):
+    """The last `limit` successful QuickBooks postings per ERP item, newest first.
+
+    `parents`: queue rows already filtered to this supplier, pushed (a QuickBooks bill id), not failed,
+    invoice not cancelled, newest first: [{name, pi, date, taxcode}]. `lines`: their lines [{parent,
+    erp_item_code, routing_kind, item_id, item_name, account_id, account_name, taxcode}]. `active(kind, id)`
+    says whether a QuickBooks item/account is still active. One posting per invoice per item; a posting
+    whose destination is inactive is left out. Returns {item: [{date, pi, queue, route, dest_id, dest_name, taxcode}]}.
+    """
+    order = {p["name"]: n for n, p in enumerate(parents)}
+    by_parent = {p["name"]: p for p in parents}
+    out = {i: [] for i in items}
+    seen = set()
+    for l in sorted((l for l in lines if l.get("parent") in order), key=lambda l: order[l["parent"]]):
+        item = l.get("erp_item_code")
+        if item not in out or len(out[item]) >= limit or (item, l["parent"]) in seen:
+            continue
+        if l.get("item_id"):
+            route, did, dname = "Item", l["item_id"], l.get("item_name") or l["item_id"]
+        elif l.get("account_id"):
+            route, did, dname = "Account", l["account_id"], l.get("account_name") or l["account_id"]
+        else:
+            continue
+        if not active(route, did):
+            continue
+        p = by_parent[l["parent"]]
+        seen.add((item, l["parent"]))
+        out[item].append({"date": iso(p.get("date")), "pi": p.get("pi"), "queue": p["name"], "route": route,
+                          "dest_id": did, "dest_name": dname, "taxcode": l.get("taxcode") or p.get("taxcode")})
+    return out
+
+
 # --- receiving: which receipt row is which PO line (27/10/2026) -------------------
 
 def receipt_qty_by_row(wanted, po_rows, pr_rows):
