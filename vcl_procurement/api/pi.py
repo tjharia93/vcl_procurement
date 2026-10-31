@@ -1079,6 +1079,67 @@ def bill_save(po, payload):
     return {"name": pi.name, "existing": False, "page": pi_page(pi.name), "notes": notes}
 
 
+# --- cancelling (CR-011) --------------------------------------------------------
+
+def _cancel_state(doc):
+    payments = [h["name"] for h in _payments(doc.name) if not h.get("draft")]
+    receipts = sorted({r.parent for r in frappe.get_all("Purchase Receipt Item", filters={"purchase_invoice": doc.name, "docstatus": 1},
+                                                         fields=["parent"], limit_page_length=50)})
+    q = _qbo(doc)
+    row = q.get("queue") or {}
+    bill_id = q.get("bill_id") or row.get("qbo_bill_id")
+    check = rules.cancel_check(doc.docstatus, payments, receipts, row.get("docstatus"), row.get("push_status"), bill_id)
+    drafts = [h["name"] for h in _payments(doc.name) if h.get("draft")]
+    if drafts:
+        check["warnings"].append(f"Draft payment {', '.join(drafts)} will no longer settle anything: delete it after cancelling.")
+    return check, {"payments": payments, "receipts": receipts, "qbo_bill_id": bill_id, "queue": row.get("name"),
+                   "push_status": row.get("push_status")}
+
+
+@frappe.whitelist()
+def cancel_review(name):
+    """CR-011: what cancelling this invoice would do, and what stops it. Nothing is changed."""
+    _assert_purchasing_role()
+    doc = frappe.get_doc(PI, name)
+    doc.check_permission("read")
+    check, st = _cancel_state(doc)
+    return {**check, **st, "name": doc.name, "supplier": doc.supplier_name or doc.supplier, "currency": doc.currency,
+            "grand_total": flt(doc.grand_total), "status": doc.status, "purchase_orders": _linked_pos(doc),
+            "stock": bool(int(doc.update_stock or 0)),
+            "stock_lines": [{"item": i.item_name or i.item_code, "qty": flt(i.qty), "uom": i.uom, "warehouse": i.warehouse}
+                            for i in doc.items] if int(doc.update_stock or 0) else [],
+            "can_cancel": bool(frappe.has_permission(PI, "cancel", doc=doc)) and not check["blockers"]}
+
+
+@frappe.whitelist(methods=["POST"])
+def pi_cancel(name, reason, qbo_ack=0):
+    """CR-011: cancel a submitted invoice from Compass. Needs a reason, ERPNext's cancel permission, no blocker,
+    and, when the bill is already in QuickBooks, `qbo_ack` (the person will void or correct it there).
+
+    The reason is recorded as a comment on the invoice (who and when come with it). ERPNext's own cancel reverses
+    the ledger and any stock, and its checks (negative stock, linked documents) still apply; its refusal is the error.
+    The QuickBooks queue row is cancelled by the existing on_cancel hook. A repeat on a cancelled invoice changes
+    nothing and returns the page.
+    """
+    _assert_purchasing_role()
+    doc = frappe.get_doc(PI, name)
+    if doc.docstatus == 2:
+        return {"page": pi_page(name), "already": True}
+    doc.check_permission("cancel")
+    why = (reason or "").strip()
+    if len(why) < 5:
+        frappe.throw(_("Say why it is being cancelled (a few words)."))
+    check, st = _cancel_state(doc)
+    if check["blockers"]:
+        frappe.throw(_("Not cancelled: {0}").format(" ".join(check["blockers"])))
+    if check["needs_qbo_ack"] and not int(qbo_ack or 0):
+        frappe.throw(_("QuickBooks bill {0} is not voided by this. Tick that you will void or correct it in QuickBooks.").format(st["qbo_bill_id"]))
+    doc.add_comment("Comment", _("Cancelled in Compass. Reason: {0}{1}").format(
+        why, _(" QuickBooks bill {0} to be voided or corrected in QuickBooks.").format(st["qbo_bill_id"]) if st["qbo_bill_id"] else ""))
+    doc.cancel()
+    return {"page": pi_page(name), "already": False}
+
+
 # --- payments -----------------------------------------------------------------
 
 @frappe.whitelist()

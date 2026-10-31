@@ -777,6 +777,33 @@ def doc_search(q, docs, limit=40):
     return out[:limit]
 
 
+# --- cancelling a purchase invoice in Compass (CR-011, 31/10/2026) ----------------
+
+def cancel_check(docstatus, payments_posted, receipts_from_pi, queue_docstatus, push_status, qbo_bill_id):
+    """What stops a cancel, and what the person must know first. Returns {blockers, warnings, needs_qbo_ack}.
+
+    Blocks: not submitted; posted payments against it (cancel or unlink them first); receipts made from this
+    invoice (cancel them first, they hold its stock); a QuickBooks push requested and not yet answered
+    (reconcile it first). A bill already in QuickBooks does not block, but the person must say they will
+    void or correct it there: cancelling here does not touch QuickBooks.
+    """
+    blockers, warnings = [], []
+    if int(docstatus or 0) == 0:
+        blockers.append("It is a draft: delete it instead of cancelling.")
+    elif int(docstatus or 0) == 2:
+        blockers.append("It is already cancelled.")
+    if payments_posted:
+        blockers.append(f"Posted payments against it ({', '.join(payments_posted)}): cancel or unlink them first.")
+    if receipts_from_pi:
+        blockers.append(f"Purchase Receipts made from it ({', '.join(receipts_from_pi)}): cancel them first.")
+    in_flight = int(queue_docstatus or 0) == 1 and not qbo_bill_id and (push_status or "") not in ("Failed", "Pushed")
+    if in_flight:
+        blockers.append("A QuickBooks push was requested and has not answered yet: check it on Sync to QBO before cancelling.")
+    if qbo_bill_id:
+        warnings.append(f"QuickBooks bill {qbo_bill_id} stays in QuickBooks. Cancelling here does not void it: void or correct it in QuickBooks.")
+    return {"blockers": blockers, "warnings": warnings, "needs_qbo_ack": bool(qbo_bill_id)}
+
+
 # --- receiving: which receipt row is which PO line (27/10/2026) -------------------
 
 def receipt_qty_by_row(wanted, po_rows, pr_rows):

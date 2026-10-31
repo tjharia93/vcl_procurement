@@ -212,3 +212,44 @@ class PurchasingSearch(unittest.TestCase):
         self.assertEqual(r[0]["href"], "/compass/purchasing/po/PUR-ORD-2026-00264")
         self.assertEqual([x["name"] for x in search.purchasing_search("rok", kind="pi")], ["ACC-PINV-2026-00673"])
         self.assertEqual(search.purchasing_search("x"), [])
+
+
+class CancelInCompass(unittest.TestCase):
+    def _doc(self, docstatus=1):
+        d = Doc(name="ACC-PINV-X", docstatus=docstatus, comments=[], cancelled=False)
+        d.cancel = lambda: setattr(d, "cancelled", True)
+        return d
+
+    def _go(self, doc, check, **kw):
+        _, _, pi = _setup(self, {"valid": False})
+        pi.frappe.get_doc = lambda dt, n: doc
+        saved = pi._cancel_state
+        pi._cancel_state = lambda d: (check, {"qbo_bill_id": "1234" if check.get("needs_qbo_ack") else None})
+        self.addCleanup(lambda: setattr(pi, "_cancel_state", saved))
+        return pi.pi_cancel("ACC-PINV-X", **kw)
+
+    def test_needs_a_reason_and_no_blocker(self):
+        with self.assertRaises(_Thrown):
+            self._go(self._doc(), {"blockers": [], "warnings": [], "needs_qbo_ack": False}, reason="no")
+        with self.assertRaises(_Thrown) as e:
+            self._go(self._doc(), {"blockers": ["Posted payments against it (ACC-PAY-1)"], "warnings": [], "needs_qbo_ack": False}, reason="wrong supplier")
+        self.assertIn("ACC-PAY-1", str(e.exception))
+
+    def test_a_synced_bill_needs_the_qbo_tick(self):
+        chk = {"blockers": [], "warnings": [], "needs_qbo_ack": True}
+        with self.assertRaises(_Thrown) as e:
+            self._go(self._doc(), chk, reason="wrong supplier")
+        self.assertIn("1234", str(e.exception))
+        d = self._doc()
+        self._go(d, chk, reason="wrong supplier", qbo_ack=1)
+        self.assertTrue(d.cancelled)
+        self.assertIn("1234", d.comments[0])
+
+    def test_cancels_with_the_reason_recorded_and_a_repeat_changes_nothing(self):
+        d = self._doc()
+        r = self._go(d, {"blockers": [], "warnings": [], "needs_qbo_ack": False}, reason="Supplier re-issued the invoice")
+        self.assertEqual((d.cancelled, r["already"]), (True, False))
+        self.assertIn("Supplier re-issued the invoice", d.comments[0])
+        done = self._doc(docstatus=2)
+        self.assertTrue(self._go(done, {"blockers": [], "warnings": [], "needs_qbo_ack": False}, reason="x")["already"])
+        self.assertFalse(done.cancelled)

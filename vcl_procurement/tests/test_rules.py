@@ -539,3 +539,21 @@ class DocSearch(unittest.TestCase):
     def test_every_word_must_match(self):
         self.assertEqual(rules.doc_search("rok glue", self.D), [])
         self.assertEqual(rules.doc_search("  ", self.D), [])
+
+
+class CancelCheck(unittest.TestCase):
+    def test_a_clean_unpaid_unpushed_invoice_can_be_cancelled(self):
+        r = rules.cancel_check(1, [], [], 0, None, None)
+        self.assertEqual((r["blockers"], r["needs_qbo_ack"]), ([], False))
+
+    def test_blockers(self):
+        self.assertIn("draft", rules.cancel_check(0, [], [], None, None, None)["blockers"][0])
+        self.assertIn("ACC-PAY-1", rules.cancel_check(1, ["ACC-PAY-1"], [], None, None, None)["blockers"][0])
+        self.assertIn("MAT-PRE-9", rules.cancel_check(1, [], ["MAT-PRE-9"], None, None, None)["blockers"][0])
+        self.assertIn("has not answered", rules.cancel_check(1, [], [], 1, "Queued", None)["blockers"][0])
+
+    def test_a_failed_push_does_not_block_and_a_synced_bill_needs_the_ack(self):
+        self.assertEqual(rules.cancel_check(1, [], [], 1, "Failed", None)["blockers"], [])
+        r = rules.cancel_check(1, [], [], 1, "Pushed", "1234")
+        self.assertEqual((r["blockers"], r["needs_qbo_ack"]), ([], True))
+        self.assertIn("1234", r["warnings"][0])
