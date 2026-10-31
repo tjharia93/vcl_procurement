@@ -180,7 +180,18 @@ def _qbo(doc):
                             "qbo_bill_id": q[0].qbo_bill_id, "docstatus": q[0].docstatus,
                             "error_message": q[0].error_message}
             out["review"] = _qbo_review(doc, q[0].name)
+    if not out["queue"] and doc.docstatus == 1:
+        out["stage_hint"] = _stage_hint(doc)
     return out
+
+
+def _stage_hint(doc):
+    """Why a submitted invoice has no queue row (DEF-001), in words for the screen. None when nothing explains it."""
+    try:
+        st = frappe.get_cached_doc("QBO Sync Settings")
+    except Exception:
+        return None
+    return rules.stage_hint(st.get("staging_enabled"), st.get("earliest_posting_date"), doc.posting_date)
 
 
 def _qbo_review(doc, queue_name):

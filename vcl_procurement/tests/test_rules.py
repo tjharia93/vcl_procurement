@@ -425,3 +425,10 @@ class BillDateReview(unittest.TestCase):
         c = rules.qbo_checks("N1", "2026-10-31", {"name": "V", "approved": 1}, [{"amount": 1, "item": "I"}], 1, None)
         self.assertEqual(c[5]["why"], "staged")
         self.assertNotIn("not staged", " ".join(x["why"] for x in c))
+
+
+class StageHint(unittest.TestCase):
+    def test_off_cutoff_and_unexplained(self):
+        self.assertIn("switched off", rules.stage_hint(0, "2026-04-01", "2026-10-31"))
+        self.assertIn("before the QuickBooks cutoff 01/04/2026", rules.stage_hint(1, "2026-04-01", "2026-03-31"))
+        self.assertIn("Error Log", rules.stage_hint(1, "2026-04-01", "2026-10-31"))

@@ -612,6 +612,16 @@ def qbo_checks(docnumber, txn_date, vendor, lines, pi_net, category, tolerance=0
     return out
 
 
+def stage_hint(staging_enabled, earliest_posting_date, posting_date):
+    """Why a submitted invoice was not queued for QuickBooks on submit (DEF-001). None when the settings would have queued it."""
+    if not staging_enabled:
+        return "Automatic staging on submit is switched off (QBO Sync Settings), so use Stage for QBO."
+    cut, post = to_date(earliest_posting_date), to_date(posting_date)
+    if cut and post and post < cut:
+        return f"The posting date {dmy(post)} is before the QuickBooks cutoff {dmy(cut)}, so it is never queued."
+    return "It should have been queued on submit; the Error Log may say why. Use Stage for QBO."
+
+
 # --- receiving: which receipt row is which PO line (27/10/2026) -------------------
 
 def receipt_qty_by_row(wanted, po_rows, pr_rows):
