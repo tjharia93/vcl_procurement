@@ -608,7 +608,7 @@ def qbo_checks(docnumber, txn_date, vendor, lines, pi_net, category, tolerance=0
     total = round(sum(float(l.get("amount") or 0) for l in lines), 2)
     out.append({"ok": bool(lines) and abs(total - float(pi_net or 0)) <= tolerance, "label": "Lines add up to the invoice net",
                 "why": f"lines {total:,.2f}, invoice {float(pi_net or 0):,.2f}"})
-    out.append({"ok": category != "BLOCKED", "label": "Staging", "why": "blocked at staging" if category == "BLOCKED" else (category or "not staged")})
+    out.append({"ok": category != "BLOCKED", "label": "Staging", "why": "blocked at staging" if category == "BLOCKED" else ("staged · " + category if category else "staged")})
     return out
 
 

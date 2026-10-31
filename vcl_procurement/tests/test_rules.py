@@ -420,3 +420,8 @@ class BillDateReview(unittest.TestCase):
     def test_dmy(self):
         self.assertEqual(rules.dmy("2026-10-27"), "27/10/2026")
         self.assertEqual(rules.dmy(None), "")
+
+    def test_a_queue_row_without_a_category_reads_staged_not_not_staged(self):
+        c = rules.qbo_checks("N1", "2026-10-31", {"name": "V", "approved": 1}, [{"amount": 1, "item": "I"}], 1, None)
+        self.assertEqual(c[5]["why"], "staged")
+        self.assertNotIn("not staged", " ".join(x["why"] for x in c))
