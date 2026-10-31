@@ -105,7 +105,7 @@ def open_orders(status=None, supplier=None):
         "Purchase Order", filters=filters,
         fields=["name", "supplier", "transaction_date", "schedule_date", "status",
                 "base_grand_total", "grand_total", "per_received", "per_billed", "currency",
-                "custom_order_type", "order_confirmation_no", "custom_file_number"],
+                "custom_order_type", "order_confirmation_no", "custom_file_number", "creation"],
         # Open orders oldest first (the late ones lead); a finished list newest first,
         # or the 500 cap would hide this month behind years of history.
         order_by="transaction_date desc" if status in ("Completed", "Closed") else "transaction_date asc",
@@ -122,6 +122,7 @@ def open_orders(status=None, supplier=None):
         out.append({
             "name": r.name,
             "supplier": r.supplier,
+            "created": str(r.creation) if r.creation else None,     # Date Raised (CR-004)
             "date": str(r.transaction_date) if r.transaction_date else None,
             "age_days": date_diff(now, getdate(r.transaction_date)) if r.transaction_date else None,
             "due": due,
@@ -212,11 +213,12 @@ def draft_orders(mine=0):
         "Purchase Order", filters=filters,
         fields=["name", "supplier", "transaction_date", "schedule_date", "currency", "grand_total",
                 "workflow_state", "custom_order_type", "owner", "order_confirmation_no",
-                "custom_file_number"],
+                "custom_file_number", "creation"],
         order_by="modified desc", limit_page_length=200)
     ordered = _ordered_for([r.name for r in rows])
     return [{
         "name": r.name, "supplier": r.supplier, "date": _iso(r.transaction_date),
+        "created": str(r.creation) if r.creation else None,
         "due": _iso(r.schedule_date), "currency": r.currency, "total": flt(r.grand_total),
         "workflow_state": r.workflow_state, "order_type": r.custom_order_type or "Local",
         "raised_by": r.owner,

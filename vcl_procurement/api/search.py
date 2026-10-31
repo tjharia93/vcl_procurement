@@ -12,7 +12,7 @@ master is a master-data decision, made in the item master.
 import frappe
 from frappe.query_builder import DocType
 
-from vcl_procurement.api import rules
+from vcl_procurement.api import landing_rules, rules
 from vcl_procurement.api.purchasing import _assert_purchasing_role
 from vcl_procurement.api.units import resolve_factor
 
@@ -96,3 +96,77 @@ def uom_factor(item_code, uom):
     _assert_purchasing_role()
     stock, factor = resolve_factor(item_code, uom)
     return {"item_code": item_code, "stock_uom": stock, "uom": uom, "factor": factor}
+
+
+# --- one Purchasing search (CR-002, 31/10/2026) -------------------------------------
+
+# kind -> (doctype, child doctype, header fields, reference fields, supplier field, date field, filters)
+_DOC_SEARCH = {
+    "mr": ("Material Request", "Material Request Item", ["name", "status", "transaction_date", "owner"],
+           ["name"], None, "transaction_date", {"docstatus": ["<", 2], "material_request_type": "Purchase"}),
+    "po": ("Purchase Order", "Purchase Order Item", ["name", "supplier", "status", "transaction_date", "order_confirmation_no", "custom_file_number"],
+           ["name", "order_confirmation_no", "custom_file_number"], "supplier", "transaction_date", {"docstatus": ["<", 2]}),
+    "pr": ("Purchase Receipt", "Purchase Receipt Item", ["name", "supplier", "supplier_name", "status", "posting_date", "supplier_delivery_note"],
+           ["name", "supplier_delivery_note"], "supplier_name", "posting_date", {"docstatus": ["<", 2], "is_return": 0}),
+    "pi": ("Purchase Invoice", "Purchase Invoice Item", ["name", "supplier", "supplier_name", "status", "posting_date", "bill_no", "custom_bill_of_lading_number"],
+           ["name", "bill_no", "custom_bill_of_lading_number"], "supplier_name", "posting_date", {"docstatus": ["<", 2], "is_return": 0}),
+}
+_SEARCH_WINDOW = 600     # the newest documents of each type that are searched
+_LABEL = {"mr": "Material Request", "po": "Purchase Order", "pr": "Receiving", "pi": "Purchase Invoice"}
+_HREF = {"mr": "/compass/purchasing/mr/", "po": "/compass/purchasing/po/", "pr": "/compass/purchasing/pr/", "pi": "/compass/purchasing/pi/"}
+
+
+@frappe.whitelist()
+def purchasing_search(q="", kind="all", limit=40):
+    """One search across Material Requests, Purchase Orders, Receiving and Purchase Invoices (CR-002).
+
+    Matches document numbers, supplier, supplier invoice / confirmation / file / delivery note numbers, BL,
+    and each line's item code, name and description; containers and BLs through the invoices and shipments
+    (landing.container_search). `kind` narrows to mr / po / pr / pi. Ranked by rules.doc_search: exact
+    references first, near spellings last. Each hit names its type.
+    """
+    _assert_purchasing_role()
+    from frappe.utils import strip_html
+    q = (q or "").strip()
+    if len(q) < 2:
+        return []
+    kinds = [kind] if kind in _DOC_SEARCH else list(_DOC_SEARCH)
+    docs = []
+    for k in kinds:
+        dt, child, fields, refs, sup, date_f, filters = _DOC_SEARCH[k]
+        meta_ok = [f for f in fields if f == "name" or frappe.get_meta(dt).has_field(f)]
+        rows = frappe.get_all(dt, filters=filters, fields=meta_ok + ["creation", "docstatus"], order_by="creation desc",
+                              limit_page_length=_SEARCH_WINDOW)
+        names = [r.name for r in rows]
+        lines = frappe.get_all(child, filters={"parent": ["in", names]}, fields=["parent", "item_code", "item_name", "description"],
+                               parent_doctype=dt, limit_page_length=0) if names else []
+        by = {}
+        for l in lines:
+            by.setdefault(l.parent, []).append({"code": l.item_code, "text": " ".join(filter(None, [l.item_name, strip_html(l.description or "")]))})
+        for r in rows:
+            docs.append({"kind": k, "doctype": dt, "name": r.name, "created": str(r.creation),
+                         "refs": [r.get(f) for f in refs if f in meta_ok],
+                         "fields": {"supplier": r.get(sup) if sup else None, "raised by": (r.get("owner") or "").split("@")[0] if k == "mr" else None},
+                         "items": by.get(r.name, []),
+                         "supplier": r.get(sup) if sup else None, "status": "Draft" if r.docstatus == 0 else r.get("status"),
+                         "date": str(r.get(date_f)) if r.get(date_f) else None})
+    hits = rules.doc_search(q, docs, limit=int(limit or 40))
+    out = [{"kind": h["kind"], "type": _LABEL[h["kind"]], "name": h["name"], "supplier": h.get("supplier"), "date": h.get("date"),
+            "status": h.get("status"), "created": h.get("created"), "match": h["match"], "score": h["score"],
+            "href": _HREF[h["kind"]] + h["name"]} for h in hits]
+    if kind in ("all", "pi") and len(landing_rules.norm_container(q)) >= landing_rules.MIN_CONTAINER_CHARS:
+        from vcl_procurement.api import landing
+        seen = {o["name"] for o in out}
+        for c in landing.container_search(q):
+            n = c.get("invoice")
+            if n and n not in seen:
+                seen.add(n)
+                out.append({"kind": "pi", "type": "Purchase Invoice", "name": n, "supplier": c.get("supplier"), "date": None,
+                            "status": "Draft" if c.get("draft") else None, "created": None, "score": 95,
+                            "match": "container " + c["container"] if c.get("kind") == "container" else "bill of lading",
+                            "href": _HREF["pi"] + n})
+            elif not n and c.get("shipment") and kind == "all":
+                out.append({"kind": "shipment", "type": "Import Shipment", "name": c["shipment"], "supplier": c.get("supplier"), "date": None,
+                            "status": c.get("stage"), "created": None, "score": 95, "match": "bill of lading", "href": "/compass/imports"})
+        out.sort(key=lambda r: -r["score"])
+    return out[: int(limit or 40)]

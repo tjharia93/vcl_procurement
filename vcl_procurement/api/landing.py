@@ -25,7 +25,7 @@ def mr_list():
     rows = frappe.get_all(
         "Material Request",
         filters={"docstatus": 1, "material_request_type": "Purchase"},
-        fields=["name", "transaction_date", "schedule_date", "status", "per_ordered", "per_received", "owner"],
+        fields=["name", "transaction_date", "schedule_date", "status", "per_ordered", "per_received", "owner", "creation"],
         order_by="transaction_date desc, creation desc", limit_page_length=R.LIMIT)
     items = R.group_items(_children("Material Request Item", "Material Request", [r.name for r in rows],
                                     ["parent", "item_name", "qty", "uom"]))
@@ -33,7 +33,7 @@ def mr_list():
         "name": r.name, "date": str(r.transaction_date) if r.transaction_date else None,
         "needed_by": str(r.schedule_date) if r.schedule_date else None,
         "status": r.status, "per_ordered": flt(r.per_ordered), "per_received": flt(r.per_received),
-        "raised_by": (r.owner or "").split("@")[0], "is_open": R.is_open_mr(r),
+        "raised_by": (r.owner or "").split("@")[0], "is_open": R.is_open_mr(r), "created": str(r.creation) if r.creation else None,
         "items": items.get(r.name, []),
     } for r in rows]
 
@@ -45,7 +45,7 @@ def pr_list():
     rows = frappe.get_all(
         "Purchase Receipt", filters={"docstatus": ["<", 2], "is_return": 0},
         fields=["name", "supplier", "supplier_name", "posting_date", "status", "docstatus",
-                "grand_total", "base_grand_total", "currency", "per_billed"],
+                "grand_total", "base_grand_total", "currency", "per_billed", "creation"],
         order_by="posting_date desc, creation desc", limit_page_length=R.LIMIT)
     pos = R.group_pos(_children("Purchase Receipt Item", "Purchase Receipt", [r.name for r in rows],
                                 ["parent", "purchase_order"]))
@@ -53,7 +53,7 @@ def pr_list():
         "name": r.name, "supplier": r.supplier, "supplier_name": r.supplier_name or r.supplier,
         "date": str(r.posting_date) if r.posting_date else None, "status": r.status, "docstatus": r.docstatus,
         "total": flt(r.grand_total), "base_total": flt(r.base_grand_total), "currency": r.currency,
-        "per_billed": flt(r.per_billed), "pos": pos.get(r.name, []),
+        "per_billed": flt(r.per_billed), "pos": pos.get(r.name, []), "created": str(r.creation) if r.creation else None,
     } for r in rows]
 
 
@@ -63,7 +63,7 @@ def pi_list():
     _assert_purchasing_role()
     fields = ["name", "supplier", "supplier_name", "bill_no", "bill_date", "posting_date", "due_date",
               "status", "docstatus", "grand_total", "base_grand_total", "outstanding_amount",
-              "conversion_rate", "currency", "custom_purchase_invoice_type", "custom_bill_of_lading_number"]
+              "conversion_rate", "currency", "custom_purchase_invoice_type", "custom_bill_of_lading_number", "creation"]
     # The field arrives with the patch; a site that has not migrated yet still lists its invoices.
     has_ref = frappe.get_meta("Purchase Invoice").has_field("custom_supplier_reference_no")
     if has_ref:
@@ -89,7 +89,7 @@ def pi_list():
         "conversion_rate": flt(r.conversion_rate) or 1, "currency": r.currency,
         "invoice_type": r.custom_purchase_invoice_type, "pos": pos.get(r.name, []),
         "bl_no": (str(r.custom_bill_of_lading_number).strip() or None) if r.custom_bill_of_lading_number else None,
-        "containers": conts.get(r.name, []),
+        "containers": conts.get(r.name, []), "created": str(r.creation) if r.creation else None,
     } for r in rows]
 
 

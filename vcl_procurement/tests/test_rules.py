@@ -505,3 +505,37 @@ class MappingHistory(unittest.TestCase):
         self.assertEqual(h["GLUE"], [])
         self.assertNotIn("BOX", h)
         self.assertEqual(h["TAPE"][0]["date"], "2026-10-20")
+
+
+class DocSearch(unittest.TestCase):
+    D = [
+        {"doctype": "Purchase Order", "name": "PUR-ORD-2026-00264", "refs": ["PUR-ORD-2026-00264"], "created": "2026-10-22 09:00",
+         "fields": {"supplier": "ROK INDUSTRIES LIMITED"}, "items": [{"code": "TAPE-24", "text": "Printed Cello Tape - 24mm Cello tape printed (Cereal Box Ltd)"}]},
+        {"doctype": "Purchase Invoice", "name": "ACC-PINV-2026-00673", "refs": ["ACC-PINV-2026-00673", "0430146720000082785"], "created": "2026-10-31 10:00",
+         "fields": {"supplier": "ROK INDUSTRIES LIMITED"}, "items": [{"code": "TAPE-24", "text": "Printed Cello Tape - 24mm"}]},
+        {"doctype": "Material Request", "name": "MAT-MR-2026-00010", "refs": ["MAT-MR-2026-00010"], "created": "2026-10-01 10:00",
+         "fields": {}, "items": [{"code": "GLUE-1", "text": "Hotmelt glue"}]},
+    ]
+
+    def test_exact_reference_first(self):
+        r = rules.doc_search("pur-ord-2026-00264", self.D)
+        self.assertEqual((r[0]["name"], r[0]["match"]), ("PUR-ORD-2026-00264", "reference"))
+        self.assertEqual(rules.doc_search("0430146720000082785", self.D)[0]["name"], "ACC-PINV-2026-00673")
+
+    def test_item_description_and_supplier(self):
+        self.assertEqual([x["name"] for x in rules.doc_search("cereal box", self.D)], ["PUR-ORD-2026-00264"])
+        self.assertEqual([x["name"] for x in rules.doc_search("rok", self.D)], ["ACC-PINV-2026-00673", "PUR-ORD-2026-00264"])
+
+    def test_item_code_exact_ranks_above_text(self):
+        r = rules.doc_search("tape-24", self.D)
+        self.assertEqual({x["match"] for x in r}, {"item code"})
+
+    def test_one_typo_still_finds_it_but_below_plain(self):
+        r = rules.doc_search("cereel box", self.D)
+        self.assertEqual([x["name"] for x in r], ["PUR-ORD-2026-00264"])
+        self.assertTrue(r[0]["match"].startswith("near spelling"))
+        self.assertEqual(rules.doc_search("hotmelt", self.D)[0]["score"], 60)
+
+    def test_every_word_must_match(self):
+        self.assertEqual(rules.doc_search("rok glue", self.D), [])
+        self.assertEqual(rules.doc_search("  ", self.D), [])

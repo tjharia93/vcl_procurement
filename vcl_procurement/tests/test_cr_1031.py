@@ -180,3 +180,35 @@ class Workspace(unittest.TestCase):
         pi._mapped_bill = lambda *a, **k: self.fail("must not create a second bill")
         r = pi.bill_save("PO-1", {"bill_no": " 0430146720000082785 ", "bill_date": "2026-10-27"})
         self.assertEqual((r["name"], r["existing"]), ("ACC-PINV-1", True))
+
+
+class PurchasingSearch(unittest.TestCase):
+    def test_finds_by_item_description_names_the_type_and_narrows_by_kind(self):
+        pi = _setup(self, {"valid": False})[2]
+        for m in ("frappe.query_builder",):
+            if m not in sys.modules:
+                mod = types.ModuleType(m)
+                mod.DocType = lambda *a: None
+                mod.resolve_factor = lambda *a, **k: None
+                sys.modules[m] = mod
+        from vcl_procurement.api import search
+        f = search.frappe
+        heads = {"Purchase Order": [Item(name="PUR-ORD-2026-00264", supplier="ROK INDUSTRIES LIMITED", status="To Receive and Bill",
+                                         transaction_date="2026-10-22", creation="2026-10-22 09:00", docstatus=1)],
+                 "Purchase Invoice": [Item(name="ACC-PINV-2026-00673", supplier_name="ROK INDUSTRIES LIMITED", status="Unpaid",
+                                           posting_date="2026-10-31", bill_no="0430146720000082785", creation="2026-10-31 10:00", docstatus=1)]}
+        lines = {"Purchase Order Item": [Item(parent="PUR-ORD-2026-00264", item_code="TAPE", item_name="Printed Cello Tape",
+                                             description="<p>Cello tape (Cereal Box Ltd)</p>")]}
+        saved = {k: getattr(f, k, None) for k in ("get_all", "get_meta")}
+        f.get_all = lambda dt, **k: heads.get(dt, []) if "Item" not in dt else lines.get(dt, [])
+        f.get_meta = lambda dt: types.SimpleNamespace(has_field=lambda fn: True)
+        self.addCleanup(lambda: [setattr(f, k, v) for k, v in saved.items()])
+        utils = sys.modules["frappe.utils"]
+        if not hasattr(utils, "strip_html"):
+            utils.strip_html = lambda s: __import__("re").sub("<[^>]+>", " ", s)
+            self.addCleanup(lambda: delattr(utils, "strip_html"))
+        r = search.purchasing_search("cereal box")
+        self.assertEqual([(x["type"], x["name"]) for x in r], [("Purchase Order", "PUR-ORD-2026-00264")])
+        self.assertEqual(r[0]["href"], "/compass/purchasing/po/PUR-ORD-2026-00264")
+        self.assertEqual([x["name"] for x in search.purchasing_search("rok", kind="pi")], ["ACC-PINV-2026-00673"])
+        self.assertEqual(search.purchasing_search("x"), [])

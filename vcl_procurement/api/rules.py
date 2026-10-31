@@ -716,6 +716,67 @@ def mapping_history(parents, lines, items, active, limit=3):
     return out
 
 
+# --- one Purchasing search across document types (CR-002, 31/10/2026) ---------------
+
+def _norm(v):
+    """Lower case, every run of punctuation a single space: 'Box Ltd,' and '(Cereal' become words."""
+    return " ".join("".join(ch if ch.isalnum() or ch == "." else " " for ch in str(v or "").lower()).split())
+
+
+def _squash(v):
+    return "".join(ch for ch in str(v or "").lower() if ch.isalnum())
+
+
+def doc_search(q, docs, limit=40):
+    """Rank documents for a typed query. `docs`: [{doctype, name, refs: [str], fields: {label: text}, items: [{code, text}], created}].
+
+    Every word of the query must be found in the document (its references, fields or item code/name/description),
+    as a substring or, for words of 4+ letters, as a near spelling (one typo). Ranking: an exact reference
+    (document no., supplier invoice no., confirmation no., file no.) first, then an exact item code, then
+    plain matches before near spellings; newer first within a rank. Returns the docs with `score` and `match`
+    (what it matched on, for the screen).
+    """
+    import difflib
+    words = [w for w in _norm(q).split() if w]
+    if not words:
+        return []
+    qsq = _squash(q)
+    out = []
+    for d in docs:
+        refs = [r for r in (d.get("refs") or []) if r]
+        fields = {k: v for k, v in (d.get("fields") or {}).items() if v}
+        items = d.get("items") or []
+        if any(_squash(r) == qsq for r in refs):
+            out.append({**d, "score": 100, "match": "reference"})
+            continue
+        if any(_squash(i.get("code")) == qsq for i in items):
+            out.append({**d, "score": 90, "match": "item code"})
+            continue
+        hay = " ".join([_norm(r) for r in refs] + [_norm(v) for v in fields.values()]
+                       + [_norm(i.get("code")) + " " + _norm(i.get("text")) for i in items])
+        vocab = set(hay.split())
+        fuzzy = False
+        ok = True
+        for w in words:
+            if w in hay:
+                continue
+            if len(w) >= 4 and difflib.get_close_matches(w, vocab, n=1, cutoff=0.8):
+                fuzzy = True
+                continue
+            ok = False
+            break
+        if not ok:
+            continue
+        where = next((k for k, v in fields.items() if all(w in _norm(v) for w in words)), None)
+        if not where:
+            where = "item" if any(all(w in (_norm(i.get("code")) + " " + _norm(i.get("text"))) for w in words) for i in items) else "several fields"
+        out.append({**d, "score": 30 if fuzzy else 60, "match": ("near spelling · " if fuzzy else "") + where})
+    # Newer first within a score: sort by date, then (stable) by score.
+    out.sort(key=lambda r: str(r.get("created") or ""), reverse=True)
+    out.sort(key=lambda r: -r["score"])
+    return out[:limit]
+
+
 # --- receiving: which receipt row is which PO line (27/10/2026) -------------------
 
 def receipt_qty_by_row(wanted, po_rows, pr_rows):
