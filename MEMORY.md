@@ -23,9 +23,6 @@ Last updated: **2026-10-31**
 - `staging_enabled` in QBO Sync Settings defaults to 0: submitted PIs are not auto-staged until it is ticked.
 - `tests/test_port_api.py` already had 2 failing tests before this branch (get_meta stub, transaction_date type).
 
-## Close stock at submit — 2026-11-02 (branch `ccr-e12e3937-k1ig7f`, NOT merged)
-- `pi.pi_submit(name, close_stock=0)`: with the tick the invoice receives through itself (`update_stock` on) and a submitted Material Issue takes the same qty out. Expense account = the Item Default, else the Company default (a stock line's own account is SRBNB / Stock In Hand, so it cannot be used); cost centre = the line's. Plan and refusals in `rules.issue_plan` (non-stock lines skipped; batch/serial, debit notes and missing warehouse/account/cost centre refused). All or nothing: a refusal rolls the submit back. No DocType, no patch, no migrate. Deploy with the matching `vcl_compass` change. Not yet run on the live site.
-
 ## What happened in dev
 - 2026-10-28 Import payment schedule: taxes due the earlier of landing + N days and 30 days from
   the invoice date; the Taxes row carries the Import Taxes payment term (TRK-00147).
