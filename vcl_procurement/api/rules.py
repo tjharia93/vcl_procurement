@@ -964,3 +964,36 @@ def pick_shipment(shipments, bl_no, pos):
                 return s
     mine = [s for s in shipments if s.get("purchase_order") in set(pos or [])]
     return mine[0] if len(mine) == 1 else None
+
+
+# --- close stock at submit: receive in, issue out (02/11/2026) ----------------------
+
+def issue_plan(lines):
+    """The Material Issue that takes an invoice's goods straight back out of stock.
+
+    `lines` carry name, item_code, item_name, qty, uom, warehouse, cost_center, expense_account (the item's
+    own default, not the invoice line's: a stock line's account is SRBNB or Stock In Hand), is_stock_item,
+    has_batch_no, has_serial_no. Returns (rows, problems). Problems are plain sentences; when there is one,
+    nothing is created - the whole submit is refused so the books never end half done.
+    Non-stock lines (services, freight) are skipped: there is nothing to receive or issue.
+    Batch and serial items are refused: which batch goes out is a person's decision."""
+    rows, problems = [], []
+    for ln in lines:
+        if not int(ln.get("is_stock_item") or 0) or float(ln.get("qty") or 0) <= 0:
+            continue
+        who = ln.get("item_name") or ln.get("item_code")
+        if int(ln.get("has_batch_no") or 0) or int(ln.get("has_serial_no") or 0):
+            problems.append(f"{who} is batch or serial tracked; receive and issue it by hand.")
+            continue
+        if not ln.get("warehouse"):
+            problems.append(f"{who} has no warehouse on the invoice line.")
+        if not ln.get("expense_account"):
+            problems.append(f"{who} has no default expense account (set one on the Item or the Company).")
+        if not ln.get("cost_center"):
+            problems.append(f"{who} has no cost centre on the invoice line.")
+        rows.append({"item_code": ln["item_code"], "qty": float(ln["qty"]), "uom": ln.get("uom"),
+                     "s_warehouse": ln.get("warehouse"), "expense_account": ln.get("expense_account"),
+                     "cost_center": ln.get("cost_center")})
+    if not rows and not problems:
+        problems.append("This invoice has no stock items, so there is nothing to receive and issue.")
+    return rows, problems

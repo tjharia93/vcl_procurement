@@ -896,18 +896,58 @@ def pi_set_stock(name, on):
     return {"update_stock": int(doc.update_stock)}
 
 
+def _issue_lines(doc):
+    """Invoice lines as issue_plan reads them. The expense account is the item's default, else the company's."""
+    default_exp = frappe.db.get_value("Company", doc.company, "default_expense_account")
+    out = []
+    for i in doc.items:
+        it = frappe.db.get_value("Item", i.item_code, ["is_stock_item", "has_batch_no", "has_serial_no", "item_group"], as_dict=True) or {}
+        exp = frappe.db.get_value("Item Default", {"parent": i.item_code, "company": doc.company}, "expense_account") or default_exp
+        out.append({"item_code": i.item_code, "item_name": i.item_name, "qty": flt(i.qty), "uom": i.uom, "warehouse": i.warehouse,
+                    "cost_center": i.cost_center, "expense_account": exp, "is_stock_item": it.get("is_stock_item"),
+                    "has_batch_no": it.get("has_batch_no"), "has_serial_no": it.get("has_serial_no")})
+    return out
+
+
+def _issue_stock(doc):
+    """Submit a Material Issue for every stock line of a submitted invoice, expensed at the item's account."""
+    rows, _problems = rules.issue_plan(_issue_lines(doc))
+    se = frappe.get_doc({"doctype": "Stock Entry", "stock_entry_type": "Material Issue", "purpose": "Material Issue",
+                         "company": doc.company, "posting_date": doc.posting_date, "set_posting_time": 1,
+                         "remarks": f"Issued straight out on submit of {doc.name} (close stock tick).", "items": rows})
+    se.insert()
+    se.submit()
+    return se.name
+
+
 @frappe.whitelist()
-def pi_submit(name):
+def pi_submit(name, close_stock=0):
     """Submit an invoice, if its pending details are in. Returns the fresh page.
 
     Import: bill date + KRA entry date + KRA entry number. Local: bill date + supplier invoice no.
     ERPNext's own submit events (the KRA CUIN checks) still run and their refusal is the error.
+
+    close_stock=1 (the tick in the submit pop-up): the invoice receives the goods into stock itself
+    (update_stock on) and a submitted Material Issue takes the same quantities straight out to the item's
+    expense account, so nothing is left pending delivery. All or nothing: any refusal rolls the submit back.
     """
     _assert_purchasing_role()
     doc = frappe.get_doc(PI, name)
     doc.check_permission("submit")
     if doc.docstatus != 0:
         frappe.throw(_("{0} is not a draft.").format(name))
+    close = bool(int(close_stock or 0))
+    if close:
+        if int(doc.get("is_return") or 0):
+            frappe.throw(_("Not submitted. A debit note cannot be closed this way."))
+        _rows, problems = rules.issue_plan(_issue_lines(doc))
+        if problems:
+            frappe.throw(_("Not submitted. {0}").format("<br>".join(problems)), title=_("Cannot close stock"))
+        doc.update_stock = 1
+        why = _receipt_refusal(doc)
+        if why:
+            frappe.throw(_("Not submitted. {0}").format(why), title=_("Already received"))
+        doc.save()
     missing = _missing(doc)
     if missing:
         frappe.throw(_("Not submitted. Still pending:<br>{0}").format("<br>".join(missing)))
@@ -916,6 +956,9 @@ def pi_submit(name):
         frappe.throw(_("Not submitted. {0}").format(why), title=_("Already received"))
     gate_before_submit(doc)   # the same rule the before_submit event applies
     doc.submit()
+    if close:
+        se = _issue_stock(doc)
+        doc.add_comment("Info", f"Stock closed on submit: received by this invoice, issued out on {se}.")
     return pi_page(name)
 
 
