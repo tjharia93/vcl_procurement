@@ -1,0 +1,41 @@
+{
+ "doctype":"DocType", "name":"Reel Intake", "module":"Reel Tracking",
+ "autoname":"field:reel_id", "naming_rule":"By fieldname", "engine":"InnoDB",
+ "track_changes":1, "allow_rename":0, "sort_field":"creation", "sort_order":"ASC",
+ "search_fields":"supplier_reel_no,container,supplier_invoice,shipment",
+ "field_order":["reel_id","status","company","supplier","supplier_invoice","purchase_invoice","purchase_order","shipment","container","container_slot","material_description","gsm","item_code","width_mm","supplier_reel_no","declared_net_kg","declared_gross_kg","measured_gross_kg","core_kg","received_on","received_by","arrival_recorded_at","warehouse","notes","batch","purchase_receipt"],
+ "fields":[
+  {"fieldname":"reel_id","label":"Permanent reel ID","fieldtype":"Data","reqd":1,"unique":1,"in_list_view":1},
+  {"fieldname":"status","label":"Physical status","fieldtype":"Select","options":"Expected\nArrived\nOn hold\nStock received","default":"Expected","reqd":1,"in_list_view":1},
+  {"fieldname":"company","label":"Company","fieldtype":"Link","options":"Company","reqd":1},
+  {"fieldname":"supplier","label":"Supplier","fieldtype":"Link","options":"Supplier","reqd":1},
+  {"fieldname":"supplier_invoice","label":"Supplier invoice number","fieldtype":"Data"},
+  {"fieldname":"purchase_invoice","label":"Purchase Invoice","fieldtype":"Link","options":"Purchase Invoice","reqd":1},
+  {"fieldname":"purchase_order","label":"Purchase Order","fieldtype":"Link","options":"Purchase Order","reqd":1},
+  {"fieldname":"shipment","label":"Import Shipment reference","fieldtype":"Data"},
+  {"fieldname":"container","label":"Container","fieldtype":"Data","in_list_view":1},
+  {"fieldname":"container_slot","label":"Preparation sequence","fieldtype":"Int","reqd":1},
+  {"fieldname":"material_description","label":"Material description","fieldtype":"Data"},
+  {"fieldname":"gsm","label":"GSM","fieldtype":"Float"},
+  {"fieldname":"item_code","label":"Identified item","fieldtype":"Link","options":"Item"},
+  {"fieldname":"width_mm","label":"Width (mm)","fieldtype":"Float"},
+  {"fieldname":"supplier_reel_no","label":"Supplier reel number","fieldtype":"Data"},
+  {"fieldname":"declared_net_kg","label":"Supplier label net (kg)","fieldtype":"Float","precision":"3"},
+  {"fieldname":"declared_gross_kg","label":"Supplier label gross (kg)","fieldtype":"Float","precision":"3"},
+  {"fieldname":"measured_gross_kg","label":"Warehouse measured gross (kg)","fieldtype":"Float","precision":"3"},
+  {"fieldname":"core_kg","label":"Measured core (kg)","fieldtype":"Float","precision":"3"},
+  {"fieldname":"received_on","label":"Physical VCL arrival date","fieldtype":"Date","in_list_view":1},
+  {"fieldname":"received_by","label":"Arrival confirmed by","fieldtype":"Link","options":"User"},
+  {"fieldname":"arrival_recorded_at","label":"Arrival recorded at","fieldtype":"Datetime"},
+  {"fieldname":"warehouse","label":"Physical receiving warehouse","fieldtype":"Link","options":"Warehouse"},
+  {"fieldname":"notes","label":"Inspection / arrival notes","fieldtype":"Small Text"},
+  {"fieldname":"batch","label":"Stock Batch","fieldtype":"Link","options":"Batch","read_only":1},
+  {"fieldname":"purchase_receipt","label":"Stock Purchase Receipt","fieldtype":"Link","options":"Purchase Receipt","read_only":1}
+ ],
+ "permissions":[
+  {"role":"System Manager","read":1,"report":1,"print":1},
+  {"role":"Purchase Manager","read":1,"report":1,"print":1},
+  {"role":"Purchase User","read":1,"report":1,"print":1},
+  {"role":"Stock Manager","read":1,"report":1,"print":1}
+ ]
+}

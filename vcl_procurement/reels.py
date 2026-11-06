@@ -106,6 +106,13 @@ def _last_reel_number(year):
         "select max(cast(substring_index(name, '-', -1) as unsigned)) from `tabBatch` where name like %s",
         (like,))
     top = int(row[0][0] or 0) if row else 0
+    # Tags can be reserved before their material Item is known. Never reuse
+    # those identities when the normal Purchase Receipt allocator runs.
+    if frappe.db.exists('DocType', 'Reel Intake'):
+        reserved = frappe.db.sql(
+            "select max(cast(substring_index(name, '-', -1) as unsigned)) from `tabReel Intake` where name like %s",
+            (like,))
+        top = max(top, int(reserved[0][0] or 0) if reserved else 0)
     # The intranet tool's numbers were all issued in 2026.
     return max(top, REEL_ID_FLOOR) if str(year) == "2026" else top
 
@@ -413,7 +420,7 @@ def receipt_labels(name):
         if b.reference_doctype != 'Purchase Receipt' or b.reference_name != name:
             frappe.throw(_('A reel does not belong to this receipt.'))
         stream = io.BytesIO()
-        target = get_url('/app/batch/' + quote(b.name, safe=''))
+        target = get_url('/compass/reels/' + quote(b.name, safe=''))
         create(target).svg(stream,scale=4,quiet_zone=4)
         result.append(dict(batch_id=b.name,item_code=b.item,item_name=row.item_name,
             supplier=pr.supplier_name or pr.supplier,supplier_reel_no=b.get('custom_supplier_reel_no'),
