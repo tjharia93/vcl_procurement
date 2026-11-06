@@ -100,6 +100,11 @@ def open_orders(status=None, supplier=None):
     filters = {"docstatus": 1, "status": ["in", [status] if status else OPEN_STATUSES]}
     if supplier:
         filters["supplier"] = ["like", f"%{supplier}%"]
+    # get_all skips User Permissions, so a Company restriction has to be applied here.
+    companies = frappe.get_all("User Permission", pluck="for_value", filters={
+        "user": frappe.session.user, "allow": "Company", "apply_to_all_doctypes": 1})
+    if companies:
+        filters["company"] = ["in", companies]
 
     rows = frappe.get_all(
         "Purchase Order", filters=filters,
