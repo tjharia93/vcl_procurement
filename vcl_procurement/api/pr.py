@@ -58,6 +58,7 @@ def _page(doc):
             "base_amount": flt(t.base_tax_amount),
         } for t in doc.taxes],
         "can_submit": doc.docstatus == 0,
+        'has_reels': bool(doc.get('custom_reel_request_id')) or any(str(r.get('batch_no') or '').startswith('VCL-RL-') for r in doc.items),
     }
 
 
