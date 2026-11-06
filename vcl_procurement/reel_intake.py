@@ -173,9 +173,13 @@ def save_reel(name, fields, confirm_arrival=0, expected_modified=None):
     fields = json.loads(fields) if isinstance(fields,str) else fields
     if not isinstance(fields,dict):
         frappe.throw(_('Invalid reel details.'))
-    frappe.db.sql('select name from `tabReel Intake` where name=%s for update',(name,))
     doc = frappe.get_doc(DT,name)
     _inv, po = _source(doc.purchase_invoice,doc.shipment)
+    # All arrival paths lock the delivery before its reels. This keeps a bulk
+    # checklist and a simultaneous individual scan from locking in reverse order.
+    frappe.db.sql('select name from `tabPurchase Invoice` where name=%s for update',(_inv.name,))
+    frappe.db.sql('select name from `tabReel Intake` where name=%s for update',(name,))
+    doc.reload()
     if expected_modified and str(doc.modified) != str(expected_modified):
         frappe.throw(_('This reel was changed by another receiver. Reload it before saving.'))
     if doc.purchase_receipt:
