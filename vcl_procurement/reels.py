@@ -160,7 +160,7 @@ def reel_lines(po):
             "stock_uom": item.get("stock_uom"),
             'kg_ok': bool(factor), 'conversion_factor': factor, 'unsupported_reason': reason,
         }
-    return {"lines": out, "next_ids": next_reel_ids(1)}
+    return {"lines": out, "next_ids": next_reel_ids(1), 'schema_version': 2}
 
 
 @frappe.whitelist(methods=['POST'])
