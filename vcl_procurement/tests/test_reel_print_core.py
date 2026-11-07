@@ -28,7 +28,7 @@ class NativePrintLayouts(unittest.TestCase):
         self.assertNotIn('<script>',html)
         self.assertNotIn('>0 kg',html)
         self.assertNotIn('EXPECTED',html)
-        self.assertIn('RW 610 mm · 48 GSM',html)
+        self.assertIn('RW 610 mm \u00b7 48 GSM',html)
         for r in self.reels:
             self.assertEqual(html.count('<h1>'+r["name"].replace("VCL-RL-", "VCL/").replace("-", "/")+'</h1>'),2)
         self.assertIn('width:100mm;height:95.666mm',html)
