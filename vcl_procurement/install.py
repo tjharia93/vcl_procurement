@@ -11,6 +11,8 @@ def after_install():
     ensure_fields()
     from vcl_procurement.patches.add_reel_print_formats import execute as install_reel_print_formats
     install_reel_print_formats()
+    from vcl_procurement.patches.add_bundle_print_formats import execute as install_bundle_print_formats
+    install_bundle_print_formats()
     frappe.db.commit()
 
 

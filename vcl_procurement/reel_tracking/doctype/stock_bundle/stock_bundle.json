@@ -1,0 +1,168 @@
+{
+  "doctype": "DocType",
+  "name": "Stock Bundle",
+  "module": "Reel Tracking",
+  "autoname": "field:bundle_id",
+  "naming_rule": "By fieldname",
+  "engine": "InnoDB",
+  "track_changes": 1,
+  "allow_rename": 0,
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "field_order": [
+    "bundle_id",
+    "company",
+    "material",
+    "width_mm",
+    "length_mm",
+    "gsm",
+    "reams_per_bundle",
+    "sheets_per_ream",
+    "intended_warehouse",
+    "registration",
+    "colour",
+    "total_sheets",
+    "status",
+    "checked_reams",
+    "verified_on",
+    "verified_by",
+    "notes"
+  ],
+  "fields": [
+    {
+      "fieldname": "bundle_id",
+      "label": "Permanent bundle ID",
+      "fieldtype": "Data",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "company",
+      "label": "Company",
+      "fieldtype": "Link",
+      "options": "Company",
+      "reqd": 1
+    },
+    {
+      "fieldname": "material",
+      "label": "Material",
+      "fieldtype": "Data",
+      "reqd": 1
+    },
+    {
+      "fieldname": "width_mm",
+      "label": "Sheet width (mm)",
+      "fieldtype": "Int",
+      "reqd": 1
+    },
+    {
+      "fieldname": "length_mm",
+      "label": "Sheet length (mm)",
+      "fieldtype": "Int",
+      "reqd": 1
+    },
+    {
+      "fieldname": "gsm",
+      "label": "GSM",
+      "fieldtype": "Int",
+      "reqd": 1
+    },
+    {
+      "fieldname": "reams_per_bundle",
+      "label": "Reams per bundle",
+      "fieldtype": "Int",
+      "reqd": 1
+    },
+    {
+      "fieldname": "sheets_per_ream",
+      "label": "Sheets per ream",
+      "fieldtype": "Int",
+      "reqd": 1
+    },
+    {
+      "fieldname": "intended_warehouse",
+      "label": "Intended storage warehouse",
+      "fieldtype": "Link",
+      "options": "Warehouse",
+      "reqd": 1
+    },
+    {
+      "fieldname": "registration",
+      "label": "Bundle Registration",
+      "fieldtype": "Link",
+      "options": "Bundle Registration",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "colour",
+      "label": "Colour",
+      "fieldtype": "Data",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "total_sheets",
+      "label": "Declared sheets",
+      "fieldtype": "Int",
+      "reqd": 1
+    },
+    {
+      "fieldname": "status",
+      "label": "Physical count status",
+      "fieldtype": "Select",
+      "options": "Registered\nChecked\nOn hold",
+      "default": "Registered",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "checked_reams",
+      "label": "Physically checked reams",
+      "fieldtype": "Int"
+    },
+    {
+      "fieldname": "verified_on",
+      "label": "Count checked at",
+      "fieldtype": "Datetime"
+    },
+    {
+      "fieldname": "verified_by",
+      "label": "Count checked by",
+      "fieldtype": "Link",
+      "options": "User"
+    },
+    {
+      "fieldname": "notes",
+      "label": "Inspection notes",
+      "fieldtype": "Small Text"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    },
+    {
+      "role": "Purchase Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    },
+    {
+      "role": "Purchase User",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    },
+    {
+      "role": "Stock Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    }
+  ]
+}
