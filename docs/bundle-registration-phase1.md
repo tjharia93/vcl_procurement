@@ -23,7 +23,7 @@ Intended storage is a plan, not the current physical location or a received bala
 3. Check company, intended storage, specifications and the 36/24 counts.
 4. Choose Register 60 bundles. The transaction creates the registration and 60 IDs
    from the independent VCL-BND-YYYY-##### series. Migrations and GETs never create IDs.
-5. Print all 60 or filter by colour. Default: 43 mm wide x 58 mm high thermal labels.
+5. Print all 60 or filter by colour. Default: 100 mm wide x 30 mm high thermal labels.
    Print Actual size / 100%, no browser headers/footers. A4 eight-up printing is optional.
 6. Attach one matching-colour label to each outer wrapper. Reprinting never changes IDs.
 7. Scan the authenticated /compass/bundles/<ID> URL. Check physical contents and record
@@ -34,8 +34,8 @@ including if the request succeeded but its response was lost. Changed packing/co
 under that reference are refused; review the existing run instead of issuing another set.
 Other preparations must use distinct references; do not create a new reference for these
 same physical bundles. Printing is a GET and never confirms a check or a stock posting.
-Native ERPNext print formats are VCL Bundle Labels - 43x58 (Bundle Registration) and
-VCL Bundle Label - 43x58 (Stock Bundle). They use the same layout and authorized data.
+Native ERPNext print formats are VCL Bundle Labels - 100x30 (Bundle Registration) and
+VCL Bundle Label - 100x30 (Stock Bundle). They use the same layout and authorized data.
 
 ## Controls and boundary
 

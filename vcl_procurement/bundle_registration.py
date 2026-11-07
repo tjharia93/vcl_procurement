@@ -189,7 +189,7 @@ def print_labels(name, bundle=None, format='thermal', colour=None):
         if row['registration'] != name:
             frappe.throw(_('This bundle does not belong to the selected registration.'))
     if format not in ('a4','thermal'):
-        frappe.throw(_('Choose A4 or 43 x 58 mm thermal label stock.'))
+        frappe.throw(_('Choose A4 or 100 x 30 mm thermal label stock.'))
     try:
         html=bundle_print_html(bundle or name,bool(bundle),format,colour)
     except ValueError as error:

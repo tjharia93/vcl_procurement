@@ -147,6 +147,17 @@ class BundleAPI(unittest.TestCase):
         installer.execute();installer.execute()
         self.assertEqual(sum(dt=='Print Format' for dt,_ in self.documents),2)
 
+    def test_size_migration_adds_100x30_and_disables_only_app_owned_old_formats(self):
+        from vcl_procurement.patches import bundle_labels_100x30 as migration
+        for name,html in [('VCL Bundle Labels - 43x58','{{ bundle_native_print(doc.name) }}'),
+                          ('VCL Bundle Label - 43x58','User-maintained custom template')]:
+            self.saved_class(dict(doctype='Print Format',name=name,html=html,disabled=0)).insert()
+        migration.execute();migration.execute()
+        self.assertTrue(self.documents[('Print Format','VCL Bundle Labels - 43x58')].disabled)
+        self.assertFalse(self.documents[('Print Format','VCL Bundle Label - 43x58')].disabled)
+        self.assertIn(('Print Format','VCL Bundle Labels - 100x30'),self.documents)
+        self.assertIn(('Print Format','VCL Bundle Label - 100x30'),self.documents)
+
 
 class BundlePrintLayout(unittest.TestCase):
     def test_60_thermal_labels_or_eight_a4_pages_escape_sources_and_keep_ids(self):
@@ -154,7 +165,7 @@ class BundlePrintLayout(unittest.TestCase):
             width_mm=610,length_mm=670,reams_per_bundle=5,sheets_per_ream=100,total_sheets=500,
             status='Registered',qr_uri='data:image/svg+xml;base64,AA==') for i in range(60)]
         thermal=labels_html(rows)
-        self.assertIn('@page{size:43mm 58mm',thermal)
+        self.assertIn('@page{size:100mm 30mm',thermal)
         self.assertEqual(thermal.count('<article class="bundle-sheet">'),60)
         self.assertNotIn('<script>',thermal)
         self.assertIn('5 REAMS / 500 SHEETS',thermal)

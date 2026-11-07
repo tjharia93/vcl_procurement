@@ -6,10 +6,10 @@ def labels_html(rows, format='thermal'):
     if not rows:
         raise ValueError('No registered bundles match this print selection.')
     if format not in ('thermal','a4'):
-        raise ValueError('Choose 43 x 58 mm thermal labels or A4.')
+        raise ValueError('Choose 100 x 30 mm thermal labels or A4.')
     thermal=format=='thermal'
-    width,height=(43,58) if thermal else (210,297)
-    page_rule='43mm 58mm' if thermal else 'A4 portrait'
+    width,height=(100,30) if thermal else (210,297)
+    page_rule='100mm 30mm' if thermal else 'A4 portrait'
     def e(v): return escape(str(v if v is not None else ''),quote=True)
     labels=[]
     for r in rows:
@@ -41,6 +41,20 @@ def labels_html(rows, format='thermal'):
     .check img{{position:absolute;right:0;top:0;width:19mm;height:19mm}}
     .bundle-label footer{{position:absolute;left:2.5mm;right:2.5mm;bottom:2mm;font-size:5.4pt;line-height:1.4}}
     {'' if thermal else '.bundle-label{display:inline-block;vertical-align:top;width:100mm;height:71.75mm;border-top:.2mm solid #555;border-left:.2mm solid #555;padding:4mm;font-size:8pt}.bundle-label:nth-child(even){border-right:.2mm solid #555}.bundle-label:nth-last-child(-n+2){border-bottom:.2mm solid #555}.brand{font-size:8pt}.bundle-label h1{font-size:13pt;margin:2mm 0}.bundle-label h2{font-size:13pt;max-height:8mm}.spec{font-size:11pt}.contents{font-size:12pt}.packing{font-size:9pt}.check{height:23mm;margin-top:2mm}.check img{width:23mm;height:23mm}.writing{width:55mm;font-size:8pt}.line{font-size:7pt}.bundle-label footer{left:4mm;right:4mm;bottom:2mm;font-size:6pt}'}
+    {''' .bundle-label{width:100mm;height:30mm;padding:0}
+    .brand{position:absolute;left:2.5mm;top:1.5mm;font-size:6pt}
+    .bundle-label h1{position:absolute;left:2.5mm;top:4.5mm;width:67mm;margin:0;font-size:11pt;line-height:1.1}
+    .bundle-label h2{position:absolute;left:2.5mm;top:9mm;width:67mm;margin:0;font-size:10.5pt;max-height:4.5mm;line-height:1.1}
+    .spec{position:absolute;left:2.5mm;top:13.5mm;width:67mm;margin:0;font-size:9pt;line-height:1.1}
+    .contents{position:absolute;left:2.5mm;top:18mm;width:40mm;font-size:9.5pt;line-height:1.1}
+    .packing{position:absolute;left:44mm;top:18.3mm;width:26mm;margin:0;font-size:7pt;line-height:1.1}
+    .check{position:static;height:0;margin:0}.check img{top:3mm;right:3mm;width:24mm;height:24mm}
+    .writing{position:absolute;left:2.5mm;top:22mm;width:67mm;font-size:6.5pt;white-space:nowrap}
+    .writing span{display:inline-block;width:13mm;vertical-align:bottom}.writing span:nth-of-type(2){width:7mm;margin-left:1mm}
+    .line{display:inline-block;width:20mm;height:3.5mm;margin:0;vertical-align:bottom;font-size:5.5pt;white-space:nowrap}
+    .bundle-label footer{left:2.5mm;right:auto;width:67mm;bottom:1mm;font-size:5.4pt;line-height:1.1}
+    .bundle-label footer div{display:none}
+    ''' if thermal else ''}
     .tools{{padding:12px;text-align:center}}.tools button{{padding:8px 16px;margin:0 8px}}
     @media print{{.tools{{display:none}}.bundle-sheet{{margin:0}}}}
     </style></head><body><div class="tools">Print at 100% / Actual size. Disable headers and footers.<button onclick="window.print()">Print</button><button onclick="window.close()">Close</button></div>{pages}</body></html>'''
