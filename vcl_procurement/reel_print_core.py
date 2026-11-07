@@ -36,7 +36,11 @@ def styles(landscape=False):
     .reel-sheet .supplier{{font-size:7pt;font-weight:bold;margin-bottom:.8mm}}
     .reel-sheet .ref{{font-size:6.5pt;line-height:1.15;margin-top:.8mm}}
     .reel-sheet .ref span{{display:inline-block;width:25mm;color:#52636b}}
-    .reel-sheet .received{{font-size:6.5pt;margin-top:1mm}}
+    .reel-sheet .received{{font-size:6.5pt;margin-top:2mm}}
+    .reel-sheet .receive-box{{display:inline-block;vertical-align:top;width:45.7mm;border:.2mm solid #80949c;padding:1mm 1.5mm}}
+    .reel-sheet .receive-box+.receive-box{{margin-left:2mm}}
+    .reel-sheet .receive-box span{{display:block;font-size:6.5pt;font-weight:bold}}
+    .reel-sheet .receive-value{{height:5mm;font-size:9pt;padding-top:.5mm}}
     .reel-sheet .card-foot{{position:absolute;left:3mm;right:3mm;bottom:1.8mm;font-size:5pt}}
     .reel-sheet .movement-info{{font-size:6pt;line-height:1.2}}
     .reel-sheet .started{{font-size:6.5pt;margin:1mm 0}}
@@ -75,7 +79,7 @@ def labels_html(data):
             identity = heading('PERMANENT REEL IDENTITY') + f'''<div class="main"><img alt="Open this reel record" src="{e(r.get('qr_uri'))}">
                 <div class="supplier">{e(r.get('supplier'))}</div>{e(r.get('weight_basis'))}<strong>{qty} kg</strong>{e(r.get('verification'))}
                 {ref('Supplier reel no.', r.get('supplier_reel_no'))}</div>{sources}
-                <div class="received">Received on: {e(r.get('received_on') or '________________')} &nbsp; By: _________</div>
+                <div class="received"><div class="receive-box"><span>Received on (date)</span><div class="receive-value">{e(r.get('received_on'))}</div></div><div class="receive-box"><span>Received by (name / initials)</span><div class="receive-value"></div></div></div>
                 <div class="card-foot">Scan to record arrival. Stock posting is separate.</div>'''
             movement = heading('REEL MOVEMENT LOG', True) + f'''<div class="movement-info">Original quantity: {qty} kg</div>
                 <div class="started">Log sheet no. ______ &nbsp; Started on ______________</div><table class="movement">
