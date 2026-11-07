@@ -45,6 +45,66 @@ class Doc(Row):
     def reload(self): return self
 
 
+class ReceivingPrintData(unittest.TestCase):
+    def test_migration_installs_only_two_opt_in_formats_and_is_repeatable(self):
+        from vcl_procurement.patches import add_reel_print_formats as patcher
+        saved={}
+        class Format(dict):
+            def insert(self,**kwargs): saved[self['name']]=self;return self
+            def save(self,**kwargs): saved[self['name']]=self;return self
+        def get_doc(value,name=None):
+            return Format(value) if isinstance(value,dict) else saved[name]
+        db=types.SimpleNamespace(exists=lambda dt,name:name in saved)
+        with patch.object(frappe,'db',db,create=True),patch.object(frappe,'get_doc',side_effect=get_doc,create=True):
+            patcher.execute();patcher.execute()
+        self.assertEqual(set(saved),set(patcher.FORMATS))
+        for name,doc in saved.items():
+            self.assertEqual(doc['doc_type'],'Purchase Invoice')
+            self.assertEqual(doc['margin_top'],0)
+            self.assertEqual(doc['custom_format'],1)
+            self.assertIn('reel_print_html(doc.name',doc['html'])
+            self.assertNotIn('default',doc)
+
+    def test_native_jinja_helper_uses_authorized_endpoints_and_rejects_bad_kind(self):
+        with patch.object(api,'intake_labels',return_value={'reels':[]}) as labels:
+            with self.assertRaises(_Thrown): api.reel_print_html('PI','labels')
+            labels.assert_called_once_with('PI')
+        with patch.object(api,'delivery_page',return_value={'reels':[]}) as delivery:
+            with self.assertRaises(_Thrown): api.reel_print_html('PI','receiving')
+            delivery.assert_called_once_with('PI')
+        with self.assertRaises(_Thrown): api.reel_print_html('PI','anything')
+
+    def test_only_readable_packing_list_attachments_are_returned(self):
+        files = [Row(file_name='2026_PackingList_3956.pdf',file_url='/private/files/list.pdf'),
+                 Row(file_name='Packing List.pdf',file_url='/files/public-list.pdf'),
+                 Row(file_name='CommercialInvoice.pdf',file_url='/private/files/prices.pdf'),
+                 Row(file_name='PackingList.pdf',file_url='https://other.test/file.pdf'),
+                 Row(file_name='PackingList.pdf',file_url='/files/../api/method/test')]
+        with patch.object(frappe,'get_list',return_value=files,create=True) as fetch:
+            result=api._packing_lists('PI')
+        self.assertEqual([f['file_url'] for f in result],['/private/files/list.pdf','/files/public-list.pdf'])
+        self.assertEqual(fetch.call_args.kwargs['filters'],{'attached_to_doctype':'Purchase Invoice','attached_to_name':'PI'})
+        self.assertEqual(fetch.call_args.kwargs['limit_page_length'],0)
+
+    def test_full_print_data_is_authorized_and_includes_all_rows_and_delivery_qr(self):
+        inv=Doc(name='PI',supplier_name='GPL',bill_no='3956',custom_bill_of_lading_number='BL',items=[])
+        po=Doc(name='PO',company='VCL')
+        rows=[Row(name=f'TAG-{i}') for i in range(127)]
+        with patch.object(api,'_gate'),patch.object(api,'_source',return_value=(inv,po)) as source, \
+             patch.object(api,'_rows',return_value=rows) as all_rows, \
+             patch.object(api,'_packing_lists',return_value=[{'file_url':'/private/files/list.pdf'}]), \
+             patch.object(api,'_qr',return_value='QR') as qr, \
+             patch.object(frappe,'get_list',return_value=[],create=True), \
+             patch.object(frappe,'get_roles',return_value=['Stock Manager']):
+            result=api.delivery_page('PI','SHIP')
+        source.assert_called_once_with('PI','SHIP')
+        all_rows.assert_called_once_with('PI')
+        self.assertEqual(len(result['reels']),127)
+        self.assertEqual(result['delivery_qr_uri'],'QR')
+        qr.assert_called_once_with('/compass/reel-deliveries/PI?shipment=SHIP')
+        self.assertNotIn('grand_total',result)
+
+
 class PreparingBySize(unittest.TestCase):
     def setUp(self):
         self.tags=[];self.batches=[];self.allocated=[];self.enabled=[]

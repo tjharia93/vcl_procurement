@@ -9,6 +9,8 @@ def after_install():
     # A patch alone is not enough here: installing an app stamps its patches as done without running them.
     from vcl_procurement.setup_fields import ensure_fields
     ensure_fields()
+    from vcl_procurement.patches.add_reel_print_formats import execute as install_reel_print_formats
+    install_reel_print_formats()
     frappe.db.commit()
 
 

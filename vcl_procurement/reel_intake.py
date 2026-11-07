@@ -67,6 +67,16 @@ def _qr(path):
     return 'data:image/svg+xml;base64,' + base64.b64encode(stream.getvalue()).decode()
 
 
+def _packing_lists(invoice):
+    """Expose only readable packing-list attachments, never invoice/price files."""
+    files = frappe.get_list('File', filters={'attached_to_doctype': 'Purchase Invoice',
+        'attached_to_name': invoice}, fields=['file_name', 'file_url'], limit_page_length=0)
+    return [dict(file_name=f.file_name, file_url=f.file_url) for f in files
+            if 'packinglist' in ''.join(c for c in (f.file_name or '').lower() if c.isalnum())
+            and (f.file_url or '').startswith(('/private/files/', '/files/'))
+            and '\\' not in f.file_url and '..' not in f.file_url.split('/')]
+
+
 @frappe.whitelist()
 def delivery_page(invoice, shipment=None):
     _gate()
@@ -80,11 +90,26 @@ def delivery_page(invoice, shipment=None):
         for c in inv.get('custom_container_details_table') or [] if c.container_reference]
     return dict(invoice=inv.name, supplier=inv.supplier_name or inv.supplier, supplier_invoice=inv.bill_no,
                 po=po.name, shipment=shipment, bl_number=inv.get('custom_bill_of_lading_number'),
+                packing_lists=_packing_lists(inv.name),
+                delivery_qr_uri=_qr('/compass/reel-deliveries/' + quote(inv.name, safe='') +
+                    ('?shipment=' + quote(shipment, safe='') if shipment else '')),
                 containers=containers, reels=_rows(inv.name),
                 items=[dict(item_code=r.item_code,item_name=r.item_name,qty=r.qty,uom=r.uom) for r in inv.items],
                 warehouses=frappe.get_list('Warehouse',filters={'company':po.company,'is_group':0,'disabled':0},pluck='name',limit_page_length=0),
                 can_register=bool({'Purchase Manager','Purchase User','System Manager'}.intersection(frappe.get_roles())),
                 stock_notice='Physical receiving only. Stock posting remains separate; existing stock units and history are unchanged.')
+
+
+def reel_print_html(invoice, kind):
+    """Jinja print helper. Native printing retains the receiving authorization gates."""
+    from vcl_procurement.reel_print_core import labels_html, receiving_list_html
+    if kind not in ('labels', 'receiving'):
+        frappe.throw(_('Unknown reel print format.'))
+    data = intake_labels(invoice) if kind == 'labels' else delivery_page(invoice)
+    try:
+        return labels_html(data) if kind == 'labels' else receiving_list_html(data)
+    except ValueError as error:
+        frappe.throw(str(error))
 
 
 @frappe.whitelist(methods=['POST'])
