@@ -28,7 +28,7 @@ The 900/1010 mm items had no stock history at inspection. Their stock UOM remain
 2. Run site migrate. The new DocType must exist before preparation is used.
 3. Open `/compass/reel-deliveries/ACC-PINV-2026-00672?shipment=SHIP-2026-0051`.
 4. Check the three counts/widths/GSM and choose Prepare permanent tags.
-5. Print 127 pairs: 254 labels at 125 x 125 mm, or 32 A4 sheets with four pairs each.
+5. Print 127 pairs: 254 labels at 125 x 125 mm, or 43 A4 sheets with three pairs each.
 6. Use only Compass for new IDs after tag reservation; the legacy intranet is a separate issuer.
 7. Match tags by size at unloading; copy the supplier's reel number and label net/gross separately.
 8. Confirm the actual VCL arrival date and warehouse individually, or select checked reels in the checklist.
@@ -56,10 +56,10 @@ Frappe bench integration remains a post-deployment check; local tests use a Frap
 
 ## A4 printing and full receiving list
 
-Compass defaults to A4: four rows per sheet, each with an identity label and its matching
-movement log side by side. Each compact label is 100 x 71.75 mm, with six handwritten
+Compass defaults to A4: three rows per sheet, each with an identity label and its matching
+movement log side by side. Each compact label is 100 x 95.666 mm, with six handwritten
 movement rows. A4 uses shared cut lines, no gutters and a 5 mm outer printer margin;
-trim the outer edges, cut once down the centre, then cut across the three row boundaries. The dedicated label-printer option remains 125 x 125 mm per label.
+trim the outer edges, cut once down the centre, then cut across the two row boundaries. The dedicated label-printer option remains 125 x 125 mm per label.
 Print at Actual size / 100%, without browser headers or footers.
 
 The delivery header's **Print full receiving list** always includes every registered reel,
@@ -74,7 +74,7 @@ Private files retain normal Frappe authentication/permissions. Commercial invoic
 
 Deploy both apps and run migrate to install these native Purchase Invoice Print Formats:
 
-- `VCL Reel Labels - A4 (4 pairs)` — portrait, 32 pages for 127 reels.
+- `VCL Reel Labels - A4 (6 labels)` — portrait, 43 pages for 127 reels.
 - `VCL Full Reel Receiving List` — landscape, nine pages for this size split.
 
 In ERPNext open ACC-PINV-2026-00672, choose Print, select the desired format, turn Letter Head
@@ -84,3 +84,5 @@ confirm arrival, submit a receipt, or print invoice prices. Normal receiving rol
 permissions are enforced. The migration creates only Print Format metadata; no stock data changes.
 For this shipment the 127 IDs already exist: do not prepare another set. Both formats also refuse
 to print for a cancelled source invoice or a delivery with no prepared tags.
+
+Printed references use VCL/YYYY/REEL REF (for example VCL/2026/00442). Internal IDs and QR URLs remain unchanged. RW and GSM are prominent. Permanent tags omit changing arrival status; damaged tags may be reprinted with the same identity.

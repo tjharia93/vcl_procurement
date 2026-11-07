@@ -2,7 +2,7 @@
 import frappe
 
 FORMATS = {
-    'VCL Reel Labels - A4 (4 pairs)': 'labels',
+    'VCL Reel Labels - A4 (6 labels)': 'labels',
     'VCL Full Reel Receiving List': 'receiving',
 }
 

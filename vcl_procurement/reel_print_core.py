@@ -1,5 +1,6 @@
 """Price-free native ERPNext print layouts; no writes or Frappe dependencies."""
 from html import escape
+import re
 
 
 def e(value):
@@ -23,11 +24,11 @@ def styles(landscape=False):
     .reel-sheet h1,.reel-sheet h2,.reel-sheet p{{margin:0;padding:0}}
     .reel-sheet .brand{{font-size:7pt;font-weight:bold}}
     .reel-sheet .state{{font-size:5.5pt;margin:.6mm 0;white-space:nowrap}}
-    .reel-sheet h1{{font-size:11pt;line-height:1.2;padding:1.2mm 1.5mm;margin:.8mm 0 1mm;background:#172d36!important;color:white!important;white-space:nowrap;-webkit-print-color-adjust:exact}}
+    .reel-sheet h1{{font-size:15pt;line-height:1.2;padding:1.2mm 1.5mm;margin:.8mm 0 1mm;background:#172d36!important;color:white!important;white-space:nowrap;-webkit-print-color-adjust:exact}}
     .reel-sheet h2{{font-size:6.5pt;line-height:1.2;max-height:6mm;overflow:hidden;font-weight:bold;margin-bottom:.5mm}}
-    .reel-pair{{height:71.75mm;margin-bottom:0;page-break-inside:avoid}}
+    .reel-pair{{height:95.666mm;margin-bottom:0;page-break-inside:avoid}}
     .reel-pair:last-child{{margin-bottom:0}}
-    .reel-card{{display:inline-block;vertical-align:top;width:100mm;height:71.75mm;border:0;border-top:.2mm solid #172d36;border-left:.2mm solid #172d36;padding:3mm;position:relative}}
+    .reel-card{{display:inline-block;vertical-align:top;width:100mm;height:95.666mm;border:0;border-top:.2mm solid #172d36;border-left:.2mm solid #172d36;padding:3mm;position:relative}}
     .reel-card+.reel-card{{margin-left:0;border-right:.2mm solid #172d36}}
     .reel-pair:last-child .reel-card{{border-bottom:.2mm solid #172d36}}
     .reel-sheet .main{{height:23mm;position:relative;padding-right:25mm;font-size:6pt;line-height:1.15}}
@@ -47,7 +48,8 @@ def styles(landscape=False):
     .reel-sheet .movement{{width:100%}}
     .reel-sheet .movement th,.reel-sheet .movement td{{border:.2mm solid #80949c;padding:.6mm!important;font-size:6.5pt;text-align:left;line-height:1.15}}
     .reel-sheet .movement th{{height:6.5mm;background:#eef3f4!important}}
-    .reel-sheet .movement td{{height:5mm}}
+    .reel-sheet .movement td{{height:7.5mm}}
+    .reel-sheet .material-spec{{font-size:15pt;font-weight:bold;line-height:1.2;margin:1mm 0 2mm}}
     </style>'''
 
 
@@ -58,17 +60,15 @@ def labels_html(data):
     if data.get('docstatus') == 2:
         raise ValueError('Cancelled receipts cannot print active reel tags.')
     pages = []
-    for start in range(0, len(reels), 4):
+    for start in range(0, len(reels), 3):
         pairs = []
-        for r in reels[start:start + 4]:
-            state = ('ARRIVED — STOCK POSTING PENDING' if r.get('physical_status') == 'Arrived' else
-                     'ON HOLD — STOCK NOT POSTED' if r.get('physical_status') == 'On hold' else
-                     'EXPECTED — ARRIVAL NOT CONFIRMED')
+        for r in reels[start:start + 3]:
             qty = number(r.get('original_qty')) or '________'
-            spec = f"{e(r.get('width_mm'))} mm · {e(r.get('gsm'))} GSM · {e(r.get('item_name') or r.get('item_code'))}"
             def heading(title, short=False):
-                material = f"{e(r.get('width_mm'))} mm · {e(r.get('gsm'))} GSM" if short else spec
-                return f'<div class="brand">{title}</div><div class="state">VIMIT CONVERTERS LTD · {state}</div><h1>{e(r["batch_id"])}</h1><h2>{material}</h2>'
+                display_id = re.sub(r'^VCL-RL-(\d{4})-(\d+)$', r'VCL/\1/\2', r['batch_id'])
+                material = f"RW {e(r.get('width_mm'))} mm · {e(r.get('gsm'))} GSM"
+                item = '' if short else f"<h2>{e(r.get('item_name') or r.get('item_code'))}</h2>"
+                return f'<div class="brand">{title}</div><div class="state">VIMIT CONVERTERS LTD</div><h1>{e(display_id)}</h1><div class="material-spec">{material}</div>{item}'
             def ref(label, value):
                 return f'<div class="ref"><span>{label}</span><b>{e(value or "____________________")}</b></div>'
             sources = ref('Supplier invoice', r.get('supplier_invoice'))

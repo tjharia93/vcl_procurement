@@ -10,3 +10,4 @@ vcl_procurement.patches.fix_pinv_00594_schedule
 vcl_procurement.patches.add_supplier_reference_field
 vcl_procurement.patches.reel_receiving_phase1
 vcl_procurement.patches.add_reel_print_formats
+vcl_procurement.patches.add_reel_six_label_format
