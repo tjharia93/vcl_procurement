@@ -17,7 +17,7 @@ def styles(landscape=False):
     @page{{size:A4 {orientation};margin:0}}
     .print-format{{page-size:A4;orientation:{orientation};margin-top:0;margin-bottom:0;margin-left:0;margin-right:0;padding:0!important;width:{width}mm!important;max-width:none!important;font-family:Arial,sans-serif!important;color:#172d36}}
     .reel-sheet,.reel-sheet *{{box-sizing:border-box}}
-    .reel-sheet{{width:{width}mm;height:{height}mm;padding:7mm;position:relative;page-break-after:always;page-break-inside:avoid;background:white}}
+    .reel-sheet{{width:{width}mm;height:{height}mm;padding:5mm;position:relative;page-break-after:always;page-break-inside:avoid;background:white}}
     .reel-sheet:last-child{{page-break-after:auto}}
     .reel-sheet table{{border-collapse:collapse;table-layout:fixed;margin:0}}
     .reel-sheet h1,.reel-sheet h2,.reel-sheet p{{margin:0;padding:0}}
@@ -25,10 +25,11 @@ def styles(landscape=False):
     .reel-sheet .state{{font-size:5.5pt;margin:.6mm 0;white-space:nowrap}}
     .reel-sheet h1{{font-size:11pt;line-height:1.2;padding:1.2mm 1.5mm;margin:.8mm 0 1mm;background:#172d36!important;color:white!important;white-space:nowrap;-webkit-print-color-adjust:exact}}
     .reel-sheet h2{{font-size:6.5pt;line-height:1.2;max-height:6mm;overflow:hidden;font-weight:bold;margin-bottom:.5mm}}
-    .reel-pair{{height:68.5mm;margin-bottom:3mm;page-break-inside:avoid}}
+    .reel-pair{{height:71.75mm;margin-bottom:0;page-break-inside:avoid}}
     .reel-pair:last-child{{margin-bottom:0}}
-    .reel-card{{display:inline-block;vertical-align:top;width:96.5mm;height:68.5mm;border:.3mm solid #172d36;padding:3mm;position:relative}}
-    .reel-card+.reel-card{{margin-left:3mm}}
+    .reel-card{{display:inline-block;vertical-align:top;width:100mm;height:71.75mm;border:0;border-top:.2mm solid #172d36;border-left:.2mm solid #172d36;padding:3mm;position:relative}}
+    .reel-card+.reel-card{{margin-left:0;border-right:.2mm solid #172d36}}
+    .reel-pair:last-child .reel-card{{border-bottom:.2mm solid #172d36}}
     .reel-sheet .main{{height:23mm;position:relative;padding-right:25mm;font-size:6pt;line-height:1.15}}
     .reel-sheet .main img{{position:absolute;right:0;top:0;width:23mm;height:23mm}}
     .reel-sheet .main strong{{font-size:15pt;display:block;margin:.4mm 0}}
@@ -42,7 +43,7 @@ def styles(landscape=False):
     .reel-sheet .movement{{width:100%}}
     .reel-sheet .movement th,.reel-sheet .movement td{{border:.2mm solid #80949c;padding:.6mm!important;font-size:6.5pt;text-align:left;line-height:1.15}}
     .reel-sheet .movement th{{height:6.5mm;background:#eef3f4!important}}
-    .reel-sheet .movement td{{height:4.5mm}}
+    .reel-sheet .movement td{{height:5mm}}
     </style>'''
 
 

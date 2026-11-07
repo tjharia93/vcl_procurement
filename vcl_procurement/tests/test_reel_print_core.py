@@ -29,7 +29,7 @@ class NativePrintLayouts(unittest.TestCase):
         self.assertNotIn('>0 kg',html)
         for r in self.reels:
             self.assertEqual(html.count(f'<h1>{r["name"]}</h1>'),2)
-        self.assertIn('width:96.5mm;height:68.5mm',html)
+        self.assertIn('width:100mm;height:71.75mm',html)
         self.assertIn('Received on: ________________',html)
         self.assertIn('CCLU7308949 / CSNU8648520',html)
 

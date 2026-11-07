@@ -57,8 +57,9 @@ Frappe bench integration remains a post-deployment check; local tests use a Frap
 ## A4 printing and full receiving list
 
 Compass defaults to A4: four rows per sheet, each with an identity label and its matching
-movement log side by side. Each compact label is 96.5 x 68.5 mm, with six handwritten
-movement rows. The dedicated label-printer option remains 125 x 125 mm per label.
+movement log side by side. Each compact label is 100 x 71.75 mm, with six handwritten
+movement rows. A4 uses shared cut lines, no gutters and a 5 mm outer printer margin;
+trim the outer edges, cut once down the centre, then cut across the three row boundaries. The dedicated label-printer option remains 125 x 125 mm per label.
 Print at Actual size / 100%, without browser headers or footers.
 
 The delivery header's **Print full receiving list** always includes every registered reel,
