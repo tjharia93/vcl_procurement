@@ -97,3 +97,6 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - A14: invoice connections resolve both `custom_import_parent` and charge children. PI page adds `import_parent` context; standard/push memo includes parent import invoice, supplier invoice, PO, file and containers, subject to parent read permission.
 
 - D11: registers, ranked search, PO headers, shipment matches and resolved connection headers use permission-aware `frappe.get_list`; container hits are discarded if the parent invoice is unreadable. D23: shipment search destinations preserve `?ship=NAME`.
+
+- A3 additional confirmed posting risk: ERPNext's Item `last_purchase_rate` is base currency per stock unit. Dev applies it directly to foreign orders. `po.buying_prices` now converts it on the server into the selected PO currency/unit before offering “Use last paid”; missing FX/conversion cannot supply a price. This Dev defect is deliberately not copied.
+- A10: no-VAT drafts clear supplier/default taxes after defaults load and suppress automatic template additions; fixed VAT retains its explicit Actual amount.

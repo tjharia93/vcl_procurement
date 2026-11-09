@@ -528,3 +528,33 @@ def recent_orders(supplier):
     return frappe.get_list(PO, filters={"supplier": supplier, "docstatus": ["<", 2]},
         fields=["name", "transaction_date", "currency", "grand_total", "status"],
         order_by="transaction_date desc, creation desc", limit_page_length=5)
+
+
+@frappe.whitelist()
+def buying_prices(item_code, currency="KES", supplier=None, uom=None, conversion_factor=None, conversion_rate=None, price_date=None):
+    """Prices in the chosen buying unit and currency. Never apply a KES stock price as USD."""
+    _assert_purchasing_role()
+    from frappe.utils import nowdate
+    item = frappe.get_doc("Item", item_code)
+    item.check_permission("read")
+    uom = uom or item.stock_uom
+    stock, factor = resolve_factor(item_code, uom)
+    factor = factor or flt(conversion_factor)
+    fx = 1 if currency == rules.COMPANY_CURRENCY else flt(conversion_rate)
+    if not fx:
+        from erpnext.setup.utils import get_exchange_rate
+        try:
+            fx = flt(get_exchange_rate(currency, rules.COMPANY_CURRENCY, price_date or nowdate()))
+        except Exception:
+            fx = 0  # price-list picks remain available; never offer an unconverted last-paid price
+    last = rules.last_purchase_price(item.last_purchase_rate, factor, fx)
+    lists = frappe.get_list("Price List", filters={"buying": 1, "enabled": 1, "currency": currency},
+                            pluck="name", order_by="name", limit_page_length=1)
+    price_list, price = (lists[0] if lists else ""), None
+    if price_list:
+        rows = frappe.get_list("Item Price", filters={"item_code": item_code, "price_list": price_list, "uom": uom},
+            or_filters=[["supplier", "=", supplier], ["supplier", "is", "not set"]] if supplier else None,
+            fields=["name", "price_list_rate", "supplier"], order_by="valid_from desc, modified desc", limit_page_length=200)
+        price = rules.buying_price(rows, supplier)
+    return {"list": price_list, "price": price, "last": last,
+            "note": None if last else "No last-paid price is available in this unit and currency."}

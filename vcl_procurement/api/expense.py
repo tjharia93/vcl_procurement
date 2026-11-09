@@ -46,6 +46,10 @@ def _build(payload):
             "description": rules.html_from_text(raw["description"].strip()), "qty": flt(raw["qty"]),
             "rate": flt(raw["rate"]), "uom": "Nos", "stock_uom": "Nos", "conversion_factor": 1,
             "expense_account": raw["account"], "cost_center": cc})
+    doc.flags.dont_auto_add_taxes = True
+    doc.set_missing_values()
+    doc.set("taxes", [])
+    doc.taxes_and_charges = None
     if payload.get("vat", True):
         from erpnext.controllers.accounts_controller import get_taxes_and_charges
         doc.taxes_and_charges = "Kenya Tax - VCL"
@@ -59,7 +63,6 @@ def _build(payload):
             taxes[0].update(charge_type="Actual", rate=0, row_id=None, tax_amount=flt(amount))
         for tax in taxes:
             doc.append("taxes", tax)
-    doc.set_missing_values()
     doc.calculate_taxes_and_totals()
     return doc
 

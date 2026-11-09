@@ -44,3 +44,17 @@ class PaymentParity(unittest.TestCase):
         self.assertEqual(rules.qbo_payment_errors(queue, 116), [])
         queue["pay_amount"] = 115
         self.assertIn("cheque amount", rules.qbo_payment_errors(queue, 116)[0])
+
+    def test_A3_last_paid_price_is_converted_from_base_stock_currency(self):
+        self.assertEqual(rules.last_purchase_price(129, 1000, 129), 1000)
+        self.assertEqual(rules.last_purchase_price(129, 1, 1), 129)
+        self.assertIsNone(rules.last_purchase_price(129, 1000, 0))
+        self.assertIsNone(rules.last_purchase_price(129, None, 129))
+
+    def test_A3_supplier_specific_then_general_price_never_another_supplier(self):
+        general = dict(name="g", price_list_rate=4)
+        mine = dict(name="s", supplier="S", price_list_rate=3)
+        other = dict(name="o", supplier="Other", price_list_rate=2)
+        self.assertEqual(rules.buying_price([other, general, mine], "S"), mine)
+        self.assertEqual(rules.buying_price([other, general], "S"), general)
+        self.assertIsNone(rules.buying_price([other], "S"))

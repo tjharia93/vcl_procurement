@@ -352,29 +352,31 @@ def _charge_context(doc):
     file_number, _ = rules.file_no(_from_po(parent, "custom_file_number"), parent.get("custom_file_number"), proforma)
     containers = [c.container_reference for c in parent.get("custom_container_details_table") or []]
     return {"name": name, "bill_no": parent.bill_no, "supplier": parent.supplier_name or parent.supplier,
-            "import_parent": parent_import,
-        "purchase_orders": pos, "file_no": file_number, "containers": containers,
+            "purchase_orders": pos, "file_no": file_number, "containers": containers,
             "memo": "Parent import " + rules.qbo_memo(name, parent.bill_no, pos, proforma, file_number,
                        parent.get("custom_bill_of_lading_number"), containers)}
 
 
 def _memo_for(doc, memo):
-    """The memo to write on the queue row, or None to leave it as it is."""
+    """Keep typed memo text and add the document, PO and parent-import references once."""
     pos = _linked_pos(doc)
-    if rules.memo_has_refs(memo, doc.name, pos):
-        return None
-    proforma = _from_po(doc, "order_confirmation_no") or doc.get("custom_proforma_invoice_number_importation_link")
-    file_number, _src = rules.file_no(_from_po(doc, "custom_file_number"), doc.get("custom_file_number"), proforma)
-    if not (memo or "").strip():
-        return rules.qbo_memo(doc.name, doc.bill_no, pos, proforma, file_number, doc.get("custom_bill_of_lading_number"),
-                              [c.container_reference for c in doc.get("custom_container_details_table") or []],
-                              doc.currency, doc.get("net_total"), doc.get("conversion_rate"), doc.get("bill_date") or doc.get("posting_date")) + (" · " + _charge_context(doc)["memo"] if _charge_context(doc) else "")
     context = _charge_context(doc)
-    if context and context["name"] not in memo:
-        memo = memo.strip() + " · " + context["memo"]
-    refs = rules.qbo_memo(doc.name, None, [p for p in pos if p not in memo], None, None)
-    refs = " · ".join(x for x in refs.split(" · ") if x not in memo)
-    return (memo.strip() + " · " + refs)[:4000] if refs else None
+    original = (memo or "").strip()
+    if rules.memo_has_refs(original, doc.name, pos) and (not context or context["name"] in original):
+        return None
+    if not original:
+        proforma = _from_po(doc, "order_confirmation_no") or doc.get("custom_proforma_invoice_number_importation_link")
+        file_number, _ = rules.file_no(_from_po(doc, "custom_file_number"), doc.get("custom_file_number"), proforma)
+        result = rules.qbo_memo(doc.name, doc.bill_no, pos, proforma, file_number, doc.get("custom_bill_of_lading_number"),
+            [c.container_reference for c in doc.get("custom_container_details_table") or []],
+            doc.currency, doc.get("net_total"), doc.get("conversion_rate"), doc.get("bill_date") or doc.get("posting_date"))
+    else:
+        refs = rules.qbo_memo(doc.name, None, [p for p in pos if p not in original], None, None)
+        refs = " · ".join(x for x in refs.split(" · ") if x not in original)
+        result = original + (" · " + refs if refs else "")
+    if context and context["name"] not in result:
+        result += " · " + context["memo"]
+    return result[:4000] if result != original else None
 
 
 @frappe.whitelist(methods=["POST"])
@@ -538,6 +540,7 @@ def pi_page(name):
         # Filled from the linked PO and not edited on the invoice.
         "proforma_no": proforma,
         "file_no": file_number, "file_no_source": file_src,
+        "import_parent": parent_import,
         "purchase_orders": pos,
         "update_stock": int(doc.update_stock or 0),
         "shipment": {

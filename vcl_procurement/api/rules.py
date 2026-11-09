@@ -1047,3 +1047,16 @@ def qbo_payment_errors(queue, invoice_total, conversion_rate=1):
         if not math.isfinite(net + vat) or abs(net + vat - total) > 0.01:
             errors.append("Lines plus typed VAT must equal the invoice total in KES.")
     return errors
+
+
+def last_purchase_price(stock_unit_base_rate, conversion_factor, exchange_rate=1):
+    """Item.last_purchase_rate is company currency per stock unit, never a foreign PO rate."""
+    rate, factor, fx = float(stock_unit_base_rate or 0), float(conversion_factor or 0), float(exchange_rate or 0)
+    if not all(math.isfinite(n) and n > 0 for n in (rate, factor, fx)):
+        return None
+    return rate * factor / fx
+
+
+def buying_price(rows, supplier):
+    """Rows are newest first; this supplier wins, then an unassigned general price."""
+    return next((r for r in rows if supplier and r.get("supplier") == supplier), None) or next((r for r in rows if not r.get("supplier")), None)
