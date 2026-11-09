@@ -63,6 +63,15 @@ FIELDS = [
     },
 ]
 
+# KRA lookups that did not answer in 15 seconds wait here for the daily re-check (api/kra_recheck.py).
+FIELDS += [
+    {"dt": "Purchase Invoice", "fieldname": "custom_kra_recheck", "label": "KRA daily re-check", "fieldtype": "Select",
+     "options": "\nPending\nVerified\nMismatch\nFailed", "read_only": 1, "no_copy": 1, "allow_on_submit": 1, "insert_after": "bill_no",
+     "description": "Pending: KRA did not answer in 15 seconds, so it is checked again each morning."},
+    {"dt": "Purchase Invoice", "fieldname": "custom_kra_recheck_tries", "label": "KRA re-check passes", "fieldtype": "Int",
+     "read_only": 1, "no_copy": 1, "allow_on_submit": 1, "insert_after": "custom_kra_recheck"},
+]
+
 # Custom Fields on the QBO Bill Push Queue: send an invoice to QuickBooks as an Expense (paid by
 # cheque) instead of a Bill, and post a typed VAT amount as its own line with no rate calculation.
 _Q = "QBO Bill Push Queue"

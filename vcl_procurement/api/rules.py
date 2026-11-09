@@ -1060,3 +1060,43 @@ def last_purchase_price(stock_unit_base_rate, conversion_factor, exchange_rate=1
 def buying_price(rows, supplier):
     """Rows are newest first; this supplier wins, then an unassigned general price."""
     return next((r for r in rows if supplier and r.get("supplier") == supplier), None) or next((r for r in rows if not r.get("supplier")), None)
+
+
+# --- KRA lookups that fail, and the daily re-check (Tanuj, 09/11/2026) ---------------------
+
+KRA_DEADLINE_SECONDS = 15   # one live lookup gets this long (several short attempts), then the invoice waits for the daily check
+RECHECK_MAX_TRIES = 3       # daily passes before an invoice that KRA still does not answer is reported
+KRA_RECHECK_RECIPIENTS = ["account@vimit.com", "tanuj.haria@vimit.com"]
+
+_TRANSIENT_WORDS = ("did not answer", "unreachable", "responding slowly", "non-json", "returned http", "timed out", "read timed out")
+
+
+def kra_is_transient(kra):
+    """True when KRA's iTax/eTIMS did not give an answer (dropped, slow, unreachable), as opposed to answering "no such CUIN"."""
+    if not isinstance(kra, dict) or kra.get("valid"):
+        return False
+    if kra.get("timed_out"):
+        return True
+    err = str(kra.get("error") or "").lower()
+    return any(w in err for w in _TRANSIENT_WORDS)
+
+
+def recheck_outcome(kra, bill_date):
+    """What the daily check makes of one invoice: Verified, Mismatch (KRA answered, the bill date needs review),
+    Pending (KRA still silent) or Failed (KRA answered that it has no such invoice)."""
+    if kra_is_transient(kra):
+        return "Pending"
+    if not isinstance(kra, dict) or not kra.get("valid"):
+        return "Failed"
+    state = _bill_date_state(kra.get("inv_date"), bill_date)["state"]
+    if state in ("same_day", "same_month"):
+        return "Verified"
+    return "Failed" if state == "unverified" else "Mismatch"
+
+
+def next_recheck_state(outcome, tries):
+    """(status, tries, report) after one daily pass. Pending becomes Failed, and is reported, on the RECHECK_MAX_TRIES-th silent pass."""
+    if outcome == "Pending":
+        tries += 1
+        return ("Failed", tries, True) if tries >= RECHECK_MAX_TRIES else ("Pending", tries, False)
+    return (outcome, tries, outcome in ("Mismatch", "Failed"))

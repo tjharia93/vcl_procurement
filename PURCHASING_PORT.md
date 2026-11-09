@@ -104,3 +104,9 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - D11 also applies to the MR picker and MR detail’s linked-order headers. Failed QBO rows retain editable review before retry, including vendor corrections; pending/successful rows remain protected.
 
 - New draft receipt save, invoice amendment and no-PO bill endpoints accept POST only. No new schema or migration is introduced by this parity branch.
+
+## Added 09/11/2026: KRA lookups that fail wait for a daily re-check
+- `pi.kra_check` gives KRA 15 s (`rules.KRA_DEADLINE_SECONDS`): `vcl_kra_validation.validate_cuin(invoice_no, deadline=15)` makes several short attempts inside that budget and returns `timed_out: true`. An older `vcl_kra_validation` without `deadline` still works (long retry shape).
+- A silent KRA marks the invoice `custom_kra_recheck = Pending` (new read-only Select on Purchase Invoice, allow-on-submit, plus `custom_kra_recheck_tries`). The date rule is unchanged: "unverified" means only a Purchase Manager or Accounts Manager may push it. `kra_check` returns one new key, `recheck`, and prefixes `date.text` when KRA was silent.
+- `api/kra_recheck.run` (cron `30 6 * * *`) looks again at every Pending invoice (30 s budget each): Verified / Mismatch / Failed, comment on the invoice. After 3 silent mornings it becomes Failed. One email lists Failed and Mismatch to site config `kra_recheck_recipients` (default account@vimit.com, tanuj.haria@vimit.com).
+- Migrate needed (patch `add_kra_recheck_fields`). Deploy `vcl_kra_validation` first or together; deploying this app alone is safe.

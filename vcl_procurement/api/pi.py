@@ -436,14 +436,17 @@ def qbo_prepare(name, date_reviewed=0):
 
 # --- KRA's view of a local invoice, and the date rule (CR-010) -----------------------
 
-def _kra_lookup(cuin):
+def _kra_lookup(cuin, deadline=rules.KRA_DEADLINE_SECONDS):
     """What KRA's iTax holds for a CUIN, through vcl_kra_validation. None when that app is not installed."""
     try:
         fn = frappe.get_attr("vcl_kra_validation.api.validate_cuin")
     except Exception:
         return None
     try:
-        return fn(invoice_no=cuin)
+        try:
+            return fn(invoice_no=cuin, deadline=deadline)
+        except TypeError:
+            return fn(invoice_no=cuin)   # an older vcl_kra_validation without the time limit
     except Exception as e:
         return {"valid": False, "error": str(e)}
 
@@ -479,9 +482,18 @@ def kra_check(name):
     cuin = (doc.bill_no or "").strip()
     kra = _kra_lookup(cuin) if cuin and not doc.get("custom_kra_cuin_exempt") else None
     date = _date_check(doc, kra if kra is not None else {})
+    # KRA did not answer in time: the invoice waits for the daily check (api/kra_recheck.py); the date rule's
+    # "unverified" gate still applies meanwhile (only a Purchase Manager or Accounts Manager may push it).
+    recheck = doc.get("custom_kra_recheck") or None
+    if kra is not None and cuin:
+        from vcl_procurement.api import kra_recheck
+        recheck = kra_recheck.note_live_lookup(doc, kra) or recheck
+        if rules.kra_is_transient(kra):
+            date["text"] = ("KRA did not answer within %d seconds. It will be checked again every morning. " % rules.KRA_DEADLINE_SECONDS
+                            + (date.get("text") or ""))
     # (b) On a draft the fix is one click on the screen (pi_save bill_date); on a posted invoice it is cancel and bill again.
     date["fix_route"] = ("set" if doc.docstatus == 0 else "cancel") if date.get("fix") else None
-    return {"kra": kra, "date": date}
+    return {"kra": kra, "date": date, "recheck": recheck}
 
 
 @frappe.whitelist()
