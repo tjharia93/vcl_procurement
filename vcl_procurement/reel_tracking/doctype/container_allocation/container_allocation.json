@@ -1,0 +1,151 @@
+{
+  "doctype": "DocType",
+  "name": "Container Allocation",
+  "module": "Reel Tracking",
+  "autoname": "field:allocation_id",
+  "naming_rule": "By fieldname",
+  "engine": "InnoDB",
+  "allow_rename": 0,
+  "track_changes": 1,
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "search_fields": "item_code,item_name,purchase_order",
+  "field_order": [
+    "allocation_id",
+    "company",
+    "purchase_order",
+    "po_detail",
+    "item_code",
+    "item_name",
+    "supplier",
+    "nominal_qty",
+    "stock_uom",
+    "container_count",
+    "purchase_invoice",
+    "active_container_count",
+    "revision",
+    "revision_reason",
+    "last_packing_change_hash"
+  ],
+  "fields": [
+    {
+      "fieldname": "allocation_id",
+      "label": "Allocation ID",
+      "fieldtype": "Data",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "company",
+      "label": "Company",
+      "fieldtype": "Link",
+      "options": "Company",
+      "reqd": 1
+    },
+    {
+      "fieldname": "purchase_order",
+      "label": "Purchase Order",
+      "fieldtype": "Link",
+      "options": "Purchase Order",
+      "reqd": 1
+    },
+    {
+      "fieldname": "po_detail",
+      "label": "Purchase Order line",
+      "fieldtype": "Data",
+      "reqd": 1
+    },
+    {
+      "fieldname": "item_code",
+      "label": "Item",
+      "fieldtype": "Link",
+      "options": "Item",
+      "reqd": 1
+    },
+    {
+      "fieldname": "item_name",
+      "label": "Material name",
+      "fieldtype": "Data",
+      "reqd": 1
+    },
+    {
+      "fieldname": "supplier",
+      "label": "Supplier",
+      "fieldtype": "Link",
+      "options": "Supplier",
+      "reqd": 1
+    },
+    {
+      "fieldname": "nominal_qty",
+      "label": "Nominal quantity per container",
+      "fieldtype": "Float",
+      "reqd": 1
+    },
+    {
+      "fieldname": "stock_uom",
+      "label": "Stock unit",
+      "fieldtype": "Link",
+      "options": "UOM",
+      "reqd": 1
+    },
+    {
+      "fieldname": "container_count",
+      "label": "Initial prepared containers",
+      "fieldtype": "Int",
+      "reqd": 1
+    },
+    {
+      "fieldname": "purchase_invoice",
+      "label": "Source invoice",
+      "fieldtype": "Link",
+      "options": "Purchase Invoice"
+    },
+    {
+      "fieldname": "active_container_count",
+      "label": "Current active containers",
+      "fieldtype": "Int"
+    },
+    {
+      "fieldname": "revision",
+      "label": "Packing revision",
+      "fieldtype": "Int"
+    },
+    {
+      "fieldname": "revision_reason",
+      "label": "Latest packing change reason",
+      "fieldtype": "Small Text"
+    },
+    {
+      "fieldname": "last_packing_change_hash",
+      "label": "Last packing change request",
+      "fieldtype": "Data"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    },
+    {
+      "role": "Stock Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    },
+    {
+      "role": "Purchase Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    },
+    {
+      "role": "Purchase User",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    }
+  ]
+}

@@ -103,10 +103,13 @@ def delivery_page(invoice, shipment=None):
 def reel_print_html(invoice, kind):
     """Jinja print helper. Native printing retains the receiving authorization gates."""
     from vcl_procurement.reel_print_core import labels_html, receiving_list_html
-    if kind not in ('labels', 'receiving'):
+    if kind not in ('labels', 'labels100', 'receiving'):
         frappe.throw(_('Unknown reel print format.'))
-    data = intake_labels(invoice) if kind == 'labels' else delivery_page(invoice)
+    data = intake_labels(invoice) if kind in ('labels', 'labels100') else delivery_page(invoice)
     try:
+        if kind == 'labels100':
+            from vcl_procurement.inventory_labels import reel_labels100_html
+            return reel_labels100_html(data)
         return labels_html(data) if kind == 'labels' else receiving_list_html(data)
     except ValueError as error:
         frappe.throw(str(error))

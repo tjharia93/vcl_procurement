@@ -13,6 +13,8 @@ def after_install():
     install_reel_print_formats()
     from vcl_procurement.patches.add_bundle_print_formats import execute as install_bundle_print_formats
     install_bundle_print_formats()
+    from vcl_procurement.patches.add_inventory_label_formats import execute as install_inventory_label_formats
+    install_inventory_label_formats()
     frappe.db.commit()
 
 

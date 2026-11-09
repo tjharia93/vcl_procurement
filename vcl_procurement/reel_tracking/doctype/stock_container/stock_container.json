@@ -1,0 +1,209 @@
+{
+  "doctype": "DocType",
+  "name": "Stock Container",
+  "module": "Reel Tracking",
+  "autoname": "field:container_id",
+  "naming_rule": "By fieldname",
+  "engine": "InnoDB",
+  "allow_rename": 0,
+  "track_changes": 1,
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "search_fields": "item_code,item_name,purchase_order,supplier_lot",
+  "field_order": [
+    "container_id",
+    "allocation",
+    "company",
+    "purchase_order",
+    "po_detail",
+    "item_code",
+    "item_name",
+    "supplier",
+    "nominal_qty",
+    "stock_uom",
+    "status",
+    "packing_revision",
+    "supplier_lot",
+    "expiry_date",
+    "received_qty",
+    "received_on",
+    "warehouse",
+    "checked_by",
+    "checked_at",
+    "notes",
+    "safety_reference",
+    "batch",
+    "purchase_receipt"
+  ],
+  "fields": [
+    {
+      "fieldname": "container_id",
+      "label": "Permanent container ID",
+      "fieldtype": "Data",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "allocation",
+      "label": "Allocation",
+      "fieldtype": "Link",
+      "options": "Container Allocation",
+      "reqd": 1
+    },
+    {
+      "fieldname": "company",
+      "label": "Company",
+      "fieldtype": "Link",
+      "options": "Company",
+      "reqd": 1
+    },
+    {
+      "fieldname": "purchase_order",
+      "label": "Purchase Order",
+      "fieldtype": "Link",
+      "options": "Purchase Order",
+      "reqd": 1
+    },
+    {
+      "fieldname": "po_detail",
+      "label": "Purchase Order line",
+      "fieldtype": "Data",
+      "reqd": 1
+    },
+    {
+      "fieldname": "item_code",
+      "label": "Item",
+      "fieldtype": "Link",
+      "options": "Item",
+      "reqd": 1
+    },
+    {
+      "fieldname": "item_name",
+      "label": "Material name",
+      "fieldtype": "Data",
+      "reqd": 1
+    },
+    {
+      "fieldname": "supplier",
+      "label": "Supplier",
+      "fieldtype": "Link",
+      "options": "Supplier",
+      "reqd": 1
+    },
+    {
+      "fieldname": "nominal_qty",
+      "label": "Nominal quantity per container",
+      "fieldtype": "Float",
+      "reqd": 1
+    },
+    {
+      "fieldname": "stock_uom",
+      "label": "Stock unit",
+      "fieldtype": "Link",
+      "options": "UOM",
+      "reqd": 1
+    },
+    {
+      "fieldname": "status",
+      "label": "Physical status",
+      "fieldtype": "Select",
+      "options": "Expected\nArrival checked\nOn hold\nReplaced",
+      "default": "Expected",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "packing_revision",
+      "label": "Packing revision",
+      "fieldtype": "Int"
+    },
+    {
+      "fieldname": "supplier_lot",
+      "label": "Supplier batch or lot",
+      "fieldtype": "Data"
+    },
+    {
+      "fieldname": "expiry_date",
+      "label": "Expiry date",
+      "fieldtype": "Date"
+    },
+    {
+      "fieldname": "received_qty",
+      "label": "Physically checked quantity",
+      "fieldtype": "Float"
+    },
+    {
+      "fieldname": "received_on",
+      "label": "Actual physical arrival",
+      "fieldtype": "Date"
+    },
+    {
+      "fieldname": "warehouse",
+      "label": "Physical receiving warehouse",
+      "fieldtype": "Link",
+      "options": "Warehouse"
+    },
+    {
+      "fieldname": "checked_by",
+      "label": "Checked by",
+      "fieldtype": "Link",
+      "options": "User"
+    },
+    {
+      "fieldname": "checked_at",
+      "label": "Checked at",
+      "fieldtype": "Datetime"
+    },
+    {
+      "fieldname": "notes",
+      "label": "Inspection / hold notes",
+      "fieldtype": "Small Text"
+    },
+    {
+      "fieldname": "safety_reference",
+      "label": "SDS / safety reference",
+      "fieldtype": "Data"
+    },
+    {
+      "fieldname": "batch",
+      "label": "Stock Batch",
+      "fieldtype": "Link",
+      "options": "Batch",
+      "read_only": 1
+    },
+    {
+      "fieldname": "purchase_receipt",
+      "label": "Stock receipt",
+      "fieldtype": "Link",
+      "options": "Purchase Receipt",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    },
+    {
+      "role": "Stock Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    },
+    {
+      "role": "Purchase Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    },
+    {
+      "role": "Purchase User",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    }
+  ]
+}
