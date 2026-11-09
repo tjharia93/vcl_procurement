@@ -303,10 +303,10 @@ def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
         doc.order_confirmation_no = order_confirmation_no
     if payment_terms_template:
         doc.payment_terms_template = payment_terms_template
+    if file_no:
+        doc.custom_file_number = file_no
     if order_type == "Import":
         doc.tax_category = "Importation"
-        if file_no:
-            doc.custom_file_number = file_no
     if tax_template:
         from erpnext.controllers.accounts_controller import get_taxes_and_charges
         doc.taxes_and_charges = tax_template

@@ -239,6 +239,10 @@ def po_save(name, payload):
         frappe.throw(_("{0} is not a draft, so it cannot be edited.").format(name))
 
     data = {}
+    if "conversion_rate" in payload:
+        if flt(payload["conversion_rate"]) <= 0:
+            frappe.throw(_("Exchange rate must be greater than zero."))
+        data["conversion_rate"] = flt(payload["conversion_rate"])
     if "required_by" in payload:
         if not payload["required_by"]:
             frappe.throw(_("A purchase order needs a required-by date."))
@@ -311,7 +315,7 @@ def po_save(name, payload):
 
     if "taxes" in payload:
         try:
-            data["taxes"] = clean_tax_rows(payload["taxes"] or [], flt(doc.conversion_rate) or 1, doc.currency,
+            data["taxes"] = clean_tax_rows(payload["taxes"] or [], data.get("conversion_rate") or flt(doc.conversion_rate) or 1, doc.currency,
                                            valid_names={t.name for t in doc.get("taxes") or []})
         except rules.RuleError as e:
             frappe.throw(str(e))

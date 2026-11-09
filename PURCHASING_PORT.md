@@ -73,3 +73,5 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - D7: MR lines include actual `stock_uom` and resolved `conversion_factor`; create re-resolves known MR factors.
 
 - A2: PO page lines return `cost_center`/`expense_account`; create and save accept both per line. `po.line_context` provides permission-aware company picks and item defaults.
+
+- A4/A5: `po_save.conversion_rate` accepts positive FX and converts Actual taxes at the new rate. PO create/save accept file numbers for local orders too.
