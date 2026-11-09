@@ -69,3 +69,5 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
   The global gate also preserves the duplicate-stock-receipt guard.
 - D9: workspace posting-date selection refreshes foreign-local FX on that date. PI save also
   refreshes FX when the posting date changes without an explicit rate; missing FX refuses save.
+
+- D7: MR lines include actual `stock_uom` and resolved `conversion_factor`; create re-resolves known MR factors.

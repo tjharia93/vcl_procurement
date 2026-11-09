@@ -118,7 +118,10 @@ def material_request_lines(name):
         pending = flt(it.qty) - flt(it.ordered_qty)
         if pending <= 0:
             continue
+        from vcl_procurement.api.units import resolve_factor
+        stock_uom, factor = resolve_factor(it.item_code, it.uom)
         out.append({
+            "stock_uom": stock_uom, "conversion_factor": factor,
             "item_code": it.item_code,
             "item_name": it.item_name or it.item_code,
             "qty": pending,
@@ -240,7 +243,7 @@ def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
     for ln in lines:
         if ln.get("item_code") and ln.get("uom"):
             stock[ln["item_code"]], found = resolve_factor(ln["item_code"], ln["uom"])
-            if not flt(ln.get("conversion_factor")) and found:
+            if found and (ln.get("material_request_item") or not flt(ln.get("conversion_factor"))):
                 ln["conversion_factor"] = found
     try:
         rules.check_line_units([ln for ln in lines if ln.get("uom")], stock)
