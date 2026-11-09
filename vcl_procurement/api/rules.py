@@ -462,6 +462,12 @@ def check_tax_rows(rows):
         ct = r.get("charge_type")
         if ct not in CHARGE_TYPES:
             raise RuleError(f"Tax row {i} has an unknown type: {ct}.")
+        if ct == "Actual":
+            try:
+                if r.get("kes") is None or str(r.get("kes")).strip() == "" or not math.isfinite(float(r["kes"])):
+                    raise ValueError()
+            except (ValueError, TypeError):
+                raise RuleError(f"Enter the Actual amount for tax row {i}, including zero where applicable.")
         if ct in PREVIOUS_ROW_TYPES:
             rid = int(r.get("row_id") or 0)
             if rid < 1 or rid >= i:

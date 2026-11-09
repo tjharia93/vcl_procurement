@@ -732,6 +732,11 @@ def _lines_and_taxes(doc, payload, conversion_rate=None):
         kes_by_name = {r["name"]: r.get("kes") for r in tx.get("rows") or [] if r.get("name")}
         rows = []
         for t in doc.get("taxes") or []:
+            value = kes_by_name.get(t.name)
+            try:
+                rules.check_tax_rows([{"charge_type": "Actual", "kes": value}])
+            except rules.RuleError as e:
+                frappe.throw(str(e))
             row = t.as_dict()
             row["charge_type"] = "Actual"
             row["row_id"] = None
@@ -739,6 +744,16 @@ def _lines_and_taxes(doc, payload, conversion_rate=None):
                 row["tax_amount"] = rules.kes_to_doc(kes_by_name[t.name], rate, doc.currency)
             rows.append(row)
         out["taxes"] = rows
+    elif tx.get("mode") == "calculated" and any(t.charge_type == "Actual" for t in doc.get("taxes") or []):
+        template = doc.get("taxes_and_charges")
+        if not template:
+            frappe.throw("Choose a tax template in ERPNext before restoring Calculated taxes.")
+        from erpnext.controllers.accounts_controller import get_taxes_and_charges
+        formulas = get_taxes_and_charges("Purchase Taxes and Charges Template", template) or []
+        current = doc.get("taxes") or []
+        if len(formulas) != len(current) or any(r.get("account_head") != t.account_head for r, t in zip(formulas, current)):
+            frappe.throw("The tax template rows have changed. Review the taxes in ERPNext before restoring Calculated taxes.")
+        out["taxes"] = [{**r, "name": t.name, "idx": i} for i, (r, t) in enumerate(zip(formulas, current), 1)]
     return out
 
 @frappe.whitelist()

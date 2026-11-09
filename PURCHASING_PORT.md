@@ -83,3 +83,5 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - A7: `attachments.list_files(doctype,name)` reads PO/PR/PI files after document read permission. Uploads remain private through Frappe upload_file.
 
 - A15/D19: Compass MR detail uses the existing permission-checked exact `mr.request(name)` (including drafts and old requests); adds `material_request_type` to that response.
+
+- TRK-00023: PO/PI Actual tax amounts are required for every row (explicit zero allowed); fixed amounts never follow line edits. A missing PI row amount refuses save. D14: clearing the PO template clears its rows. D13: explicit PI Calculated mode restores matching template formulas, or refuses with a review instruction when no matching template exists.

@@ -22,3 +22,9 @@ class PaymentParity(unittest.TestCase):
             changed[key] = ([dict(value[0], allocated_amount=9)] if key == "references" else
                             value + 1 if isinstance(value, (int, float)) else value + " different")
             self.assertNotEqual(identity, rules.payment_identity(changed), key)
+
+    def test_TRK_00023_actual_rows_require_an_explicit_finite_amount(self):
+        for missing in [None, "", float("nan"), float("inf")]:
+            with self.assertRaises(rules.RuleError):
+                rules.check_tax_rows([{"charge_type": "Actual", "kes": missing}])
+        rules.check_tax_rows([{"charge_type": "Actual", "kes": 0}])
