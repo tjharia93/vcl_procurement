@@ -7,7 +7,7 @@ Same gate as the rest of purchasing: ERPNext's own purchasing roles.
 import frappe
 from frappe.utils import flt
 
-from vcl_procurement.api import landing_rules as R
+from vcl_procurement.api import landing_rules as R, rules
 from vcl_procurement.api.purchasing import _assert_purchasing_role
 
 
@@ -63,7 +63,7 @@ def pi_list():
     _assert_purchasing_role()
     fields = ["name", "supplier", "supplier_name", "bill_no", "bill_date", "posting_date", "due_date",
               "status", "docstatus", "grand_total", "base_grand_total", "outstanding_amount",
-              "conversion_rate", "currency", "custom_purchase_invoice_type", "custom_bill_of_lading_number", "creation"]
+              "conversion_rate", "currency", "party_account_currency", "custom_purchase_invoice_type", "custom_bill_of_lading_number", "creation"]
     # The field arrives with the patch; a site that has not migrated yet still lists its invoices.
     has_ref = frappe.get_meta("Purchase Invoice").has_field("custom_supplier_reference_no")
     if has_ref:
@@ -85,7 +85,8 @@ def pi_list():
         "posting_date": str(r.posting_date) if r.posting_date else None,
         "due_date": str(r.due_date) if r.due_date else None,
         "status": r.status, "docstatus": r.docstatus, "total": flt(r.grand_total),
-        "base_total": flt(r.base_grand_total), "outstanding": flt(r.outstanding_amount),
+        "base_total": flt(r.base_grand_total), "outstanding": rules.invoice_currency_amount(r.outstanding_amount, r.currency, r.get("party_account_currency"), r.conversion_rate),
+        "outstanding_account": flt(r.outstanding_amount), "party_account_currency": r.get("party_account_currency") or r.currency,
         "conversion_rate": flt(r.conversion_rate) or 1, "currency": r.currency,
         "invoice_type": r.custom_purchase_invoice_type, "pos": pos.get(r.name, []),
         "bl_no": (str(r.custom_bill_of_lading_number).strip() or None) if r.custom_bill_of_lading_number else None,

@@ -56,3 +56,10 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - `qbo_prepare`: every invoice's queue memo carries the order and the ERPNext invoice (blank memo -> the standard one; a typed memo lacking them gets them appended).
 - `container_search`: also Import Shipments by BL (`kind: 'shipment'`, `invoice: null`, `shipment`).
 - `schedule_preview`: also takes the edit keys (`lines`, `remove_lines`, `taxes`, `conversion_rate`) and works the amounts due out on them, so the Due dates preview follows the lines as typed.
+
+## Added 09/11/2026 — Dev parity (native React)
+- D1: recent payment drafts are reused only when every account, currency, date, reference, rate,
+  allocation, term and remark matches, with write permission on the candidate.
+- D2: `pi_page`/`pi_list.outstanding` and payment `applied` are in invoice currency. Additive
+  `outstanding_account` and `party_account_currency` preserve the source balance and its basis.
+  Payment ceilings and ERP payment mapping use the matching currency.

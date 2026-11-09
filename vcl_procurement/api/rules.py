@@ -964,3 +964,26 @@ def pick_shipment(shipments, bl_no, pos):
                 return s
     mine = [s for s in shipments if s.get("purchase_order") in set(pos or [])]
     return mine[0] if len(mine) == 1 else None
+
+
+def invoice_currency_amount(amount, currency, party_currency=None, conversion_rate=1):
+    """Payable balances and allocations are stored in party-account currency."""
+    value = float(amount or 0)
+    if party_currency and party_currency != currency:
+        rate = float(conversion_rate or 0)
+        if party_currency != COMPANY_CURRENCY or rate <= 0:
+            raise RuleError("Cannot convert this payable balance to invoice currency.")
+        return value / rate
+    return value
+
+
+def payment_identity(payment):
+    """All posting choices must match before an existing draft can be reused."""
+    fields = ("company", "party_type", "party", "payment_type", "paid_from", "paid_to",
+              "paid_from_account_currency", "paid_to_account_currency", "posting_date",
+              "reference_no", "reference_date", "mode_of_payment", "remarks")
+    numbers = ("paid_amount", "received_amount", "source_exchange_rate", "target_exchange_rate")
+    refs = sorted((r.get("reference_doctype"), r.get("reference_name"), r.get("payment_term") or "",
+                   round(float(r.get("allocated_amount") or 0), 6)) for r in payment.get("references") or [])
+    return (tuple(str(payment.get(k) or "") for k in fields),
+            tuple(round(float(payment.get(k) or 0), 6) for k in numbers), refs)

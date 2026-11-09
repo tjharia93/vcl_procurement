@@ -180,7 +180,7 @@ def _receipt_check(doc):
     return out
 
 
-def _payments(name):
+def _payments(name, currency=None, party_currency=None, conversion_rate=1):
     """Payment Entries referencing this invoice, drafts included."""
     refs = frappe.get_all("Payment Entry Reference", filters={"reference_doctype": PI, "reference_name": name},
                           fields=["parent", "allocated_amount"], parent_doctype=PE, limit_page_length=200)
@@ -195,7 +195,7 @@ def _payments(name):
     return [{"name": h.name, "date": rules.iso(h.posting_date), "paid": flt(h.paid_amount),
              "currency": h.paid_from_account_currency, "mode": h.mode_of_payment,
              "reference_no": h.reference_no, "draft": h.docstatus == 0,
-             "applied": applied.get(h.name, 0)} for h in heads]
+             "applied": rules.invoice_currency_amount(applied.get(h.name, 0), currency, party_currency, conversion_rate)} for h in heads]
 
 
 def _attachments(name):
@@ -463,7 +463,7 @@ def pi_page(name):
     saved_term = schedule[0]["payment_term"] if len(schedule) >= (2 if imp else 1) else None
 
     missing = _missing(doc)
-    outstanding = flt(doc.outstanding_amount)
+    outstanding = rules.invoice_currency_amount(doc.outstanding_amount, cur, doc.get("party_account_currency"), rate)
     ship_row, ship_count = _shipment_for(doc) if imp else (None, 0)
     pos = _linked_pos(doc)
     proforma = _from_po(doc, "order_confirmation_no") or doc.get("custom_proforma_invoice_number_importation_link") \
@@ -513,13 +513,14 @@ def pi_page(name):
         "taxes": taxes, "total_tax_kes": flt(doc.base_grand_total) - flt(doc.base_net_total),
         "taxes_all_actual": bool(taxes) and all(t["charge_type"] == "Actual" for t in taxes),
         "grand_total": flt(doc.grand_total), "base_grand_total": flt(doc.base_grand_total),
-        "outstanding": outstanding,
+        "outstanding": outstanding, "outstanding_account": flt(doc.outstanding_amount),
+        "party_account_currency": doc.get("party_account_currency") or cur,
         "schedule": schedule,
         "schedule_terms": {"selected": saved_term or sug, "source": "saved on this invoice" if saved_term else sug_src,
                            "options": frappe.get_all("Payment Terms Template", pluck="name", order_by="name asc",
                                                      limit_page_length=200) if draft else [],
                            "tax_days_after_landing": rules.DEFAULT_TAX_DAYS_AFTER_LANDING},
-        "payments": _payments(doc.name),
+        "payments": _payments(doc.name, cur, doc.get("party_account_currency"), rate),
         "qbo": _qbo(doc),
         "qbo_memo_standard": rules.qbo_memo(doc.name, doc.bill_no, pos, proforma, file_number,
                                             doc.get("custom_bill_of_lading_number"), containers, cur, doc.net_total,
@@ -1236,11 +1237,13 @@ def _build_payment(pi_doc, payload):
         applied = amount * rate
     else:
         frappe.throw(_("Pay from an account in {0} or in {1}.").format(rules.COMPANY_CURRENCY, pi_doc.currency))
-    out = flt(pi_doc.outstanding_amount)
+    out = rules.invoice_currency_amount(pi_doc.outstanding_amount, pi_doc.currency,
+                                        pi_doc.get("party_account_currency"), pi_doc.conversion_rate)
     if applied > out + 0.01:
         frappe.throw(_("That is more than the outstanding {0} {1}.").format(pi_doc.currency, out))
 
-    pe = get_payment_entry(PI, pi_doc.name, party_amount=round(applied, 2), bank_account=account, bank_amount=amount)
+    pe = get_payment_entry(PI, pi_doc.name, party_amount=round(applied * (flt(pi_doc.conversion_rate) or 1)
+        if pi_doc.get("party_account_currency") == rules.COMPANY_CURRENCY and pi_doc.currency != rules.COMPANY_CURRENCY else applied, 2), bank_account=account, bank_amount=amount)
     pe.posting_date = rules.iso(payload.get("date")) or nowdate()
     pe.mode_of_payment = payload.get("mode") or None
     pe.reference_no = payload.get("reference_no") or None
@@ -1299,9 +1302,13 @@ def _recent_duplicate(pi_name, pe):
            where pe.docstatus = 0 and r.reference_doctype = %s and r.reference_name = %s
              and pe.paid_amount = %s and ifnull(pe.reference_no, '') = %s
              and pe.creation > now() - interval 5 minute
-           order by pe.creation desc limit 1""",
+           order by pe.creation desc limit 20""",
         (PI, pi_name, flt(pe.paid_amount), pe.reference_no or ""))
-    return rows[0][0] if rows else None
+    for row in rows:
+        candidate = frappe.get_doc(PE, row[0])
+        if frappe.has_permission(PE, "write", candidate) and rules.payment_identity(candidate) == rules.payment_identity(pe):
+            return candidate.name
+    return None
 
 
 @frappe.whitelist()
