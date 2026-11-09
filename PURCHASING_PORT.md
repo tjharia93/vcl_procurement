@@ -79,3 +79,5 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - A1: `po.recent_orders(supplier)` returns five permission-filtered non-cancelled orders; repeat uses the existing checked `po_page` API.
 
 - A6: PR page lines add `name`. `pr.pr_save(name,payload)` saves draft date/delivery note/line qty/rate together, preserving PO links. Reel quantities remain owned by packing-list receiving.
+
+- A7: `attachments.list_files(doctype,name)` reads PO/PR/PI files after document read permission. Uploads remain private through Frappe upload_file.
