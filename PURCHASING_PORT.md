@@ -85,3 +85,5 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - A15/D19: Compass MR detail uses the existing permission-checked exact `mr.request(name)` (including drafts and old requests); adds `material_request_type` to that response.
 
 - TRK-00023: PO/PI Actual tax amounts are required for every row (explicit zero allowed); fixed amounts never follow line edits. A missing PI row amount refuses save. D14: clearing the PO template clears its rows. D13: explicit PI Calculated mode restores matching template formulas, or refuses with a review instruction when no matching template exists.
+
+- A8/A9: PI page lines add plain `description`, `item_tax_template`, VAT rate/amount/gross; page adds `credit_to`/`tax_category`. Draft save accepts line name/description/template; template tax-rate maps are read from the server master. `pi.vat_options(company)` supplies the Kenya VAT/exempt picks. Tax preview adds line VAT/gross.

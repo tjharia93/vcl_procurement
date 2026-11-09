@@ -503,6 +503,7 @@ def pi_page(name):
         "name": doc.name, "docstatus": doc.docstatus, "status": doc.status,
         "supplier": doc.supplier, "supplier_name": doc.supplier_name or doc.supplier,
         "currency": cur, "conversion_rate": rate, "company": doc.company,
+        "credit_to": doc.get("credit_to"), "tax_category": doc.get("tax_category"),
         "invoice_type": itype, "is_import": imp, "type_follows_po": bool(derived),
         "bill_no": doc.bill_no,
         "supplier_ref_no": doc.get("custom_supplier_reference_no"),
@@ -529,6 +530,8 @@ def pi_page(name):
                             "container_size": c.container_size} for c in doc.get("custom_container_details_table") or []],
         },
         "lines": [{"name": i.name, "item_code": i.item_code, "item_name": i.item_name or i.item_code,
+                   "description": rules.plain_text(i.get("description")), "item_tax_template": i.get("item_tax_template"),
+                   "vat_rate": _line_vat_rate(i, doc.get("taxes")), "vat": flt(i.amount) * _line_vat_rate(i, doc.get("taxes")) / 100, "gross": flt(i.amount) * (1 + _line_vat_rate(i, doc.get("taxes")) / 100),
                    "qty": flt(i.qty), "uom": i.uom, "rate": flt(i.rate), "amount": flt(i.amount),
                    "warehouse": i.warehouse, "expense_account": i.expense_account,
                    "purchase_order": i.purchase_order, "po_detail": i.get("po_detail")} for i in doc.items],
@@ -682,6 +685,8 @@ def tax_preview(name, payload):
     doc.calculate_taxes_and_totals()
     rate = flt(doc.conversion_rate) or 1
     return {
+        "lines": [{"name": i.name, "vat": flt(i.amount) * _line_vat_rate(i, doc.get("taxes")) / 100,
+                   "gross": flt(i.amount) * (1 + _line_vat_rate(i, doc.get("taxes")) / 100)} for i in doc.items],
         "net_total": flt(doc.net_total), "base_net_total": flt(doc.base_net_total),
         "taxes": [{"name": t.name, "idx": t.idx, "tax_amount": flt(t.tax_amount),
                    "kes": flt(t.base_tax_amount) if t.base_tax_amount is not None else rules.doc_to_kes(t.tax_amount, rate, doc.currency)}
@@ -692,6 +697,15 @@ def tax_preview(name, payload):
 
 
 # --- writing ------------------------------------------------------------------
+
+def _line_vat_rate(row, taxes=None):
+    try:
+        rates = frappe.parse_json(row.get("item_tax_rate") or "{}") or {}
+        return next((flt(rate) for account, rate in rates.items() if "VAT" in account.upper()),
+                    next((flt(t.rate) for t in taxes or [] if "VAT" in str(t.account_head).upper() and t.charge_type == "On Net Total"), 0))
+    except (ValueError, TypeError, AttributeError):
+        return 0
+
 
 def _lines_and_taxes(doc, payload, conversion_rate=None):
     """{items?, taxes?} for an edit of a DRAFT: quantities and rates, lines removed, taxes typed in KES.
@@ -715,6 +729,21 @@ def _lines_and_taxes(doc, payload, conversion_rate=None):
                 continue
             row = i.as_dict()
             if i.name in want:
+                raw = want[i.name]
+                for field in ("item_name", "description"):
+                    if field in raw:
+                        row[field] = rules.html_from_text(raw[field] or "") if field == "description" else (raw[field] or "").strip()
+                if "item_tax_template" in raw and raw["item_tax_template"] != i.get("item_tax_template"):
+                    template = raw["item_tax_template"]
+                    if template:
+                        tax = frappe.get_doc("Item Tax Template", template)
+                        tax.check_permission("read")
+                        if tax.get("disabled") or tax.company != doc.company:
+                            frappe.throw("Choose an enabled item tax template for this company.")
+                        row["item_tax_rate"] = frappe.as_json({t.tax_type: flt(t.tax_rate) for t in tax.taxes})
+                    else:
+                        row["item_tax_rate"] = "{}"
+                    row["item_tax_template"] = template or None
                 row["qty"] = flt(want[i.name].get("qty"))
                 rate_ = flt(want[i.name].get("rate"))
                 row["rate"] = rate_
@@ -726,6 +755,8 @@ def _lines_and_taxes(doc, payload, conversion_rate=None):
             row["idx"] = n
         out["items"] = rows
 
+    if remove or any("item_tax_template" in ln for ln in payload.get("lines") or []):
+        out["taxes"] = [{**t.as_dict(), "item_wise_tax_detail": None} for t in doc.get("taxes") or []]
     tx = payload.get("taxes") or {}
     if tx.get("mode") == "actual":
         rate = flt(conversion_rate or doc.conversion_rate) or 1
@@ -1369,3 +1400,10 @@ def pay_submit(name):
         frappe.throw(_("{0} is not a supplier payment against purchase invoices.").format(name))
     pe.submit()
     return {"name": pe.name, "docstatus": pe.docstatus, "posted": pe.docstatus == 1}
+
+
+@frappe.whitelist()
+def vat_options(company):
+    _assert_purchasing_role()
+    return frappe.get_list("Item Tax Template", filters={"company": company, "disabled": 0,
+        "name": ["in", ["Kenya Tax - VCL", "TAX EXEMPT - VCL"]]}, pluck="name", order_by="name", limit_page_length=20)
