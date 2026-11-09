@@ -100,6 +100,7 @@ def request(name):
                 "lines": [{"item_code": l.item_code, "qty": flt(l.qty), "received": flt(l.received_qty)}
                           for l in pos[po.name]],
             })
+    row["material_request_type"] = doc.get("material_request_type")
     row["orders"] = orders
     row["can_submit"] = row["stage"] == "Draft" and bool(doc.has_permission("submit"))
     return row

@@ -81,3 +81,5 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - A6: PR page lines add `name`. `pr.pr_save(name,payload)` saves draft date/delivery note/line qty/rate together, preserving PO links. Reel quantities remain owned by packing-list receiving.
 
 - A7: `attachments.list_files(doctype,name)` reads PO/PR/PI files after document read permission. Uploads remain private through Frappe upload_file.
+
+- A15/D19: Compass MR detail uses the existing permission-checked exact `mr.request(name)` (including drafts and old requests); adds `material_request_type` to that response.
