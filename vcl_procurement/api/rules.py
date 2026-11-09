@@ -1017,3 +1017,33 @@ def expense_bill_error(payload):
         except (ValueError, TypeError):
             return f"Line {i}: enter a positive quantity and rate."
     return None
+
+
+def qbo_payment_errors(queue, invoice_total, conversion_rate=1):
+    """Expense/typed-VAT readiness, also enforced before sending the external runner a request."""
+    errors = []
+    txn = queue.get("qbo_txn_type") or "Bill"
+    total = float(invoice_total or 0)
+    if txn not in ("Bill", "Expense"):
+        errors.append("Choose Bill or Expense.")
+    if txn == "Expense":
+        if not queue.get("pay_bank_account"):
+            errors.append("Choose the paying bank account.")
+        cheque = str(queue.get("pay_cheque_no") or "").strip()
+        if not cheque or len(cheque) > 21:
+            errors.append("Enter a cheque number of up to 21 characters.")
+        if not queue.get("pay_date"):
+            errors.append("Choose the cheque date.")
+        amount = float(queue.get("pay_amount") or 0)
+        if not math.isfinite(amount) or abs(amount - total) > 0.01:
+            errors.append("The cheque amount must equal the invoice total in KES.")
+    if int(queue.get("vat_line_manual") or 0):
+        if not (queue.get("vat_line_account") or queue.get("tax_qbo_taxcode")):
+            errors.append("Choose a VAT account or goods tax code.")
+        vat = float(queue.get("vat_line_amount") or 0)
+        if not math.isfinite(vat) or vat <= 0:
+            errors.append("Enter a positive VAT amount.")
+        net = round(sum(float(r.get("amount") or 0) for r in queue.get("lines") or []) * float(conversion_rate or 1), 2)
+        if not math.isfinite(net + vat) or abs(net + vat - total) > 0.01:
+            errors.append("Lines plus typed VAT must equal the invoice total in KES.")
+    return errors

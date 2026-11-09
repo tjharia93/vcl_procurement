@@ -35,3 +35,12 @@ class PaymentParity(unittest.TestCase):
         for key in ("supplier", "bill_no", "bill_date", "lines"):
             self.assertTrue(rules.expense_bill_error(dict(bill, **{key: None})))
         self.assertTrue(rules.expense_bill_error(dict(bill, invoice_type="Importation")))
+
+    def test_A12_A13_D18_push_readiness(self):
+        queue = dict(qbo_txn_type="Expense", vat_line_manual=1, lines=[dict(amount=100)])
+        self.assertGreater(len(rules.qbo_payment_errors(queue, 116)), 3)
+        queue.update(pay_bank_account="Bank", pay_cheque_no="CH1", pay_date="2026-11-09", pay_amount=116,
+                     vat_line_account="VAT", vat_line_amount=16)
+        self.assertEqual(rules.qbo_payment_errors(queue, 116), [])
+        queue["pay_amount"] = 115
+        self.assertIn("cheque amount", rules.qbo_payment_errors(queue, 116)[0])

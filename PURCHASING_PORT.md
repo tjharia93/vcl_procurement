@@ -91,3 +91,5 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - A11: `pi.pi_amend(name)` checks read/amend permission and cancelled status, respects ERPNext no-copy metadata, clears QBO linkage and reopens any existing active amendment.
 
 - A10: `expense.options` returns company expense picks; `expense.bill(payload,save=0|1)` previews ERP totals or creates one complete KES draft without a PO. Supplier terms/payable defaults, VAT or fixed VAT, account/company checks and duplicate-number recovery are server-side.
+
+- A12/A13/D18: native React edits existing queue Expense/cheque and manual-VAT fields; readiness includes bank, cheque/date/amount, VAT destination/positivity/reconciliation and calculated VAT agreement. `qbo_review.prepare_queue` enforces Expense/manual-VAT checks and KRA date review before initial push and retry proxies; no runner contract changes.
