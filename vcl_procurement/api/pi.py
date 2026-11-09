@@ -338,6 +338,24 @@ def _qbo_review(doc, queue_name):
             "checks": checks, "ready": all(c["ok"] for c in checks)}
 
 
+def _charge_context(doc):
+    name = doc.get("custom_import_parent")
+    if not name:
+        return None
+    parent = frappe.get_doc(PI, name)
+    if not parent.has_permission("read"):
+        return None
+    pos = _linked_pos(parent)
+    proforma = _from_po(parent, "order_confirmation_no") or parent.get("custom_proforma_invoice_number_importation_link")
+    file_number, _ = rules.file_no(_from_po(parent, "custom_file_number"), parent.get("custom_file_number"), proforma)
+    containers = [c.container_reference for c in parent.get("custom_container_details_table") or []]
+    return {"name": name, "bill_no": parent.bill_no, "supplier": parent.supplier_name or parent.supplier,
+            "import_parent": parent_import,
+        "purchase_orders": pos, "file_no": file_number, "containers": containers,
+            "memo": "Parent import " + rules.qbo_memo(name, parent.bill_no, pos, proforma, file_number,
+                       parent.get("custom_bill_of_lading_number"), containers)}
+
+
 def _memo_for(doc, memo):
     """The memo to write on the queue row, or None to leave it as it is."""
     pos = _linked_pos(doc)
@@ -348,7 +366,10 @@ def _memo_for(doc, memo):
     if not (memo or "").strip():
         return rules.qbo_memo(doc.name, doc.bill_no, pos, proforma, file_number, doc.get("custom_bill_of_lading_number"),
                               [c.container_reference for c in doc.get("custom_container_details_table") or []],
-                              doc.currency, doc.get("net_total"), doc.get("conversion_rate"), doc.get("bill_date") or doc.get("posting_date"))
+                              doc.currency, doc.get("net_total"), doc.get("conversion_rate"), doc.get("bill_date") or doc.get("posting_date")) + (" · " + _charge_context(doc)["memo"] if _charge_context(doc) else "")
+    context = _charge_context(doc)
+    if context and context["name"] not in memo:
+        memo = memo.strip() + " · " + context["memo"]
     refs = rules.qbo_memo(doc.name, None, [p for p in pos if p not in memo], None, None)
     refs = " · ".join(x for x in refs.split(" · ") if x not in memo)
     return (memo.strip() + " · " + refs)[:4000] if refs else None
@@ -499,6 +520,7 @@ def pi_page(name):
     if not days_free and ship_row and flt(ship_row.get("free_days")):
         days_free, days_src = flt(ship_row.get("free_days")), "the shipment " + ship_row["name"]
     containers = [c.container_reference for c in doc.get("custom_container_details_table") or []]
+    parent_import = _charge_context(doc)
     return {
         "name": doc.name, "docstatus": doc.docstatus, "status": doc.status,
         "supplier": doc.supplier, "supplier_name": doc.supplier_name or doc.supplier,
@@ -552,7 +574,7 @@ def pi_page(name):
         "qbo": _qbo(doc),
         "qbo_memo_standard": rules.qbo_memo(doc.name, doc.bill_no, pos, proforma, file_number,
                                             doc.get("custom_bill_of_lading_number"), containers, cur, doc.net_total,
-                                            doc.conversion_rate, doc.bill_date or doc.posting_date),
+                                            doc.conversion_rate, doc.bill_date or doc.posting_date) + (" · " + parent_import["memo"] if parent_import else ""),
         "attachments": _attachments(doc.name),
         "requirements": {"missing": missing, "ready": not missing},
         "receive_from": _receive_from(doc),

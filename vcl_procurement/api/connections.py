@@ -74,6 +74,13 @@ def connections(doctype, name):
             for n in _uniq(i.get("purchase_receipt") for i in items):
                 found[PR].setdefault(n, {})
 
+    if doctype == PI:
+        if doc.get("custom_import_parent"):
+            found[PI][doc.get("custom_import_parent")] = {}
+        if frappe.get_meta(PI).has_field("custom_import_parent"):
+            for charge in frappe.get_list(PI, filters={"custom_import_parent": name, "docstatus": ["<", 2]}, fields=["name", "docstatus"], limit_page_length=200):
+                found[PI][charge.name] = {"ds": charge.docstatus}
+
     # Status and docstatus of the ones known only by name (and ERPNext's own status for the rest).
     for dt in (MR, PO, PR, PI):
         names = list(found[dt])
