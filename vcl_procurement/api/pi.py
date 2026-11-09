@@ -1407,3 +1407,26 @@ def vat_options(company):
     _assert_purchasing_role()
     return frappe.get_list("Item Tax Template", filters={"company": company, "disabled": 0,
         "name": ["in", ["Kenya Tax - VCL", "TAX EXEMPT - VCL"]]}, pluck="name", order_by="name", limit_page_length=20)
+
+
+@frappe.whitelist()
+def pi_amend(name):
+    """Use ERPNext's copy metadata, including child no_copy fields, for an amendment."""
+    _assert_purchasing_role()
+    source = frappe.get_doc(PI, name)
+    source.check_permission("read")
+    source.check_permission("amend")
+    if source.docstatus != 2:
+        frappe.throw("Only a cancelled invoice can be amended.")
+    existing = frappe.get_list(PI, filters={"amended_from": name, "docstatus": ["<", 2]}, pluck="name", limit_page_length=1)
+    if existing:
+        return {"name": existing[0], "existing": True}
+    doc = frappe.copy_doc(source, ignore_no_copy=False)
+    doc.docstatus = 0
+    doc.amended_from = name
+    doc.custom_qbo_sync_status = "Not Synced"
+    for field in ("custom_qbo_bill_id", "custom_qbo_synced_at", "qbo_last_updated_at_push"):
+        if doc.meta.has_field(field):
+            doc.set(field, None)
+    doc.insert()
+    return {"name": doc.name, "existing": False}
