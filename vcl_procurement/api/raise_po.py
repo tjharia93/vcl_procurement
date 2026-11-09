@@ -283,6 +283,9 @@ def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
             row.uom = raw["uom"]
             if flt(raw.get("conversion_factor")) > 0:
                 row.conversion_factor = flt(raw["conversion_factor"])
+        for field in ("cost_center", "expense_account"):
+            if field in raw:
+                row.set(field, raw[field] or None)
         if raw.get("warehouse"):
             row.warehouse = raw["warehouse"]
         if raw.get("material_request"):

@@ -120,7 +120,7 @@ def po_page(name):
         "rate": flt(i.rate), "amount": flt(i.amount),
         "warehouse": i.warehouse, "due": _iso(i.schedule_date),
         "received_qty": flt(i.received_qty), "billed_amt": flt(i.billed_amt),
-        "material_request": i.material_request,
+        "material_request": i.material_request, "cost_center": i.get("cost_center"), "expense_account": i.get("expense_account"),
         # The row's description is HTML; the screen edits plain text.
         "description": rules.plain_text(i.description),
     } for i in doc.items]
@@ -297,6 +297,9 @@ def po_save(name, payload):
                         "rate": flt(ln.get("rate")), "schedule_date": sd})
             if ln.get("warehouse"):
                 row["warehouse"] = ln["warehouse"]
+            for field in ("cost_center", "expense_account"):
+                if field in ln:
+                    row[field] = ln[field] or None
             if "description" in ln:
                 new = (ln.get("description") or "").strip()
                 old = rules.plain_text(row.get("description")) if same else ""
@@ -499,3 +502,17 @@ def po_send_email(name, recipients, subject, content, cc="", attach=1, print_for
         args.update(attach_document_print=1, print_format=print_format or STANDARD_FORMAT, print_language="en")
     r = make(**args) or {}
     return {"name": r.get("name"), "emails_not_sent_to": r.get("emails_not_sent_to") or ""}
+
+
+@frappe.whitelist()
+def line_context(item_code, company=None):
+    """Permission-aware accounting picks and the item's company defaults."""
+    _assert_purchasing_role()
+    company = company or frappe.defaults.get_user_default("Company") or frappe.db.get_single_value("Global Defaults", "default_company")
+    item = frappe.get_doc("Item", item_code)
+    item.check_permission("read")
+    default = next((d for d in item.get("item_defaults") or [] if d.company == company), {})
+    filters = {"company": company, "is_group": 0, "disabled": 0}
+    return {"company": company, "cost_centers": frappe.get_list("Cost Center", filters=filters, pluck="name", limit_page_length=500, order_by="name"),
+            "expense_accounts": frappe.get_list("Account", filters={**filters, "root_type": "Expense"}, pluck="name", limit_page_length=500, order_by="name"),
+            "cost_center": default.get("buying_cost_center"), "expense_account": default.get("expense_account")}
