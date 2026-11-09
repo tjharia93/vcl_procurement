@@ -520,3 +520,11 @@ def line_context(item_code, company=None):
     return {"company": company, "cost_centers": frappe.get_list("Cost Center", filters=filters, pluck="name", limit_page_length=500, order_by="name"),
             "expense_accounts": frappe.get_list("Account", filters={**filters, "root_type": "Expense"}, pluck="name", limit_page_length=500, order_by="name"),
             "cost_center": default.get("buying_cost_center"), "expense_account": default.get("expense_account")}
+
+
+@frappe.whitelist()
+def recent_orders(supplier):
+    _assert_purchasing_role()
+    return frappe.get_list(PO, filters={"supplier": supplier, "docstatus": ["<", 2]},
+        fields=["name", "transaction_date", "currency", "grand_total", "status"],
+        order_by="transaction_date desc, creation desc", limit_page_length=5)

@@ -75,3 +75,5 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - A2: PO page lines return `cost_center`/`expense_account`; create and save accept both per line. `po.line_context` provides permission-aware company picks and item defaults.
 
 - A4/A5: `po_save.conversion_rate` accepts positive FX and converts Actual taxes at the new rate. PO create/save accept file numbers for local orders too.
+
+- A1: `po.recent_orders(supplier)` returns five permission-filtered non-cancelled orders; repeat uses the existing checked `po_page` API.
