@@ -50,8 +50,26 @@ _CONTAINER_FIELDS = ("container_reference", "description_of_packaging_eg_51_reel
 
 # --- the KRA gate, shared by the screen and the Desk --------------------------
 
+def _normalize_type(doc):
+    if doc.docstatus == 0 and doc.get("items"):
+        derived = _po_derived_type(doc)
+        if derived:
+            doc.custom_purchase_invoice_type = derived
+
+
+def _refresh_rate(doc, posting_date):
+    company_currency = frappe.get_cached_value("Company", doc.company, "default_currency")
+    if doc.currency and company_currency and doc.currency != company_currency:
+        from erpnext.setup.utils import get_exchange_rate
+        rate = flt(get_exchange_rate(doc.currency, company_currency, posting_date))
+        if rate <= 0:
+            frappe.throw(_("No exchange rate is available for {0}. Enter the rate explicitly.").format(posting_date))
+        doc.conversion_rate = rate
+
+
 def _missing(doc):
     """What still blocks a submit from the screen, for either kind of invoice."""
+    _normalize_type(doc)
     return rules.pending_before_submit(doc.get("custom_purchase_invoice_type"), doc.get("bill_date"),
                                        doc.get("custom_kra_entry_date"), doc.get("custom_kra_import_number"),
                                        doc.get("bill_no"))
@@ -61,6 +79,13 @@ def gate_before_submit(doc, method=None):
     """`before_submit` on Purchase Invoice: an import invoice needs its KRA details."""
     if doc.get("is_return"):        # a debit note against an import invoice carries no KRA entry of its own
         return
+    _normalize_type(doc)
+    if rules.is_import(doc.get("custom_purchase_invoice_type")) and doc.get("custom_kra_entry_date"):
+        if rules.iso(doc.get("posting_date")) != rules.iso(doc.get("custom_kra_entry_date")):
+            frappe.throw(_("Save this import invoice with its posting date equal to the KRA customs entry date before submitting."))
+    why = _receipt_refusal(doc) if doc.get("items") else None
+    if why:
+        frappe.throw(why, title=_("Already received"))
     # Import-only in the Desk: a Local invoice's number/date rule is the screen's, not a new Desk block.
     missing = rules.kra_gate_missing(doc.get("custom_purchase_invoice_type"), doc.get("bill_date"),
                                      doc.get("custom_kra_entry_date"), doc.get("custom_kra_import_number"))
@@ -777,6 +802,9 @@ def pi_save(name, payload):
              "gross_weight": flt(c.get("gross_weight")), "net_weight": flt(c.get("net_weight"))}
             for c in (payload["containers"] or [])]
 
+    if posting and posting != rules.iso(doc.posting_date) and "conversion_rate" not in payload:
+        _refresh_rate(doc, posting)
+        data["conversion_rate"] = doc.conversion_rate
     data.update(_lines_and_taxes(doc, payload, data.get("conversion_rate")))
     doc.update(data)
 
@@ -1022,6 +1050,7 @@ def _shape_bill(pi, payload):
     if payload.get("posting_date") and not rules.is_import(pi.get("custom_purchase_invoice_type")):
         pi.posting_date = rules.iso(payload["posting_date"])
         pi.set_posting_time = 0 if pi.posting_date == rules.iso(nowdate()) else 1
+        _refresh_rate(pi, pi.posting_date)
     return pi
 
 

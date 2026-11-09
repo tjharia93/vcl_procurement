@@ -63,3 +63,9 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - D2: `pi_page`/`pi_list.outstanding` and payment `applied` are in invoice currency. Additive
   `outstanding_account` and `party_account_currency` preserve the source balance and its basis.
   Payment ceilings and ERP payment mapping use the matching currency.
+
+- D4/D5: draft type is normalized from linked POs before submission gates (including Desk);
+  an import with posting date different from customs entry date must be saved before submit.
+  The global gate also preserves the duplicate-stock-receipt guard.
+- D9: workspace posting-date selection refreshes foreign-local FX on that date. PI save also
+  refreshes FX when the posting date changes without an explicit rate; missing FX refuses save.
