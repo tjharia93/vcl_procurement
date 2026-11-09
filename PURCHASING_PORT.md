@@ -77,3 +77,5 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - A4/A5: `po_save.conversion_rate` accepts positive FX and converts Actual taxes at the new rate. PO create/save accept file numbers for local orders too.
 
 - A1: `po.recent_orders(supplier)` returns five permission-filtered non-cancelled orders; repeat uses the existing checked `po_page` API.
+
+- A6: PR page lines add `name`. `pr.pr_save(name,payload)` saves draft date/delivery note/line qty/rate together, preserving PO links. Reel quantities remain owned by packing-list receiving.
