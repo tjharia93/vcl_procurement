@@ -78,6 +78,8 @@ class FakeDB:
 def install(tables):
     db = FakeDB(tables)
     frappe.get_all = db.get_all
+    frappe.get_list = db.get_all
+    frappe.get_meta = lambda dt: types.SimpleNamespace(has_field=lambda field: False)
     return db
 
 
@@ -340,7 +342,7 @@ class RaiseExtras(unittest.TestCase):
         self.call(schedule_date="2026-10-20", order_date="2026-10-05", note=" hello ",
                   lines=[{"item_code": "A", "qty": 1, "rate": 2, "description": "Two\nlines"},
                          {"item_code": "B", "qty": 1, "rate": 2, "description": "  "}])
-        self.assertEqual(self.doc.transaction_date, datetime.date(2026, 10, 5))
+        self.assertEqual(self.doc.transaction_date, "2026-10-05")
         self.assertEqual(self.doc.custom_comments__, "hello")
         self.assertEqual(self.doc["items"][0].description,
                          '<div class="ql-editor read-mode"><p>Two</p><p>lines</p></div>')
@@ -377,7 +379,7 @@ def pi_doc(**kw):
 
 def stub_pi_helpers():
     saved = {n: getattr(pi, n) for n in ("_payments", "_attachments", "_qbo", "_receive_from", "_suggested_terms", "_shipment_for")}
-    pi._payments = lambda n: []
+    pi._payments = lambda n, *args: []
     pi._attachments = lambda n: []
     pi._qbo = lambda d: None
     pi._receive_from = lambda d: None

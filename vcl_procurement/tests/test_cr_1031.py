@@ -199,8 +199,9 @@ class PurchasingSearch(unittest.TestCase):
                                            posting_date="2026-10-31", bill_no="0430146720000082785", creation="2026-10-31 10:00", docstatus=1)]}
         lines = {"Purchase Order Item": [Item(parent="PUR-ORD-2026-00264", item_code="TAPE", item_name="Printed Cello Tape",
                                              description="<p>Cello tape (Cereal Box Ltd)</p>")]}
-        saved = {k: getattr(f, k, None) for k in ("get_all", "get_meta")}
+        saved = {k: getattr(f, k, None) for k in ("get_all", "get_list", "get_meta")}
         f.get_all = lambda dt, **k: heads.get(dt, []) if "Item" not in dt else lines.get(dt, [])
+        f.get_list = f.get_all
         f.get_meta = lambda dt: types.SimpleNamespace(has_field=lambda fn: True)
         self.addCleanup(lambda: [setattr(f, k, v) for k, v in saved.items()])
         utils = sys.modules["frappe.utils"]

@@ -196,7 +196,7 @@ class TestSearch(unittest.TestCase):
 class TestTaxRows(unittest.TestCase):
     def rows(self):
         return [
-            {"charge_type": "Actual", "add_deduct_tax": "Add", "base_tax_amount": 0},
+            {"charge_type": "Actual", "add_deduct_tax": "Add", "base_tax_amount": 0, "kes": 0},
             {"charge_type": "On Previous Row Total", "row_id": 1, "add_deduct_tax": "Add", "base_tax_amount": 895488.45},
             {"charge_type": "On Previous Row Amount", "row_id": 1, "add_deduct_tax": "Deduct", "base_tax_amount": 100},
         ]

@@ -46,7 +46,7 @@ class Doc(dict):
 
 
 def invoice(**kw):
-    base = {"custom_purchase_invoice_type": "Importation", "bill_date": "2026-08-11",
+    base = {"docstatus": 0, "posting_date": "2026-09-27", "custom_purchase_invoice_type": "Importation", "bill_date": "2026-08-11",
             "custom_kra_entry_date": "2026-09-27", "custom_kra_import_number": "26MBA|M406322591"}
     base.update(kw)
     return Doc(base)

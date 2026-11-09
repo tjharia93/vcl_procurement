@@ -51,13 +51,15 @@ _CONTAINER_FIELDS = ("container_reference", "description_of_packaging_eg_51_reel
 # --- the KRA gate, shared by the screen and the Desk --------------------------
 
 def _normalize_type(doc):
-    if doc.docstatus == 0 and doc.get("items"):
+    if doc.get("docstatus") == 0 and doc.get("items"):
         derived = _po_derived_type(doc)
         if derived:
             doc.custom_purchase_invoice_type = derived
 
 
 def _refresh_rate(doc, posting_date):
+    if not doc.get("currency") or doc.currency == rules.COMPANY_CURRENCY:
+        return
     company_currency = frappe.get_cached_value("Company", doc.company, "default_currency")
     if doc.currency and company_currency and doc.currency != company_currency:
         from erpnext.setup.utils import get_exchange_rate

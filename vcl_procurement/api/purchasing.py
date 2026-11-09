@@ -106,7 +106,7 @@ def open_orders(status=None, supplier=None):
     if companies:
         filters["company"] = ["in", companies]
 
-    rows = frappe.get_all(
+    rows = frappe.get_list(
         "Purchase Order", filters=filters,
         fields=["name", "supplier", "transaction_date", "schedule_date", "status",
                 "base_grand_total", "grand_total", "per_received", "per_billed", "currency",
@@ -214,7 +214,7 @@ def draft_orders(mine=0):
     filters = {"docstatus": 0}
     if int(mine):
         filters["owner"] = frappe.session.user
-    rows = frappe.get_all(
+    rows = frappe.get_list(
         "Purchase Order", filters=filters,
         fields=["name", "supplier", "transaction_date", "schedule_date", "currency", "grand_total",
                 "workflow_state", "custom_order_type", "owner", "order_confirmation_no",

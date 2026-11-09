@@ -256,6 +256,7 @@ class BlFinder(unittest.TestCase):
         tables = {"Import Shipment": [Row(name="SHIP-7", bl_number="MEDU9988776", purchase_order="PO-7",
                                           supplier="Mill", stage="3 Draft BL reviewed", proforma_no="S1")]}
         frappe.get_all = lambda dt, **k: list(tables.get(dt, []))
+        frappe.get_list = frappe.get_all
         frappe.db.exists = lambda *a, **k: True
         out = landing.container_search("medu 99887")
         self.assertEqual([(h["kind"], h["shipment"], h["invoice"], h["pos"]) for h in out],

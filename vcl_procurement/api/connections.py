@@ -86,8 +86,10 @@ def connections(doctype, name):
         names = list(found[dt])
         if not names:
             continue
-        for r in frappe.get_all(dt, filters={"name": ["in", names]}, fields=["name", "status", "docstatus"],
-                                limit_page_length=1000):
+        visible = frappe.get_list(dt, filters={"name": ["in", names]}, fields=["name", "status", "docstatus"],
+                                limit_page_length=1000)
+        found[dt] = {n: data for n, data in found[dt].items() if n in {r.name for r in visible}}
+        for r in visible:
             if r.name in found[dt]:
                 found[dt][r.name].update({"st": r.status, "ds": r.docstatus})
     return assemble(found)

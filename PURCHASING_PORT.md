@@ -95,3 +95,5 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - A12/A13/D18: native React edits existing queue Expense/cheque and manual-VAT fields; readiness includes bank, cheque/date/amount, VAT destination/positivity/reconciliation and calculated VAT agreement. `qbo_review.prepare_queue` enforces Expense/manual-VAT checks and KRA date review before initial push and retry proxies; no runner contract changes.
 
 - A14: invoice connections resolve both `custom_import_parent` and charge children. PI page adds `import_parent` context; standard/push memo includes parent import invoice, supplier invoice, PO, file and containers, subject to parent read permission.
+
+- D11: registers, ranked search, PO headers, shipment matches and resolved connection headers use permission-aware `frappe.get_list`; container hits are discarded if the parent invoice is unreadable. D23: shipment search destinations preserve `?ship=NAME`.

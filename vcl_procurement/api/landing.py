@@ -22,7 +22,7 @@ def _children(child_doctype, parent_doctype, names, fields):
 def mr_list():
     """Submitted purchase-type material requests, newest first, with their items."""
     _assert_purchasing_role()
-    rows = frappe.get_all(
+    rows = frappe.get_list(
         "Material Request",
         filters={"docstatus": 1, "material_request_type": "Purchase"},
         fields=["name", "transaction_date", "schedule_date", "status", "per_ordered", "per_received", "owner", "creation"],
@@ -42,7 +42,7 @@ def mr_list():
 def pr_list():
     """Purchase receipts (drafts and submitted, not returns), newest first, with linked POs."""
     _assert_purchasing_role()
-    rows = frappe.get_all(
+    rows = frappe.get_list(
         "Purchase Receipt", filters={"docstatus": ["<", 2], "is_return": 0},
         fields=["name", "supplier", "supplier_name", "posting_date", "status", "docstatus",
                 "grand_total", "base_grand_total", "currency", "per_billed", "creation"],
@@ -68,7 +68,7 @@ def pi_list():
     has_ref = frappe.get_meta("Purchase Invoice").has_field("custom_supplier_reference_no")
     if has_ref:
         fields.append("custom_supplier_reference_no")
-    rows = frappe.get_all(
+    rows = frappe.get_list(
         "Purchase Invoice", filters={"docstatus": ["<", 2], "is_return": 0}, fields=fields,
         order_by="posting_date desc, creation desc", limit_page_length=R.LIMIT)
     names = [r.name for r in rows]
@@ -110,14 +110,14 @@ def container_search(q=""):
         fields=["parent", "container_reference", "container_size"],
         parent_doctype="Purchase Invoice", limit_page_length=0)
     hits = [r for r in rows if R.container_matches(r.get("container_reference"), q)]
-    bl_rows = R.bl_hits(frappe.get_all(
+    bl_rows = R.bl_hits(frappe.get_list(
         "Purchase Invoice", filters={"docstatus": ["<", 2], "custom_bill_of_lading_number": ["is", "set"]},
         fields=["name", "docstatus", "custom_bill_of_lading_number"], limit_page_length=0), q)
     ships = _shipment_hits(q)
     if not hits and not bl_rows:
         return ships
     parents = sorted({h.parent for h in hits} | {b.name for b in bl_rows})
-    inv = {r.name: r for r in frappe.get_all(
+    inv = {r.name: r for r in frappe.get_list(
         "Purchase Invoice", filters={"name": ["in", parents]},
         fields=["name", "supplier", "supplier_name", "bill_no", "docstatus", "custom_bill_of_lading_number"],
         limit_page_length=0)}
@@ -135,11 +135,13 @@ def container_search(q=""):
     out = []
     for h in hits:
         i = inv.get(h.parent)
-        if i and i.docstatus == 2:
+        if not i or i.docstatus == 2:
             continue
         out.append({"kind": "container", "container": str(h.container_reference or "").strip(),
                     "size": h.container_size, **base(h.parent)})
     for b in bl_rows:
+        if b.name not in inv:
+            continue
         out.append({"kind": "bl", "container": None, "size": None,
                     **base(b.name), "bl_no": str(b.custom_bill_of_lading_number or "").strip()})
     return (out + ships)[:30]
@@ -151,7 +153,7 @@ def _shipment_hits(q):
     try:
         if not frappe.db.exists("DocType", "Import Shipment"):
             return []
-        rows = frappe.get_all("Import Shipment", filters={"bl_number": ["is", "set"]},
+        rows = frappe.get_list("Import Shipment", filters={"bl_number": ["is", "set"]},
                               fields=["name", "bl_number", "purchase_order", "supplier", "stage", "proforma_no"],
                               limit_page_length=0)
     except Exception:

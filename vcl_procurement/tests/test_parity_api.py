@@ -26,3 +26,21 @@ class ParityGates(unittest.TestCase):
         with patch.object(pi, '_refresh_rate') as fx:
             pi._shape_bill(doc, {'posting_date': '2026-10-15'})
         fx.assert_called_once_with(doc, '2026-10-15')
+
+class Permissions(unittest.TestCase):
+    def test_D11_register_headers_use_permission_aware_queries(self):
+        from vcl_procurement.api import landing
+        calls = []
+        def scoped(dt, **kwargs):
+            calls.append(dt)
+            return []
+        with patch.object(frappe, 'get_list', scoped, create=True), patch.object(frappe, 'get_meta', lambda dt: Doc(has_field=lambda f: False), create=True), patch.object(frappe, 'get_all', side_effect=AssertionError('unscoped header'), create=True):
+            self.assertEqual(landing.mr_list(), [])
+            self.assertEqual(landing.pr_list(), [])
+            self.assertEqual(landing.pi_list(), [])
+        self.assertEqual(calls, ['Material Request', 'Purchase Receipt', 'Purchase Invoice'])
+
+    def test_D11_unreadable_container_parent_never_becomes_a_hit(self):
+        from vcl_procurement.api import landing
+        with patch.object(frappe, 'get_all', lambda *a, **k: [Row(parent='hidden', container_reference='MSCU12345', container_size='40 FT')], create=True), patch.object(frappe, 'get_list', lambda *a, **k: [], create=True), patch.object(landing, '_shipment_hits', return_value=[]):
+            self.assertEqual(landing.container_search('MSCU12345'), [])

@@ -9,6 +9,8 @@ Never creates an item. A supplier quoting something that is not in the item
 master is a master-data decision, made in the item master.
 """
 
+from urllib.parse import quote
+
 import frappe
 from frappe.query_builder import DocType
 
@@ -135,7 +137,7 @@ def purchasing_search(q="", kind="all", limit=40):
     for k in kinds:
         dt, child, fields, refs, sup, date_f, filters = _DOC_SEARCH[k]
         meta_ok = [f for f in fields if f == "name" or frappe.get_meta(dt).has_field(f)]
-        rows = frappe.get_all(dt, filters=filters, fields=meta_ok + ["creation", "docstatus"], order_by="creation desc",
+        rows = frappe.get_list(dt, filters=filters, fields=meta_ok + ["creation", "docstatus"], order_by="creation desc",
                               limit_page_length=_SEARCH_WINDOW)
         names = [r.name for r in rows]
         lines = frappe.get_all(child, filters={"parent": ["in", names]}, fields=["parent", "item_code", "item_name", "description"],
@@ -167,6 +169,6 @@ def purchasing_search(q="", kind="all", limit=40):
                             "href": _HREF["pi"] + n})
             elif not n and c.get("shipment") and kind == "all":
                 out.append({"kind": "shipment", "type": "Import Shipment", "name": c["shipment"], "supplier": c.get("supplier"), "date": None,
-                            "status": c.get("stage"), "created": None, "score": 95, "match": "bill of lading", "href": "/compass/imports"})
+                            "status": c.get("stage"), "created": None, "score": 95, "match": "bill of lading", "href": "/compass/imports?ship=" + quote(c["shipment"], safe="")})
         out.sort(key=lambda r: -r["score"])
     return out[: int(limit or 40)]
