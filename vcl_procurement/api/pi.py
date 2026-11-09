@@ -19,6 +19,8 @@ keeps no second copy: a refusal comes back as the error text. Their payment sche
 the whole invoice, due per the supplier's terms from the supplier invoice date.
 """
 
+import math
+
 import frappe
 from frappe import _
 from frappe.utils import flt, nowdate
@@ -1326,11 +1328,13 @@ def _build_payment(pi_doc, payload):
     account, amount = payload.get("account"), flt(payload.get("amount"))
     if not account:
         frappe.throw(_("Choose the account the payment was made from."))
-    if amount <= 0:
-        frappe.throw(_("Enter the amount paid."))
+    if not math.isfinite(amount) or amount <= 0:
+        frappe.throw(_("Enter a positive, finite amount paid."))
     acct_cur = frappe.db.get_value("Account", account, "account_currency")
     fx = acct_cur != pi_doc.currency
     rate = flt(payload.get("rate")) or flt(pi_doc.conversion_rate) or 1
+    if fx and (not math.isfinite(rate) or rate <= 0):
+        frappe.throw(_("Enter an exchange rate greater than zero."))
     if not fx:
         applied = amount
     elif acct_cur == rules.COMPANY_CURRENCY:        # KES paid against a foreign-currency invoice

@@ -74,6 +74,10 @@ class PaymentWiring(unittest.TestCase):
             _, applied = pi._build_payment(doc, {'account': 'Bank', 'amount': 13000, 'rate': 130, 'date': '2026-11-09'})
             self.assertEqual(applied, 100)
             self.assertEqual(module.get_payment_entry.call_args.kwargs['party_amount'], 13000)
+            with self.assertRaisesRegex(_Thrown, 'exchange rate greater than zero'):
+                pi._build_payment(doc, {'account': 'Bank', 'amount': 13000, 'rate': -130})
+            with self.assertRaisesRegex(_Thrown, 'finite amount'):
+                pi._build_payment(doc, {'account': 'Bank', 'amount': float('nan'), 'rate': 130})
             with self.assertRaisesRegex(_Thrown, 'more than the outstanding'):
                 pi._build_payment(doc, {'account': 'Bank', 'amount': 13130, 'rate': 130})
 
