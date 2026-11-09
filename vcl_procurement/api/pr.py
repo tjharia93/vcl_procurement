@@ -90,7 +90,7 @@ def pr_submit(name):
     return _page(fresh)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def pr_save(name, payload):
     """Edit a draft in one transaction; keep PO links and original receipt row identities."""
     _assert_purchasing_role()

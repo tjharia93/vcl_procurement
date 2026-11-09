@@ -1442,7 +1442,7 @@ def vat_options(company):
         "name": ["in", ["Kenya Tax - VCL", "TAX EXEMPT - VCL"]]}, pluck="name", order_by="name", limit_page_length=20)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def pi_amend(name):
     """Use ERPNext's copy metadata, including child no_copy fields, for an amendment."""
     _assert_purchasing_role()

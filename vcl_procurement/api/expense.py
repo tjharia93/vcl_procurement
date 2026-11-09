@@ -67,7 +67,7 @@ def _build(payload):
     return doc
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def bill(payload, save=0):
     _assert_purchasing_role()
     payload = frappe.parse_json(payload) or {}

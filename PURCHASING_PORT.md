@@ -102,3 +102,5 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - A10: no-VAT drafts clear supplier/default taxes after defaults load and suppress automatic template additions; fixed VAT retains its explicit Actual amount.
 
 - D11 also applies to the MR picker and MR detail’s linked-order headers. Failed QBO rows retain editable review before retry, including vendor corrections; pending/successful rows remain protected.
+
+- New draft receipt save, invoice amendment and no-PO bill endpoints accept POST only. No new schema or migration is introduced by this parity branch.
