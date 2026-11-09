@@ -28,3 +28,10 @@ class PaymentParity(unittest.TestCase):
             with self.assertRaises(rules.RuleError):
                 rules.check_tax_rows([{"charge_type": "Actual", "kes": missing}])
         rules.check_tax_rows([{"charge_type": "Actual", "kes": 0}])
+
+    def test_A10_no_PO_invoice_requires_reference_and_real_expense_lines(self):
+        bill = {"supplier": "S", "bill_no": "X", "bill_date": "2026-11-09", "lines": [{"description": "Repairs", "account": "Repairs", "qty": 1, "rate": 100}]}
+        self.assertIsNone(rules.expense_bill_error(bill))
+        for key in ("supplier", "bill_no", "bill_date", "lines"):
+            self.assertTrue(rules.expense_bill_error(dict(bill, **{key: None})))
+        self.assertTrue(rules.expense_bill_error(dict(bill, invoice_type="Importation")))

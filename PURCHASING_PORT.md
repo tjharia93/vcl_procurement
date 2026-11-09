@@ -89,3 +89,5 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - A8/A9: PI page lines add plain `description`, `item_tax_template`, VAT rate/amount/gross; page adds `credit_to`/`tax_category`. Draft save accepts line name/description/template; template tax-rate maps are read from the server master. `pi.vat_options(company)` supplies the Kenya VAT/exempt picks. Tax preview adds line VAT/gross.
 
 - A11: `pi.pi_amend(name)` checks read/amend permission and cancelled status, respects ERPNext no-copy metadata, clears QBO linkage and reopens any existing active amendment.
+
+- A10: `expense.options` returns company expense picks; `expense.bill(payload,save=0|1)` previews ERP totals or creates one complete KES draft without a PO. Supplier terms/payable defaults, VAT or fixed VAT, account/company checks and duplicate-number recovery are server-side.

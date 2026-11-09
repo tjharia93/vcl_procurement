@@ -993,3 +993,27 @@ def payment_identity(payment):
                    round(float(r.get("allocated_amount") or 0), 6)) for r in payment.get("references") or [])
     return (tuple(str(payment.get(k) or "") for k in fields),
             tuple(round(float(payment.get(k) or 0), 6) for k in numbers), refs)
+
+
+def expense_bill_error(payload):
+    if not payload.get("supplier"):
+        return "Choose the supplier."
+    if not str(payload.get("bill_no") or "").strip():
+        return "Enter the supplier invoice number."
+    if not payload.get("bill_date"):
+        return "Enter the bill date."
+    if payload.get("invoice_type", "Local Purchase") not in ("Local Purchase", "Other"):
+        return "Choose Local Purchase or Other."
+    lines = payload.get("lines") or []
+    if not lines:
+        return "Add at least one expense line."
+    for i, line in enumerate(lines, 1):
+        if not str(line.get("description") or "").strip() or not line.get("account"):
+            return f"Line {i}: enter a description and pick an expense account."
+        try:
+            q, rate = float(line.get("qty") or 0), float(line.get("rate") or 0)
+            if not math.isfinite(q) or not math.isfinite(rate) or q <= 0 or rate <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            return f"Line {i}: enter a positive quantity and rate."
+    return None
