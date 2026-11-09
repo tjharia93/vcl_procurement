@@ -97,7 +97,10 @@ def _raise_options():
 def _schedule_preview():
     r = call("pi.schedule_preview", name=PI, payload={"terms_template": "180 Days", "tax_days_after_landing": 2,
                                                     "expected_delivery": "2026-10-01"})
-    assert not r["missing"] and r["rows"][1]["due_date"] == "2026-10-03", r
+    # Import taxes fall due on the earlier of landing + N days and 30 days from the invoice date (TRK-00147),
+    # so the date depends on the invoice: assert the row and the upper bound, not one exact date.
+    assert not r["missing"] and len(r["rows"]) == 2, r
+    assert r["rows"][1]["payment_term"] == "Import Taxes" and r["rows"][1]["due_date"] <= "2026-10-03", r
     return f"net due {r['rows'][0]['due_date']}, taxes due {r['rows'][1]['due_date']}"
 
 
