@@ -813,7 +813,9 @@ def _lines_and_taxes(doc, payload, conversion_rate=None):
         current = doc.get("taxes") or []
         if len(formulas) != len(current) or any(r.get("account_head") != t.account_head for r, t in zip(formulas, current)):
             frappe.throw("The tax template rows have changed. Review the taxes in ERPNext before restoring Calculated taxes.")
-        out["taxes"] = [{**r, "name": t.name, "idx": i} for i, (r, t) in enumerate(zip(formulas, current), 1)]
+        out["taxes"] = [{**r, "name": t.name, "idx": i,
+                         **({"tax_amount": flt(t.tax_amount)} if r.get("charge_type") == "Actual" else {})}
+                        for i, (r, t) in enumerate(zip(formulas, current), 1)]
     return out
 
 @frappe.whitelist()

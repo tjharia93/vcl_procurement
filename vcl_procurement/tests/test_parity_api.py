@@ -186,3 +186,16 @@ class ExpenseInvoices(unittest.TestCase):
         with patch.object(expense, '_build', return_value=doc), patch.object(frappe, 'get_list', return_value=[Row(name='EXISTING', docstatus=0)], create=True):
             self.assertEqual(expense.bill({}, save=1), {'name': 'EXISTING', 'existing': True})
             self.assertFalse(doc.get('inserted'))
+
+
+class CalculatedTaxes(unittest.TestCase):
+    def test_D13_restores_formulas_without_erasing_actual_template_charges(self):
+        import sys, types
+        controller = types.ModuleType('erpnext.controllers.accounts_controller')
+        controller.get_taxes_and_charges = lambda *args: [dict(account_head='Insurance', charge_type='Actual', tax_amount=0), dict(account_head='VAT', charge_type='On Previous Row Total', row_id=1, rate=16)]
+        doc = MutableDoc(name='PI', items=[], taxes_and_charges='Importation', taxes=[Row(name='t1', account_head='Insurance', charge_type='Actual', tax_amount=10), Row(name='t2', account_head='VAT', charge_type='Actual', tax_amount=20)])
+        with patch.dict(sys.modules, {'erpnext.controllers.accounts_controller': controller}):
+            result = pi._lines_and_taxes(doc, {'taxes': {'mode': 'calculated'}})
+        self.assertEqual(result['taxes'][0]['tax_amount'], 10)
+        self.assertEqual(result['taxes'][1]['charge_type'], 'On Previous Row Total')
+        self.assertEqual(result['taxes'][1]['name'], 't2')
