@@ -88,7 +88,7 @@ def pending_material_requests(limit=30):
     the quantity changes on the way.
     """
     _assert_purchasing_role()
-    rows = frappe.get_all(
+    rows = frappe.get_list(
         "Material Request",
         filters={"docstatus": 1, "material_request_type": "Purchase",
                  "status": ["not in", ["Stopped", "Cancelled"]],

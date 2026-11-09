@@ -86,7 +86,7 @@ def request(name):
         pos.setdefault(pi.parent, []).append(pi)
     orders = []
     if pos:
-        for po in frappe.get_all("Purchase Order", filters={"name": ["in", list(pos)], "docstatus": ["<", 2]},
+        for po in frappe.get_list("Purchase Order", filters={"name": ["in", list(pos)], "docstatus": ["<", 2]},
                                  fields=["name", "docstatus", "supplier", "supplier_name", "status",
                                          "per_received", "per_billed", "transaction_date", "schedule_date"],
                                  limit_page_length=0):

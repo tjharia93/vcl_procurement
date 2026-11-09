@@ -21,7 +21,7 @@ server side of that prototype; the `vcl_compass` app holds the screens.
 - **Ledger only, pending receipt** is the default: `update_stock` off posts Dr 2210 Stock Received But Not Billed. Ticking Receive goods sets `update_stock`.
 - **Taxes are typed in KES**; ERPNext stores the document-currency figure (KES / rate).
 - **The price rule still holds:** a line leaves the API as `rate` and `amount` only; a save takes `rate` only.
-- **Local Purchase invoices are not submitted from this API.** Their CUIN checks live in the Desk client script and `vcl_kra_validation`.
+- **Local Purchase invoices can be submitted through `pi_submit`.** The API requires bill number/date and ERPNext/KRA submit hooks still run (clarified 09/11/2026).
 - This supersedes the 4 Sep 2026 line "purchase invoices stay in the Desk" for IMPORT invoices, by Tanuj's instruction of 29-30 Sep.
 
 ## Not in this app (master data changed by hand on 30 Sep 2026)
@@ -100,3 +100,5 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 
 - A3 additional confirmed posting risk: ERPNext's Item `last_purchase_rate` is base currency per stock unit. Dev applies it directly to foreign orders. `po.buying_prices` now converts it on the server into the selected PO currency/unit before offering “Use last paid”; missing FX/conversion cannot supply a price. This Dev defect is deliberately not copied.
 - A10: no-VAT drafts clear supplier/default taxes after defaults load and suppress automatic template additions; fixed VAT retains its explicit Actual amount.
+
+- D11 also applies to the MR picker and MR detail’s linked-order headers. Failed QBO rows retain editable review before retry, including vendor corrections; pending/successful rows remain protected.

@@ -199,3 +199,15 @@ class CalculatedTaxes(unittest.TestCase):
         self.assertEqual(result['taxes'][0]['tax_amount'], 10)
         self.assertEqual(result['taxes'][1]['charge_type'], 'On Previous Row Total')
         self.assertEqual(result['taxes'][1]['name'], 't2')
+
+
+class RequestPermissions(unittest.TestCase):
+    def test_D11_request_detail_hides_unreadable_linked_order_headers(self):
+        from vcl_procurement.api import mr
+        doc = MutableDoc(name='MR', docstatus=1, status='Pending', material_request_type='Purchase', per_ordered=0,
+            per_received=0, owner='buyer@example.invalid', transaction_date='2026-11-09', has_permission=lambda permission: True)
+        def children(doctype, **kwargs):
+            self.assertEqual(doctype, 'Purchase Order Item')
+            return [Row(parent='HIDDEN', item_code='Paper', qty=1, received_qty=0)]
+        with patch.object(frappe, 'get_doc', return_value=doc, create=True), patch.object(mr, '_items', return_value={}), patch.object(frappe, 'get_all', children, create=True), patch.object(frappe, 'get_list', return_value=[], create=True):
+            self.assertEqual(mr.request('MR')['orders'], [])
