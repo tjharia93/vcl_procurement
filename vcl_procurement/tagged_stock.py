@@ -341,6 +341,7 @@ def print_labels(reference=None, name=None):
 
 @frappe.whitelist()
 def print_movement(name):
+    from vcl_procurement.print_brand import logo_uri
     m=movement_page(name)['movement']
     e=lambda x:escape(str(x or ''),quote=True)
     rows=''.join('<tr><td>'+e(r['tag'])+'</td><td>'+e(r['material'])+'</td><td>'+e(
@@ -350,7 +351,9 @@ def print_movement(name):
     return dict(html='''<!doctype html><html><head><title>Physical movement checklist</title><style>
     @page{size:A4;margin:12mm}body{font:12px Arial;color:#111}table{border-collapse:collapse;width:100%}
     td,th{border:1px solid #888;padding:8px;text-align:left;overflow-wrap:anywhere}tr{break-inside:avoid}
+    th{background:#eaf0ff;color:#2b3990}h1{color:#2b3990}.vcl-letterhead{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #2b3990;padding-bottom:12px;margin:15px 0;color:#2b3990}.vcl-letterhead img{width:240px;height:auto}
     @media print{button{display:none}}h1{font-size:20px}</style></head><body><button onclick="window.print()">Print</button>'''+
+    '<header class="vcl-letterhead"><img alt="Vimit Converters Limited" src="'+logo_uri(True)+'"><b>STORES<br>Physical movement checklist</b></header>'+
     '<h1>'+e(m['name'])+'</h1><p>'+e(NOTICE)+'</p><p>From: '+e(m['source_warehouse'])+'<br>To: '+e(m['target_warehouse'])+
     '<br>Dispatch: '+e(m['dispatched_on'])+' · Responsible: '+e(m['custodian'])+'</p><p>'+e(m['notes'])+
     '</p><table><thead><tr><th>Permanent tag</th><th>Material</th><th>Registration quantity</th><th>Outcome</th><th>Notes</th></tr></thead><tbody>'+rows+

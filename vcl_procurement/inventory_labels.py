@@ -1,5 +1,6 @@
 """Exact physical label sizes shared by browser responses and native print formats."""
 from html import escape
+from vcl_procurement.print_brand import brand_icon, label_brand_css
 
 
 def e(value):
@@ -23,7 +24,7 @@ def container_labels_html(rows, format='label'):
     cards = []
     for row in rows:
         cards.append(f'''<section class="ic-label">
-        <div class="brand">VIMIT CONVERTERS | INK / CHEMICAL</div>
+        <div class="brand">{brand_icon()}VIMIT CONVERTERS | INK / CHEMICAL</div>
         <h1>{e(row['name'])}</h1><h2>{label_text(row['item_name'], 68)}</h2>
         <div class="lot">Lot: {label_text(row.get('supplier_lot') or '____________________', 32)}</div>
         <div class="pack">NOMINAL PACK: {n(row['nominal_qty'])} {e(row['stock_uom'])}</div>
@@ -53,7 +54,7 @@ def container_labels_html(rows, format='label'):
     {'.ic-label{border:.15mm solid #aaa}' if format == 'a4' else ''}
     .tools{{padding:12px;background:#f3f3f3;font:14px Arial}}.tools button{{padding:8px 14px;margin:0 8px}}
     @media print{{.tools{{display:none}}}}
-    </style></head><body><div class="tools">Print Actual size / 100%, headers and footers off. Keep the original supplier safety label.<button onclick="window.print()">Print</button></div>{pages}</body></html>'''
+    {label_brand_css()}</style></head><body><div class="tools">Print Actual size / 100%, headers and footers off. Keep the original supplier safety label.<button onclick="window.print()">Print</button></div>{pages}</body></html>'''
 
 
 def reel_labels100_html(data):
@@ -61,7 +62,7 @@ def reel_labels100_html(data):
         raise ValueError('Prepare active reel identities before printing.')
     cards = []
     for r in data['reels']:
-        heading = f'<div class="brand">VIMIT CONVERTERS</div><h1>{e(r["batch_id"])}</h1>'
+        heading = f'<div class="brand">{brand_icon()}VIMIT CONVERTERS</div><h1>{e(r["batch_id"])}</h1>'
         identity = f'''<section class="rl-label">{heading}<h2>{e(r.get('item_name') or r.get('item_code'))}</h2>
         <div class="spec">RW {e(r.get('width_mm') or '____')} mm | {e(r.get('gsm') or '____')} GSM</div>
         <div class="quantity"><small>ORIGINAL QUANTITY</small><strong>{n(r.get('original_qty'))} kg</strong><small>{e(r.get('weight_basis'))}</small></div>
@@ -88,4 +89,4 @@ def reel_labels100_html(data):
     .rl-label img{position:absolute;right:5mm;top:48mm;width:28mm;height:28mm}.refs{margin-top:3mm;font-size:7pt;line-height:1.5;width:55mm;overflow-wrap:anywhere}
     .received{position:absolute;left:5mm;right:5mm;bottom:7mm;display:flex;gap:4mm;font-size:7pt}.received div{width:50%;line-height:1.8}
     footer{position:absolute;left:5mm;bottom:3mm;font-size:5.5pt}.log h2{height:auto;margin:3mm 0}.log p{font-size:9pt}.log table{width:100%;border-collapse:collapse;table-layout:fixed}.log th,.log td{border:.2mm solid #333;font-size:6pt;padding:.8mm;text-align:left;height:8mm}.log th{height:7mm}
-    </style>''' + ''.join(cards)
+    ''' + label_brand_css() + '</style>' + ''.join(cards)

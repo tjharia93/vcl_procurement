@@ -1,5 +1,6 @@
 """Shared browser/native bundle labels. Formats carry no purchasing prices or stock balance."""
 from html import escape
+from vcl_procurement.print_brand import brand_icon, label_brand_css
 
 
 def labels_html(rows, format='thermal'):
@@ -15,7 +16,7 @@ def labels_html(rows, format='thermal'):
     for r in rows:
         status='ON HOLD' if r['status']=='On hold' else 'COUNT CHECKED' if r['status']=='Checked' else 'REGISTERED'
         labels.append(f'''<section class="bundle-label">
-            <div class="brand">VIMIT CONVERTERS | BUNDLE</div><h1>{e(r['name'])}</h1>
+            <div class="brand">{brand_icon()}VIMIT CONVERTERS | BUNDLE</div><h1>{e(r['name'])}</h1>
             <h2>{e(r['material'])} {e(r['gsm'])} GSM</h2><div class="spec">{e(r['colour'].upper())} | {e(r['width_mm'])} x {e(r['length_mm'])} mm</div>
             <div class="contents">{e(r['reams_per_bundle'])} REAMS / {e(r['total_sheets'])} SHEETS</div>
             <div class="packing">{e(r['sheets_per_ream'])} sheets per ream</div>
@@ -57,4 +58,4 @@ def labels_html(rows, format='thermal'):
     ''' if thermal else ''}
     .tools{{padding:12px;text-align:center}}.tools button{{padding:8px 16px;margin:0 8px}}
     @media print{{.tools{{display:none}}.bundle-sheet{{margin:0}}}}
-    </style></head><body><div class="tools">Print at 100% / Actual size. Disable headers and footers.<button onclick="window.print()">Print</button><button onclick="window.close()">Close</button></div>{pages}</body></html>'''
+    {label_brand_css()}</style></head><body><div class="tools">Print at 100% / Actual size. Disable headers and footers.<button onclick="window.print()">Print</button><button onclick="window.close()">Close</button></div>{pages}</body></html>'''
