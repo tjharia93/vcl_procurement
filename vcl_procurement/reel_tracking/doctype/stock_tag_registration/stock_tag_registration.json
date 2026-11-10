@@ -1,0 +1,77 @@
+{
+  "doctype": "DocType",
+  "name": "Stock Tag Registration",
+  "module": "Reel Tracking",
+  "engine": "InnoDB",
+  "allow_rename": 0,
+  "track_changes": 1,
+  "field_order": [
+    "registration_id",
+    "company",
+    "warehouse",
+    "kind",
+    "observed_on",
+    "plan_json"
+  ],
+  "fields": [
+    {
+      "fieldname": "registration_id",
+      "label": "Registration Id",
+      "fieldtype": "Data",
+      "unique": 1,
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "company",
+      "label": "Company",
+      "fieldtype": "Link",
+      "options": "Company",
+      "reqd": 1
+    },
+    {
+      "fieldname": "warehouse",
+      "label": "Warehouse",
+      "fieldtype": "Link",
+      "options": "Warehouse",
+      "reqd": 1
+    },
+    {
+      "fieldname": "kind",
+      "label": "Kind",
+      "fieldtype": "Select",
+      "options": "Reel\nBundle",
+      "reqd": 1
+    },
+    {
+      "fieldname": "observed_on",
+      "label": "Observed On",
+      "fieldtype": "Date",
+      "reqd": 1
+    },
+    {
+      "fieldname": "plan_json",
+      "label": "Plan Json",
+      "fieldtype": "Long Text",
+      "reqd": 1
+    }
+  ],
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "autoname": "field:registration_id",
+  "naming_rule": "By fieldname",
+  "permissions": [
+    {
+      "role": "Stock Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    },
+    {
+      "role": "System Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    }
+  ]
+}

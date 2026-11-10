@@ -113,6 +113,11 @@ def _last_reel_number(year):
             "select max(cast(substring_index(name, '-', -1) as unsigned)) from `tabReel Intake` where name like %s",
             (like,))
         top = max(top, int(reserved[0][0] or 0) if reserved else 0)
+    if frappe.db.exists('DocType', 'Physical Stock Unit'):
+        reserved = frappe.db.sql(
+            "select max(cast(substring_index(name, '-', -1) as unsigned)) from `tabPhysical Stock Unit` where name like %s",
+            (like,))
+        top = max(top, int(reserved[0][0] or 0) if reserved else 0)
     # The intranet tool's numbers were all issued in 2026.
     return max(top, REEL_ID_FLOOR) if str(year) == "2026" else top
 

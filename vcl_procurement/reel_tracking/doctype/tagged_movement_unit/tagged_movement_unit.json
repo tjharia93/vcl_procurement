@@ -1,0 +1,63 @@
+{
+  "doctype": "DocType",
+  "name": "Tagged Movement Unit",
+  "module": "Reel Tracking",
+  "engine": "InnoDB",
+  "allow_rename": 0,
+  "track_changes": 1,
+  "field_order": [
+    "tag",
+    "outcome",
+    "received_on",
+    "checked_reams",
+    "note",
+    "checked_by",
+    "checked_at"
+  ],
+  "fields": [
+    {
+      "fieldname": "tag",
+      "label": "Tag",
+      "fieldtype": "Link",
+      "options": "Physical Stock Unit",
+      "reqd": 1
+    },
+    {
+      "fieldname": "outcome",
+      "label": "Outcome",
+      "fieldtype": "Select",
+      "options": "Pending\nReceived\nOn hold\nMissing\nReturned",
+      "reqd": 1
+    },
+    {
+      "fieldname": "received_on",
+      "label": "Received On",
+      "fieldtype": "Date"
+    },
+    {
+      "fieldname": "checked_reams",
+      "label": "Checked Reams",
+      "fieldtype": "Int"
+    },
+    {
+      "fieldname": "note",
+      "label": "Note",
+      "fieldtype": "Small Text"
+    },
+    {
+      "fieldname": "checked_by",
+      "label": "Checked By",
+      "fieldtype": "Link",
+      "options": "User"
+    },
+    {
+      "fieldname": "checked_at",
+      "label": "Checked At",
+      "fieldtype": "Datetime"
+    }
+  ],
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "istable": 1,
+  "permissions": []
+}

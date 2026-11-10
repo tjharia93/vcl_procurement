@@ -1,0 +1,178 @@
+{
+  "doctype": "DocType",
+  "name": "Physical Stock Unit",
+  "module": "Reel Tracking",
+  "engine": "InnoDB",
+  "allow_rename": 0,
+  "track_changes": 1,
+  "field_order": [
+    "tag_id",
+    "registration",
+    "company",
+    "kind",
+    "material",
+    "colour",
+    "width_mm",
+    "length_mm",
+    "gsm",
+    "sheets_per_ream",
+    "reams_per_bundle",
+    "net_kg",
+    "weight_known",
+    "source_doctype",
+    "source_name",
+    "status",
+    "warehouse",
+    "active_movement",
+    "last_event_on",
+    "last_checked_by",
+    "last_checked_at",
+    "notes"
+  ],
+  "fields": [
+    {
+      "fieldname": "tag_id",
+      "label": "Tag Id",
+      "fieldtype": "Data",
+      "unique": 1,
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "registration",
+      "label": "Registration",
+      "fieldtype": "Link",
+      "options": "Stock Tag Registration",
+      "reqd": 1
+    },
+    {
+      "fieldname": "company",
+      "label": "Company",
+      "fieldtype": "Link",
+      "options": "Company",
+      "reqd": 1
+    },
+    {
+      "fieldname": "kind",
+      "label": "Kind",
+      "fieldtype": "Select",
+      "options": "Reel\nBundle",
+      "reqd": 1
+    },
+    {
+      "fieldname": "material",
+      "label": "Material",
+      "fieldtype": "Data"
+    },
+    {
+      "fieldname": "colour",
+      "label": "Colour",
+      "fieldtype": "Data"
+    },
+    {
+      "fieldname": "width_mm",
+      "label": "Width Mm",
+      "fieldtype": "Float"
+    },
+    {
+      "fieldname": "length_mm",
+      "label": "Length Mm",
+      "fieldtype": "Float"
+    },
+    {
+      "fieldname": "gsm",
+      "label": "Gsm",
+      "fieldtype": "Float"
+    },
+    {
+      "fieldname": "sheets_per_ream",
+      "label": "Sheets Per Ream",
+      "fieldtype": "Int"
+    },
+    {
+      "fieldname": "reams_per_bundle",
+      "label": "Reams Per Bundle",
+      "fieldtype": "Int"
+    },
+    {
+      "fieldname": "net_kg",
+      "label": "Net Kg",
+      "fieldtype": "Float"
+    },
+    {
+      "fieldname": "weight_known",
+      "label": "Weight Known",
+      "fieldtype": "Check"
+    },
+    {
+      "fieldname": "source_doctype",
+      "label": "Source Doctype",
+      "fieldtype": "Link",
+      "options": "DocType"
+    },
+    {
+      "fieldname": "source_name",
+      "label": "Source Name",
+      "fieldtype": "Dynamic Link",
+      "options": "source_doctype"
+    },
+    {
+      "fieldname": "status",
+      "label": "Status",
+      "fieldtype": "Select",
+      "options": "Available\nIn transit\nOn hold",
+      "reqd": 1
+    },
+    {
+      "fieldname": "warehouse",
+      "label": "Warehouse",
+      "fieldtype": "Link",
+      "options": "Warehouse"
+    },
+    {
+      "fieldname": "active_movement",
+      "label": "Active Movement",
+      "fieldtype": "Link",
+      "options": "Tagged Stock Movement"
+    },
+    {
+      "fieldname": "last_event_on",
+      "label": "Last Event On",
+      "fieldtype": "Date"
+    },
+    {
+      "fieldname": "last_checked_by",
+      "label": "Last Checked By",
+      "fieldtype": "Link",
+      "options": "User"
+    },
+    {
+      "fieldname": "last_checked_at",
+      "label": "Last Checked At",
+      "fieldtype": "Datetime"
+    },
+    {
+      "fieldname": "notes",
+      "label": "Notes",
+      "fieldtype": "Small Text"
+    }
+  ],
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "autoname": "field:tag_id",
+  "naming_rule": "By fieldname",
+  "permissions": [
+    {
+      "role": "Stock Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    },
+    {
+      "role": "System Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    }
+  ]
+}

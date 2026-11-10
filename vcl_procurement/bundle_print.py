@@ -21,7 +21,7 @@ def labels_html(rows, format='thermal'):
             <div class="packing">{e(r['sheets_per_ream'])} sheets per ream</div>
             <div class="check"><div class="writing"><span>Counted by</span><div class="line">{e(r.get('verified_by') or '')}</div><span>Date</span><div class="line">{e(str(r.get('verified_on') or '')[:10])}</div></div>
             <img alt="Open bundle record" src="{e(r['qr_uri'])}"></div>
-            <footer><b>{status} - STOCK NOT POSTED</b><div>No transfer recorded</div></footer></section>''')
+            <footer><b>{status} - STOCK NOT POSTED</b><div>Scan for physical custody history</div></footer></section>''')
     if thermal:
         pages=''.join('<article class="bundle-sheet">'+label+'</article>' for label in labels)
     else:

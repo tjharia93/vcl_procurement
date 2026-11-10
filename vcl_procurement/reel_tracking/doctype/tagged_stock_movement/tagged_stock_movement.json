@@ -1,0 +1,119 @@
+{
+  "doctype": "DocType",
+  "name": "Tagged Stock Movement",
+  "module": "Reel Tracking",
+  "engine": "InnoDB",
+  "allow_rename": 0,
+  "track_changes": 1,
+  "field_order": [
+    "movement_id",
+    "company",
+    "source_warehouse",
+    "target_warehouse",
+    "dispatched_on",
+    "custodian",
+    "notes",
+    "request_json",
+    "status",
+    "dispatched_by",
+    "dispatched_at",
+    "units"
+  ],
+  "fields": [
+    {
+      "fieldname": "movement_id",
+      "label": "Movement Id",
+      "fieldtype": "Data",
+      "unique": 1,
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "company",
+      "label": "Company",
+      "fieldtype": "Link",
+      "options": "Company",
+      "reqd": 1
+    },
+    {
+      "fieldname": "source_warehouse",
+      "label": "Source Warehouse",
+      "fieldtype": "Link",
+      "options": "Warehouse",
+      "reqd": 1
+    },
+    {
+      "fieldname": "target_warehouse",
+      "label": "Target Warehouse",
+      "fieldtype": "Link",
+      "options": "Warehouse",
+      "reqd": 1
+    },
+    {
+      "fieldname": "dispatched_on",
+      "label": "Dispatched On",
+      "fieldtype": "Date",
+      "reqd": 1
+    },
+    {
+      "fieldname": "custodian",
+      "label": "Custodian",
+      "fieldtype": "Data",
+      "reqd": 1
+    },
+    {
+      "fieldname": "notes",
+      "label": "Notes",
+      "fieldtype": "Small Text"
+    },
+    {
+      "fieldname": "request_json",
+      "label": "Request Json",
+      "fieldtype": "Long Text",
+      "reqd": 1
+    },
+    {
+      "fieldname": "status",
+      "label": "Status",
+      "fieldtype": "Select",
+      "options": "In transit\nPartly received\nCompleted\nCompleted with exceptions",
+      "reqd": 1
+    },
+    {
+      "fieldname": "dispatched_by",
+      "label": "Dispatched By",
+      "fieldtype": "Link",
+      "options": "User"
+    },
+    {
+      "fieldname": "dispatched_at",
+      "label": "Dispatched At",
+      "fieldtype": "Datetime"
+    },
+    {
+      "fieldname": "units",
+      "label": "Units",
+      "fieldtype": "Table",
+      "options": "Tagged Movement Unit",
+      "reqd": 1
+    }
+  ],
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "autoname": "field:movement_id",
+  "naming_rule": "By fieldname",
+  "permissions": [
+    {
+      "role": "Stock Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    },
+    {
+      "role": "System Manager",
+      "read": 1,
+      "report": 1,
+      "print": 1
+    }
+  ]
+}
