@@ -9,6 +9,9 @@ def labels_html(rows, format='thermal'):
     if format not in ('thermal','a4'):
         raise ValueError('Choose 100 x 30 mm thermal labels or A4.')
     thermal=format=='thermal'
+    if thermal:
+        from vcl_procurement.bundle_thermal_print import thermal_labels_html
+        return thermal_labels_html(rows)
     width,height=(100,30) if thermal else (210,297)
     page_rule='100mm 30mm' if thermal else 'A4 portrait'
     def e(v): return escape(str(v if v is not None else ''),quote=True)

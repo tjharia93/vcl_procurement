@@ -160,6 +160,14 @@ class BundleAPI(unittest.TestCase):
 
 
 class BundlePrintLayout(unittest.TestCase):
+    def test_compact_material_removes_only_the_matching_specification(self):
+        from vcl_procurement.bundle_thermal_print import material_name
+        row=dict(material='MANILA REAMS - 610 X 670MM 160 GSM GREEN',width_mm=610,
+            length_mm=670,gsm=160,colour='GREEN')
+        self.assertEqual(material_name(row),'MANILA')
+        row['gsm']=180
+        self.assertEqual(material_name(row),row['material'])
+
     def test_60_thermal_labels_or_eight_a4_pages_escape_sources_and_keep_ids(self):
         rows=[dict(name=f'SAMPLE-{i:03d}',material='Manila <script>',gsm=160,colour='Yellow',
             width_mm=610,length_mm=670,reams_per_bundle=5,sheets_per_ream=100,total_sheets=500,
