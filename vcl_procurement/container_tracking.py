@@ -310,6 +310,7 @@ def print_labels(po, po_detail=None, name=None, format='label'):
     for row in rows:
         if row['status'] == 'Replaced':
             frappe.throw(_('Replaced identities cannot print active labels. Open the current packing allocation.'))
+        row['supplier_name'] = doc.supplier_name or doc.supplier
         row['qr_uri'] = _qr('/compass/containers/' + quote(row['name'], safe=''))
     from vcl_procurement.inventory_labels import container_labels_html
     try:
