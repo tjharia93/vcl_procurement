@@ -27,7 +27,17 @@
     "last_event_on",
     "last_checked_by",
     "last_checked_at",
-    "notes"
+    "notes",
+    "item_code",
+    "stock_uom",
+    "nominal_qty",
+    "observed_qty",
+    "quantity_known",
+    "fill_state",
+    "supplier_name",
+    "supplier_lot",
+    "expiry_date",
+    "ledger_status"
   ],
   "fields": [
     {
@@ -56,7 +66,7 @@
       "fieldname": "kind",
       "label": "Kind",
       "fieldtype": "Select",
-      "options": "Reel\nBundle",
+      "options": "Reel\nBundle\nContainer",
       "reqd": 1
     },
     {
@@ -155,6 +165,60 @@
       "fieldname": "notes",
       "label": "Notes",
       "fieldtype": "Small Text"
+    },
+    {
+      "fieldname": "item_code",
+      "label": "Item Code",
+      "fieldtype": "Link",
+      "options": "Item"
+    },
+    {
+      "fieldname": "stock_uom",
+      "label": "Stock Uom",
+      "fieldtype": "Link",
+      "options": "UOM"
+    },
+    {
+      "fieldname": "nominal_qty",
+      "label": "Nominal Qty",
+      "fieldtype": "Float"
+    },
+    {
+      "fieldname": "observed_qty",
+      "label": "Observed Qty",
+      "fieldtype": "Float"
+    },
+    {
+      "fieldname": "quantity_known",
+      "label": "Quantity Known",
+      "fieldtype": "Check"
+    },
+    {
+      "fieldname": "fill_state",
+      "label": "Fill State",
+      "fieldtype": "Select",
+      "options": "Full\nPart used\nUnknown"
+    },
+    {
+      "fieldname": "supplier_name",
+      "label": "Supplier Name",
+      "fieldtype": "Data"
+    },
+    {
+      "fieldname": "supplier_lot",
+      "label": "Supplier Lot",
+      "fieldtype": "Data"
+    },
+    {
+      "fieldname": "expiry_date",
+      "label": "Expiry Date",
+      "fieldtype": "Date"
+    },
+    {
+      "fieldname": "ledger_status",
+      "label": "Ledger Status",
+      "fieldtype": "Select",
+      "options": "Already recorded\nOpening review needed\nNot sure"
     }
   ],
   "sort_field": "creation",

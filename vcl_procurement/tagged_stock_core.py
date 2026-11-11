@@ -42,13 +42,13 @@ def plan(value, today):
     if not isinstance(p, dict):
         raise ValueError('Enter the registration details.')
     kind = p.get('kind')
-    if kind not in ('Reel', 'Bundle'):
-        raise ValueError('Choose Reel or Bundle.')
+    if kind not in ('Reel', 'Bundle', 'Container'):
+        raise ValueError('Choose Reel, Bundle or Ink / chemical container.')
     result = dict(kind=kind, company=text(p.get('company'), 'Company'),
         warehouse=text(p.get('warehouse'), 'Actual source warehouse'),
-        material=text(p.get('material'), 'Material description', 80),
+        material=text(p.get('material'), 'Material description', 140 if kind=='Container' else 80),
         colour=text(p.get('colour', ''), 'Colour', 30, False),
-        width_mm=number(p.get('width_mm'), 'width in mm'), gsm=number(p.get('gsm'), 'GSM'),
+        width_mm=number(p.get('width_mm'), 'width in mm', optional=kind=='Container'), gsm=number(p.get('gsm'), 'GSM', optional=kind=='Container'),
         observed_on=event_date(p.get('observed_on'), today),
         notes=text(p.get('notes', ''), 'Notes', 2000, False))
     raw = p.get('existing_ids') or []
@@ -57,7 +57,7 @@ def plan(value, today):
     if not isinstance(raw, list):
         raise ValueError('Enter one existing VCL ID per line.')
     ids = [str(x).strip().upper() for x in raw if str(x).strip()]
-    prefix = 'RL' if kind == 'Reel' else 'BND'
+    prefix = {'Reel':'RL','Bundle':'BND','Container':'IC'}[kind]
     if any(not re.fullmatch(r'VCL-' + prefix + r'-\d{4}-\d{5}', x) for x in ids):
         raise ValueError('Use the full existing VCL ID, with the correct Reel or Bundle prefix.')
     if len(ids) != len(set(ids)):
@@ -66,7 +66,31 @@ def plan(value, today):
     result['count'] = number(p.get('count'), 'physical unit count', integer=True, maximum=200)
     if ids and len(ids) != result['count']:
         raise ValueError('The count must match the existing IDs. Register untagged units separately.')
-    if kind == 'Bundle':
+    if kind == 'Container':
+        unit = p.get('stock_uom')
+        if unit not in ('Kg','Litre','Liter'):
+            raise ValueError('Choose an ink/chemical item stocked in Kg or Litre. Do not convert mass into volume.')
+        state = p.get('fill_state')
+        if state not in ('Full','Part used','Unknown'):
+            raise ValueError('Choose Full, Part used or Quantity unknown.')
+        nominal = number(p.get('nominal_qty'),'nominal quantity per container')
+        actual = nominal if state=='Full' else number(p.get('observed_qty'),'actual remaining quantity',optional=state=='Unknown')
+        if state=='Unknown':actual=None
+        if actual is not None and actual>nominal:
+            raise ValueError('Remaining quantity cannot exceed the nominal pack size.')
+        if state=='Part used' and (result['count']!=1 or actual>=nominal):
+            raise ValueError('Register partly used cans individually, with remaining quantity below the nominal pack size.')
+        expiry=text(p.get('expiry_date',''),'Expiry date',10,False)
+        if expiry:date.fromisoformat(expiry)
+        ledger=p.get('ledger_status')
+        if ledger not in ('Already recorded','Opening review needed','Not sure'):
+            raise ValueError('Record whether this stock is already in ERPNext or needs opening review.')
+        result.update(item_code=text(p.get('item_code'),'Material item'),stock_uom=unit,nominal_qty=nominal,
+            observed_qty=actual,quantity_known=actual is not None,fill_state=state,
+            supplier_name=text(p.get('supplier_name',''),'Supplier name',140,False),
+            supplier_lot=text(p.get('supplier_lot',''),'Supplier lot',140,False),expiry_date=expiry,
+            ledger_status=ledger)
+    elif kind == 'Bundle':
         result.update(length_mm=number(p.get('length_mm'), 'length in mm'),
             sheets_per_ream=number(p.get('sheets_per_ream'), 'sheets per ream', integer=True),
             reams_per_bundle=number(p.get('reams_per_bundle'), 'reams per bundle', integer=True))

@@ -40,7 +40,7 @@
       "fieldname": "kind",
       "label": "Kind",
       "fieldtype": "Select",
-      "options": "Reel\nBundle",
+      "options": "Reel\nBundle\nContainer",
       "reqd": 1
     },
     {

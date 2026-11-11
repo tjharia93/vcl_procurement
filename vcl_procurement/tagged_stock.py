@@ -17,6 +17,8 @@ MOVE = 'Tagged Stock Movement'
 FIELDS = ['name','registration','company','kind','material','colour','width_mm','length_mm','gsm',
     'sheets_per_ream','reams_per_bundle','net_kg','weight_known','source_doctype','source_name',
     'status','warehouse','active_movement','last_event_on','last_checked_by','last_checked_at','notes','modified']
+FIELDS += ['item_code','stock_uom','nominal_qty','observed_qty','quantity_known','fill_state',
+           'supplier_name','supplier_lot','expiry_date','ledger_status']
 
 
 def _gate():
@@ -60,6 +62,8 @@ def _shape(doc):
     result = {key: doc.get(key) for key in FIELDS}
     if not result['weight_known']:
         result['net_kg'] = None
+    if not result['quantity_known']:
+        result['observed_qty'] = None
     return result
 
 
@@ -70,6 +74,17 @@ def _stale(doc, version):
 
 def _source(name, p):
     """Link an existing intake/bundle/batch only after checking its own scope."""
+    if p['kind']=='Container':
+        if frappe.db.exists('Stock Container',name):
+            doc=frappe.get_doc('Stock Container',name);doc.check_permission('read')
+            if doc.company!=p['company'] or doc.item_code!=p['item_code'] or doc.stock_uom!=p['stock_uom']:
+                frappe.throw('The existing container belongs to another company or material/unit.')
+            if doc.status!='Arrival checked' or doc.warehouse!=p['warehouse']:
+                frappe.throw('This ID already belongs to a delivery. Confirm arrival at its recorded warehouse first, then reuse the same ID.')
+            if float(doc.nominal_qty)!=p['nominal_qty'] or any(doc.get(k) and str(doc.get(k))!=str(p.get(k)) for k in ('supplier_lot','expiry_date')):
+                frappe.throw('Reuse the original nominal pack, supplier lot and expiry for this existing ID.')
+            return 'Stock Container',name
+        return '', ''
     for dt in (('Reel Intake', 'Batch') if p['kind'] == 'Reel' else ('Stock Bundle',)):
         if not frappe.db.exists(dt, name):
             continue
@@ -107,10 +122,12 @@ def _source(name, p):
 
 
 def _source_hold(unit):
+    if unit.kind=='Container' and unit.expiry_date and str(unit.expiry_date)<str(nowdate()):
+        frappe.throw('This container is expired. Keep it on hold for review.')
     if unit.source_doctype and unit.source_name:
         source = frappe.get_doc(unit.source_doctype, unit.source_name)
         source.check_permission('read')
-        if source.get('status') == 'On hold' or source.get('custom_inspection_status') == 'Quality hold':
+        if source.get('status') == 'On hold' or source.get('custom_inspection_status') == 'Quality hold' or (source.get('expiry_date') and str(source.expiry_date)<str(nowdate())):
             frappe.throw(f'{unit.name} is on hold in its original record.')
 
 
@@ -128,14 +145,24 @@ def _reserve_ids(p):
     if p['kind'] == 'Reel':
         from vcl_procurement.reels import allocate_reel_ids
         return allocate_reel_ids(p['count'])
-    prefix = 'VCL-BND-'+str(nowdate())[:4]+'-'
+    prefix = ('VCL-IC-' if p['kind']=='Container' else 'VCL-BND-')+str(nowdate())[:4]+'-'
     return [prefix+getseries(prefix, 5) for _ in range(p['count'])]
 
 
 @frappe.whitelist()
 def options():
     _gate()
+    groups={g.name:g.parent_item_group for g in frappe.get_list('Item Group',fields=['name','parent_item_group'],limit_page_length=0)}
+    allowed=frappe.conf.get('ic_container_item_groups') or ['Inks and Printing Chemicals']
+    def eligible(group):
+        seen=set()
+        while group and group not in seen:
+            if group in allowed:return True
+            seen.add(group);group=groups.get(group)
+        return False
+    items=frappe.get_list('Item',filters={'disabled':0,'is_stock_item':1},fields=['name','item_name','stock_uom','item_group'],limit_page_length=0)
     return dict(companies=frappe.get_list('Company', pluck='name', limit_page_length=0),
+        container_items=[i for i in items if i.stock_uom in ('Kg','Litre','Liter') and eligible(i.item_group)],
         warehouses=frappe.get_list('Warehouse', filters={'disabled':0,'is_group':0},
             fields=['name','company'], limit_page_length=0), stock_notice=NOTICE)
 
@@ -147,6 +174,16 @@ def register(reference, plan, physically_verified=0):
         frappe.throw('Confirm that these physical units were checked at the source and existing labels were inspected.')
     reference = _validate(rules.text, reference, 'Registration reference')
     p = _validate(rules.plan, plan, nowdate())
+    if p['kind']=='Container':
+        from vcl_procurement.container_tracking import _item
+        item=_item(p['item_code'])
+        if item.stock_uom!=p['stock_uom']:
+            frappe.throw('The material unit changed. Reload and choose the item again.')
+        p['material']=item.item_name
+        if (item.get('has_expiry_date') or item.get('shelf_life_in_days')) and not p['expiry_date']:
+            frappe.throw('This material requires an expiry date from its supplier label.')
+        if p['expiry_date'] and p['expiry_date']<str(nowdate()):
+            frappe.throw('This material is expired. Arrange a quality review before registering it as fit to move.')
     _company(p['company']); _warehouse(p['warehouse'], p['company'])
     frappe.db.sql('select name from `tabCompany` where name=%s for update', (p['company'],))
     if frappe.db.exists(REG, reference):
@@ -166,7 +203,8 @@ def register(reference, plan, physically_verified=0):
     units = []
     for name, (source_dt, source_name) in zip(ids, links):
         values = {k:p.get(k) for k in ('company','kind','material','colour','width_mm','length_mm','gsm',
-            'sheets_per_ream','reams_per_bundle','net_kg','warehouse','notes')}
+            'sheets_per_ream','reams_per_bundle','net_kg','warehouse','notes','item_code','stock_uom','nominal_qty',
+            'observed_qty','quantity_known','fill_state','supplier_name','supplier_lot','expiry_date','ledger_status')}
         doc = frappe.get_doc(dict(doctype=UNIT,tag_id=name,registration=reference,
             status='Available',weight_known=p.get('net_kg') is not None,source_doctype=source_dt,
             source_name=source_name,last_event_on=p['observed_on'],last_checked_by=frappe.session.user,
@@ -267,7 +305,8 @@ def movement_page(name):
         data['units'].append(dict(tag=row.tag,outcome=row.outcome,received_on=row.received_on,
             checked_reams=row.checked_reams,note=row.note,checked_by=row.checked_by,checked_at=row.checked_at,
             kind=unit.kind,material=unit.material,reams_per_bundle=unit.reams_per_bundle,
-            sheets_per_ream=unit.sheets_per_ream,net_kg=unit.net_kg if unit.weight_known else None))
+            sheets_per_ream=unit.sheets_per_ream,net_kg=unit.net_kg if unit.weight_known else None,
+            nominal_qty=unit.nominal_qty,observed_qty=unit.observed_qty if unit.quantity_known else None,stock_uom=unit.stock_uom))
     return dict(movement=data,stock_notice=NOTICE)
 
 
@@ -325,6 +364,9 @@ def print_labels(reference=None, name=None):
     from vcl_procurement.reel_intake import _qr
     for r in rows:
         r['qr_uri']=_qr('/compass/stock-tags/'+quote(r['name'],safe=''))
+    if rows and rows[0]['kind']=='Container':
+        from vcl_procurement.inventory_labels import container_labels_html
+        return dict(html=container_labels_html([dict(r,item_name=r['material']) for r in rows]))
     if rows and rows[0]['kind']=='Reel':
         from vcl_procurement.inventory_labels import reel_labels100_html
         data=[dict(r,batch_id=r['name'],item_name=r['material'],original_qty=r['net_kg'],
@@ -346,6 +388,7 @@ def print_movement(name):
     e=lambda x:escape(str(x or ''),quote=True)
     rows=''.join('<tr><td>'+e(r['tag'])+'</td><td>'+e(r['material'])+'</td><td>'+e(
         str(r['reams_per_bundle'])+' reams × '+str(r['sheets_per_ream'])+' sheets' if r['kind']=='Bundle'
+        else (str(r['observed_qty'])+' '+str(r['stock_uom'])+' observed' if r['observed_qty'] is not None else 'Quantity unknown') if r['kind']=='Container'
         else str(r['net_kg'])+' kg at registration' if r['net_kg'] is not None else 'Weight not measured')+
         '</td><td>'+e(r['outcome'])+'</td><td>'+e(r['note'])+'</td></tr>' for r in m['units'])
     return dict(html='''<!doctype html><html><head><title>Physical movement checklist</title><style>

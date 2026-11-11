@@ -1,5 +1,17 @@
 # Existing stock and physical custody
 
+## Existing ink/chemical containers (11 November 2026)
+
+The same register now accepts **Container**, without a PO. Deploy procurement with **migrate**, then Compass. Physical Stock Unit gains item/unit, nominal pack, observed quantity/known flag, fill state, supplier/lot/expiry and ledger-review status. Stock Tag Registration also accepts Container. No item flags, balances or vouchers are changed by deployment or registration.
+
+Choose an eligible ink/chemical item stocked in Kg or Litre and the actual source warehouse. Record nominal pack size, supplier/lot/expiry if known, and whether ERPNext already records the stock. Full cans may be grouped only when every can is physically checked at the declared nominal quantity. Part-used cans are registered individually with the actual remaining quantity. Unknown quantity remains unknown; it never becomes zero or the nominal quantity. No mass/volume conversion is inferred. Expired material or a required missing expiry is refused pending quality review.
+
+Existing IC IDs are reused. A PO-backed container must have confirmed arrival at the same warehouse and match the company, material, unit, nominal size and captured lot/expiry. New IDs use the same `VCL-IC-YYYY-#####` Series as delivery allocations. They do not create Stock Container records or fake PO references. New labels retain the approved layout, with a QR to `/compass/stock-tags/<ID>`, displaying nominal pack rather than a changing balance. Current custody shows the actual observation and ledger-review note. Whole-container movements use the existing dispatch/check flow; expired units cannot dispatch or be released from hold.
+
+**Receiving distinction:** new deliveries still use their PO container tags plus a separate submitted Purchase Receipt. Existing-stock registration never creates another receipt. Already recorded balances must not be posted twice; unrecorded stock requires reviewed opening quantities and valuation. There is no consumption or automatic receipt bridge in this change.
+
+Print and reprint previews open inline, including the older reel/ream register, with a download option for browsers that suppress pop-ups. Validation includes backend permission, partial/unknown quantity, ID-reuse and no-PO tests; mocked desktop/mobile registration and print/reprint checks create no production records.
+
 Release: 10 November 2026. Deploy `vcl_procurement` and run migrate before the matching Compass build. No production registration, arrival or movement is created by installation.
 
 Stores now offers **Register existing reels / reams** and **Move tagged stock**. This is physical custody evidence, not an ERPNext stock ledger. No PO, invoice, Item, Batch, Stock Reconciliation, Stock Entry or valuation is created or changed.

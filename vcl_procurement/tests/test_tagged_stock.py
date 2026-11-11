@@ -14,6 +14,16 @@ def plan(**kw):
 
 
 class Rules(unittest.TestCase):
+    def test_existing_container_quantities_keep_pack_and_remaining_separate(self):
+        p=plan();p.update(kind='Container',item_code='GLUE',material='Binding Glue',stock_uom='Litre',
+            nominal_qty=20,fill_state='Full',ledger_status='Already recorded')
+        full=rules.plan(p,'2026-11-10');self.assertEqual(full['observed_qty'],20)
+        p.update(count=1,fill_state='Part used',observed_qty=7)
+        partial=rules.plan(p,'2026-11-10');self.assertEqual((partial['nominal_qty'],partial['observed_qty']),(20,7))
+        for changes in [dict(observed_qty=21),dict(count=2),dict(stock_uom='Nos')]:
+            with self.assertRaises(ValueError):rules.plan(dict(p,**changes),'2026-11-10')
+        p.update(fill_state='Unknown',observed_qty='')
+        self.assertIsNone(rules.plan(p,'2026-11-10')['observed_qty'])
     def test_unknown_weights_and_no_assumed_ream_size(self):
         self.assertIsNone(rules.plan(plan(),'2026-11-10')['net_kg'])
         with self.assertRaises(ValueError):rules.plan(plan(net_kg=100),'2026-11-10')
@@ -39,6 +49,39 @@ class Rules(unittest.TestCase):
 
 
 class Workflow(unittest.TestCase):
+    def container_plan(self,**changes):
+        p=plan();p.update(kind='Container',material='Binding Glue',item_code='GLUE',stock_uom='Litre',
+            nominal_qty=20,fill_state='Full',ledger_status='Already recorded')
+        p.update(changes);return p
+
+    def test_existing_containers_share_ic_sequence_retry_and_print_without_po(self):
+        from vcl_procurement.container_tracking import _item
+        with patch('vcl_procurement.container_tracking._item',return_value=Doc(stock_uom='Litre',item_name='Binding Glue')):
+            self.series['VCL-IC-2026-']=10
+            r=self.register(self.container_plan())
+            self.assertEqual([u['name'] for u in r['units']],['VCL-IC-2026-00011','VCL-IC-2026-00012'])
+            self.assertTrue(self.register(self.container_plan())['reused'])
+        self.assertEqual({d for d,_ in self.docs},{api.UNIT,api.REG})
+        with patch('vcl_procurement.reel_intake._qr',return_value='QR') as qr:
+            html=api.print_labels(reference='REG-1')['html']
+            self.assertIn('Binding Glue',html);self.assertIn('NOMINAL PACK: 20 Litre',html)
+            self.assertTrue(all('/compass/stock-tags/' in call.args[0] for call in qr.call_args_list))
+
+    def test_expired_or_wrong_unit_existing_containers_are_not_available(self):
+        with patch('vcl_procurement.container_tracking._item',return_value=Doc(stock_uom='Litre',item_name='Glue')):
+            with self.assertRaises(_Thrown):self.register(self.container_plan(expiry_date='2025-01-01'))
+        with patch('vcl_procurement.container_tracking._item',return_value=Doc(stock_uom='Kg',item_name='Glue')):
+            with self.assertRaises(_Thrown):self.register(self.container_plan())
+
+    def test_po_container_id_requires_arrival_and_matching_company(self):
+        name='VCL-IC-2026-00001'
+        self.docs[('Stock Container',name)]=self.Saved(company='VCL',item_code='GLUE',stock_uom='Litre',nominal_qty=20,status='Expected')
+        with patch('vcl_procurement.container_tracking._item',return_value=Doc(stock_uom='Litre',item_name='Glue')):
+            with self.assertRaises(_Thrown):self.register(self.container_plan(count=1,existing_ids=[name]))
+            doc=self.docs[('Stock Container',name)];doc.status='Arrival checked';doc.warehouse='Source'
+            r=self.register(self.container_plan(count=1,existing_ids=[name]))
+            self.assertEqual(r['units'][0]['source_doctype'],'Stock Container')
+
     def setUp(self):
         self.docs={};self.series={};self.sql=[];self.denied=False;self.clock=0
         outer=self
