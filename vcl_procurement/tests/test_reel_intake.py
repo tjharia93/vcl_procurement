@@ -122,7 +122,7 @@ class PreparingBySize(unittest.TestCase):
         def allocate(count):
             self.allocated.append(count)
             return [f'VCL-RL-2026-{442+i:05d}' for i in range(count)]
-        db=types.SimpleNamespace(exists=lambda *a,**k:True,sql=lambda *a,**k:None,
+        db=types.SimpleNamespace(exists=lambda dt,*a,**k:dt=='DocType',sql=lambda *a,**k:None,
                                   count=lambda dt,f:1 if dt=='Stock Ledger Entry' and f['item_code']=='610' else 0)
         self.patches=[patch.object(api,'_source',return_value=(self.inv,self.po)),patch.object(api,'_rows',side_effect=lambda *a:self.tags),
             patch.object(api,'allocate_reel_ids',side_effect=allocate),patch.object(api,'enable_reel_tracking',side_effect=enable),

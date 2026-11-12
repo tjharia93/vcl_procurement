@@ -121,6 +121,9 @@ def register_sizes(invoice, lines, shipment=None):
     _assert_purchasing_role()
     _gate()
     inv, po = _source(invoice,shipment)
+    frappe.db.sql('select name from `tabPurchase Order` where name=%s for update',(po.name,))
+    if frappe.db.exists(DT, {'purchase_order': po.name, 'purchase_invoice': ['is', 'not set']}):
+        frappe.throw(_('Reel tags were already prepared from this Purchase Order. Reuse those identities; do not prepare a second set from the invoice.'))
     lines=json.loads(lines) if isinstance(lines,str) else lines
     try:
         plan=clean_preparation(lines,{r.item_code for r in inv.items})
@@ -181,6 +184,9 @@ def reel_page(name):
         return dict(reel=dict(name=batch.name,status='Batch record',item_code=batch.item,batch=batch.name),
                     items=[],warehouses=[],stock_notice='Stock quantities are held in ERPNext’s stock transactions.')
     doc = frappe.get_doc(DT,name)
+    if not doc.purchase_invoice:
+        from vcl_procurement.po_reel_intake import record_page
+        return record_page(doc)
     inv, po = _source(doc.purchase_invoice,doc.shipment)
     return dict(reel=_shape(doc),items=[dict(item_code=r.item_code,item_name=r.item_name) for r in po.items],
                 containers=[container_key(c.container_reference) for c in inv.get('custom_container_details_table') or [] if c.container_reference],
@@ -202,6 +208,8 @@ def save_reel(name, fields, confirm_arrival=0, expected_modified=None):
     if not isinstance(fields,dict):
         frappe.throw(_('Invalid reel details.'))
     doc = frappe.get_doc(DT,name)
+    if not doc.purchase_invoice:
+        frappe.throw(_('This reel was prepared from a PO. Its receiving workflow is not enabled yet.'))
     _inv, po = _source(doc.purchase_invoice,doc.shipment)
     # All arrival paths lock the delivery before its reels. This keeps a bulk
     # checklist and a simultaneous individual scan from locking in reverse order.
