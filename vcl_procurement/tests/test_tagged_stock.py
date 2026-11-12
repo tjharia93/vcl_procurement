@@ -229,5 +229,17 @@ class Workflow(unittest.TestCase):
             schema=json.loads((root/name/(name+'.json')).read_text())
             self.assertTrue(all(not p.get('write') and not p.get('create') for p in schema['permissions']))
 
+    def test_purchase_note_survives_later_inspection_notes_without_modifying_the_unit(self):
+        p=plan();p['notes']='Bought on 11/11/2026 - VCL - INDIA'
+        tag=self.register(p)['units'][0]['name']
+        unit=self.docs[(api.UNIT,tag)];unit.notes='Later inspection details'
+        before=len(self.docs)
+        with patch('vcl_procurement.reel_intake._qr',return_value='data:test'):
+            html=api.print_labels(name=tag)['html']
+        self.assertIn('11/11/2026 - VCL - INDIA',html)
+        self.assertNotIn('Later inspection details',html)
+        self.assertEqual(unit.notes,'Later inspection details')
+        self.assertEqual(len(self.docs),before)
+
 
 if __name__=='__main__':unittest.main()

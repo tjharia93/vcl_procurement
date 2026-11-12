@@ -5,6 +5,7 @@ No quantity, receiving field, stock mutation or ID allocation belongs here.
 """
 from html import escape
 import re
+from datetime import datetime
 
 
 def e(value):
@@ -13,6 +14,25 @@ def e(value):
 
 def n(value):
     return f'{float(value):g}'
+
+
+def purchase_reference(row):
+    """Print only an explicitly supplied purchase-note line for existing stock.
+
+    Inspection notes never become label text. This is purchase provenance,
+    not the physical registration/arrival date and not an accounting voucher.
+    """
+    if not row.get('existing_stock'):
+        return ''
+    for line in str(row.get('notes') or '').splitlines():
+        match=re.fullmatch(r'Bought on (\d{2}/\d{2}/\d{4}) - ([^\r\n]{1,100})',line.strip(),re.I)
+        if match:
+            try:
+                datetime.strptime(match[1],'%d/%m/%Y')
+            except ValueError:
+                continue
+            return match[1]+' - '+match[2].strip()
+    return ''
 
 
 def material_name(row):
@@ -41,7 +61,8 @@ def labels_html(data, format='label'):
     for r in data['reels']:
         gsm = f"<span class='gsm'><i>|</i>{n(r['gsm'])} GSM</span>" if r.get('gsm') else ''
         backing = ' | Yellow back' if 'yellow back' in (r.get('item_name') or '').lower() else ''
-        refs = [('SUPPLIER', r.get('supplier') or '—')]
+        purchase=purchase_reference(r)
+        refs = [('SUPPLIER', r.get('supplier') or '—')] if r.get('supplier') or not purchase else []
         if r.get('order_type') == 'Import' and r.get('bl_number'):
             refs.append(('BL', r['bl_number']))
             if r.get('container'):
@@ -49,7 +70,7 @@ def labels_html(data, format='label'):
         elif r.get('purchase_order'):
             refs.append(('PO', r['purchase_order']))
         elif r.get('existing_stock'):
-            refs.append(('SOURCE', 'Existing stock'))
+            refs.append(('BOUGHT ON', purchase) if purchase else ('SOURCE', 'Existing stock'))
         reference_html = ''.join(f'<div><span>{key}</span><b>{e(value)}</b></div>' for key,value in refs)
         title_size = 13 if len(material_name(r)) <= 18 else 10 if len(material_name(r)) <= 30 else 8
         cards.append(f'''<section class="po-reel-label">

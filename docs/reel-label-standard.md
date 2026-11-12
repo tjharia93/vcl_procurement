@@ -13,6 +13,9 @@ QR destinations remain `/compass/reels/<existing-ID>`. Existing-stock custody
 labels retain their original `/compass/stock-tags/<existing-ID>` destinations.
 Existing reels use this same layout with an Existing stock source reference;
 no PO number or supplier is invented for an old reel without purchasing records.
+An explicit existing-stock note in the form `Bought on DD/MM/YYYY - ORIGIN`
+prints as purchase provenance. Other inspection notes are not printed. The
+purchase date remains separate from physical registration, arrival and stock posting.
 
 Compass requests the shared authorized server renderer instead of maintaining a
 second HTML template. Source document permissions are checked again; selected

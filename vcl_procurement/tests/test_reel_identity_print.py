@@ -31,6 +31,20 @@ class IdentityLayout(unittest.TestCase):
             self.assertIn(text,html)
         self.assertNotIn('<span>PO</span>',html)
 
+    def test_existing_reel_purchase_note_is_explicit_and_separate_from_arrival(self):
+        row={**self.row,'supplier':None,'purchase_order':None,'existing_stock':True,
+            'notes':'Bought on 11/11/2026 - VCL - INDIA\nInspection note stays private',
+            'received_on':'2026-11-12'}
+        before=copy.deepcopy(row)
+        html=layout.labels_html({**self.data,'reels':[row]})
+        self.assertIn('<span>BOUGHT ON</span><b>11/11/2026 - VCL - INDIA</b>',html)
+        self.assertNotIn('Inspection note stays private',html)
+        self.assertNotIn('2026-11-12',html)
+        self.assertEqual(row,before)
+        for notes in ('Bought on 31/02/2026 - VCL - INDIA','Inspection note only'):
+            self.assertEqual(layout.purchase_reference({**row,'notes':notes}),'')
+        self.assertEqual(layout.purchase_reference({**row,'existing_stock':False}),'')
+
     def test_same_layout_for_mass_and_area_stock_and_a4_uses_eight_labels(self):
         for unit in ('Kg','Tonne','Square Meter','REEL'):
             row={**self.row,'uom':unit,'original_qty':999}

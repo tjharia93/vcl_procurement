@@ -369,9 +369,17 @@ def print_labels(reference=None, name=None):
         return dict(html=container_labels_html([dict(r,item_name=r['material']) for r in rows]))
     if rows and rows[0]['kind']=='Reel':
         from vcl_procurement.reel_identity_print import labels_html
+        # Purchase provenance belongs to the immutable registration plan. Later
+        # hold/release inspection notes must not erase it from a reprinted tag.
+        registration_notes={}
+        for row in rows:
+            if row['registration'] not in registration_notes:
+                saved=_doc(REG,row['registration'])
+                registration_notes[row['registration']]=json.loads(saved.plan_json).get('notes','')
         data=[dict(r,batch_id=r['name'],item_name=r['material'],original_qty=r['net_kg'],
             weight_basis='Measured net at registration' if r['weight_known'] else 'Weight not yet measured',
-            supplier=r.get('supplier_name'),existing_stock=True) for r in rows]
+            supplier=r.get('supplier_name'),existing_stock=True,
+            notes=registration_notes.get(r['registration']) or r.get('notes')) for r in rows]
         return dict(html=labels_html(dict(reels=data,receipt=reference or name,docstatus=0)))
     from vcl_procurement.bundle_print import labels_html
     data=[dict(r,total_sheets=r['reams_per_bundle']*r['sheets_per_ream']) for r in rows]
