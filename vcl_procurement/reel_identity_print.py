@@ -150,4 +150,3 @@ def source_labels(source_type, name):
 
 def reel_identity_native(name, source_type='Purchase Invoice', format='label'):
     return native_fragment(labels_html(source_labels(source_type,name),format))
-
