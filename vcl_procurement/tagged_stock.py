@@ -368,13 +368,11 @@ def print_labels(reference=None, name=None):
         from vcl_procurement.inventory_labels import container_labels_html
         return dict(html=container_labels_html([dict(r,item_name=r['material']) for r in rows]))
     if rows and rows[0]['kind']=='Reel':
-        from vcl_procurement.inventory_labels import reel_labels100_html
+        from vcl_procurement.reel_identity_print import labels_html
         data=[dict(r,batch_id=r['name'],item_name=r['material'],original_qty=r['net_kg'],
             weight_basis='Measured net at registration' if r['weight_known'] else 'Weight not yet measured',
-            purchase_order='Existing stock — no purchase order') for r in rows]
-        html=reel_labels100_html(dict(reels=data))
-        html=html.replace('ORIGINAL QUANTITY','NET AT REGISTRATION').replace('current status and balance','current physical location and status')
-        return dict(html='<!doctype html><html><head><title>Existing reel labels</title></head><body>'+html+'</body></html>')
+            supplier=r.get('supplier_name'),existing_stock=True) for r in rows]
+        return dict(html=labels_html(dict(reels=data,receipt=reference or name,docstatus=0)))
     from vcl_procurement.bundle_print import labels_html
     data=[dict(r,total_sheets=r['reams_per_bundle']*r['sheets_per_ream']) for r in rows]
     html=labels_html(data,'thermal').replace('No transfer recorded','Scan for current physical location').replace('STOCK NOT POSTED','PHYSICAL CUSTODY')

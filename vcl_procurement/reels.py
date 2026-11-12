@@ -405,7 +405,7 @@ def _receipt_result(pr):
 
 @frappe.whitelist()
 def receipt_labels(name):
-    """Price-free data for the two physical labels; the UI owns the print layout."""
+    """Price-free authorized identities; printing uses the shared server renderer."""
     import base64
     import io
     from urllib.parse import quote
@@ -436,4 +436,4 @@ def receipt_labels(name):
             width_mm=b.get('custom_reel_width_mm'),gsm=b.get('custom_reel_gsm'),
             department=b.get('custom_department'),posting_date=str(pr.posting_date),
             qr_uri='data:image/svg+xml;base64,'+base64.b64encode(stream.getvalue()).decode()))
-    return dict(receipt=name,docstatus=pr.docstatus,reels=result)
+    return dict(receipt=name,docstatus=pr.docstatus,reels=result,source_type='Purchase Receipt',source_name=name)

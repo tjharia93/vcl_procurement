@@ -15,3 +15,4 @@ vcl_procurement.patches.bundle_labels_100x30
 vcl_procurement.patches.add_reel_six_label_format
 vcl_procurement.patches.add_inventory_label_formats
 vcl_procurement.patches.add_kra_recheck_fields
+vcl_procurement.patches.reel_labels_100x70

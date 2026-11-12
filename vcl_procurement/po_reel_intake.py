@@ -114,3 +114,21 @@ def record_page(reel):
     return dict(reel={key: reel.get(key) for key in FIELDS + ['purchase_order_item']},
         items=[], warehouses=[], containers=[], preparation_only=True,
         stock_notice='Expected reel prepared from Purchase Order. No arrival or stock receipt has been recorded.')
+
+
+@frappe.whitelist()
+def label_data(po, name=None):
+    from urllib.parse import quote
+    from vcl_procurement.reel_intake import _qr
+    _gate()
+    doc=source(po)
+    registered=rows(doc.name)
+    if name:
+        registered=[r for r in registered if r.name==name]
+    if not registered:
+        frappe.throw('Prepare the reel identities before printing their labels.')
+    return dict(receipt=doc.name,docstatus=doc.docstatus,source_type='Purchase Order',source_name=doc.name,
+        reels=[dict(batch_id=r.name,item_code=r.item_code,item_name=r.material_description,
+            supplier=doc.supplier_name or doc.supplier,purchase_order=doc.name,
+            order_type=doc.get('custom_order_type') or 'Local',width_mm=r.width_mm,gsm=r.gsm,
+            qr_uri=_qr('/compass/reels/'+quote(r.name,safe=''))) for r in registered])

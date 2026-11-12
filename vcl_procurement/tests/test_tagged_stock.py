@@ -217,7 +217,8 @@ class Workflow(unittest.TestCase):
         with patch('vcl_procurement.reel_intake._qr',return_value='data:test') as qr:
             html=api.print_labels(name=tag)['html']
             qr.assert_called_once_with('/compass/stock-tags/'+tag)
-        self.assertIn('100mm 100mm',html);self.assertIn('Weight not yet measured',html)
+        self.assertIn('100mm 70mm',html);self.assertNotIn('Weight not yet measured',html)
+        self.assertIn('Existing stock',html);self.assertNotIn('<span>PO</span>',html)
         self.assertNotIn('0 kg',html);self.assertEqual(len(self.docs),before)
 
     def test_guest_roles_cannot_register_and_schemas_have_no_direct_write(self):

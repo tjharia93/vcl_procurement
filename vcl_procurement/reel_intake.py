@@ -303,7 +303,7 @@ def intake_labels(invoice, container=None, name=None, item_code=None):
             verification='Supplier declaration; verify on arrival',width_mm=r.width_mm,gsm=r.gsm,
             posting_date='',received_on=str(r.received_on or ''),pre_registered=True,physical_status=r.status,
             qr_uri=_qr('/compass/reels/'+quote(r.name,safe=''))))
-    return dict(receipt=container or invoice,docstatus=0,reels=result)
+    return dict(receipt=container or invoice,docstatus=0,reels=result,source_type='Purchase Invoice',source_name=invoice)
 
 
 @frappe.whitelist(methods=['POST'])

@@ -133,5 +133,20 @@ class PoPreparation(unittest.TestCase):
                 reel_intake.register_sizes('PI',[])
             allocate.assert_not_called()
 
+    def test_po_label_reads_reuse_the_registered_ids_and_authorize_the_source(self):
+        with self.assertRaises(_Thrown):api.label_data(self.po.name)
+        api.register(self.po.name)
+        with patch.object(reel_intake,'_qr',side_effect=lambda path:path):
+            all_labels=api.label_data(self.po.name)
+            selected=api.label_data(self.po.name,name=self.tags[0].name)
+        self.assertEqual(all_labels['source_type'],'Purchase Order')
+        self.assertEqual(all_labels['source_name'],self.po.name)
+        self.assertEqual(len(all_labels['reels']),56)
+        self.assertEqual([r['batch_id'] for r in selected['reels']],[self.tags[0].name])
+        self.assertEqual(selected['reels'][0]['qr_uri'],'/compass/reels/'+self.tags[0].name)
+        self.assertEqual(self.allocations,[56])
+        self.denied=True
+        with self.assertRaises(PermissionError):api.label_data(self.po.name)
+
 
 if __name__ == '__main__': unittest.main()

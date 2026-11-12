@@ -55,6 +55,7 @@ after_install = "vcl_procurement.install.after_install"
 
 # Native Purchase Invoice print formats use the same authorized, price-free reel register.
 jinja = {"methods": ["vcl_procurement.reel_intake.reel_print_html",
+    "vcl_procurement.reel_identity_print.reel_identity_native",
     "vcl_procurement.bundle_registration.bundle_native_print",
     "vcl_procurement.container_tracking.container_native_print"]}
 

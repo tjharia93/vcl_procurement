@@ -54,42 +54,8 @@ def styles(landscape=False):
 
 
 def labels_html(data):
-    reels = data['reels']
-    if not reels:
-        raise ValueError('Prepare permanent reel tags before printing.')
-    if data.get('docstatus') == 2:
-        raise ValueError('Cancelled receipts cannot print active reel tags.')
-    pages = []
-    for start in range(0, len(reels), 3):
-        pairs = []
-        for r in reels[start:start + 3]:
-            qty = number(r.get('original_qty')) or '________'
-            def heading(title, short=False):
-                display_id = re.sub(r'^VCL-RL-(\d{4})-(\d+)$', r'VCL/\1/\2', r['batch_id'])
-                material = f"RW {e(r.get('width_mm'))} mm · {e(r.get('gsm'))} GSM"
-                item = '' if short else f"<h2>{e(r.get('item_name') or r.get('item_code'))}</h2>"
-                return f'<div class="brand">{title}</div><div class="state">VIMIT CONVERTERS LTD</div><h1>{e(display_id)}</h1><div class="material-spec">{material}</div>{item}'
-            def ref(label, value):
-                return f'<div class="ref"><span>{label}</span><b>{e(value or "____________________")}</b></div>'
-            sources = ref('Supplier invoice', r.get('supplier_invoice'))
-            if r.get('order_type') == 'Import':
-                sources += ref('BL Number', r.get('bl_number')) + ref(e(r.get('container_label') or 'Container Number'), r.get('container'))
-            else:
-                sources += ref('PO Number', r.get('purchase_order'))
-            identity = heading('PERMANENT REEL IDENTITY') + f'''<div class="main"><img alt="Open this reel record" src="{e(r.get('qr_uri'))}">
-                <div class="supplier">{e(r.get('supplier'))}</div>{e(r.get('weight_basis'))}<strong>{qty} kg</strong>{e(r.get('verification'))}
-                {ref('Supplier reel no.', r.get('supplier_reel_no'))}</div>{sources}
-                <div class="received"><div class="receive-box"><span>Received on (date)</span><div class="receive-value">{e(r.get('received_on'))}</div></div><div class="receive-box"><span>Received by (name / initials)</span><div class="receive-value"></div></div></div>
-                <div class="card-foot">Scan to record arrival. Stock posting is separate.</div>'''
-            movement = heading('REEL MOVEMENT LOG', True) + f'''<div class="movement-info">Original quantity: {qty} kg</div>
-                <div class="started">Log sheet no. ______ &nbsp; Started on ______________</div><table class="movement">
-                <colgroup><col style="width:16%"><col style="width:36%"><col style="width:16%"><col style="width:16%"><col style="width:16%"></colgroup>
-                <thead><tr><th>Date</th><th>Job / destination</th><th>Out<br>kg</th><th>Return<br>kg</th><th>Initials</th></tr></thead><tbody>
-                {''.join('<tr><td></td><td></td><td></td><td></td><td></td></tr>' for _ in range(6))}</tbody></table>
-                <div class="card-foot">Record kg. Enter movements in ERPNext. Retain completed sheets.</div>'''
-            pairs.append(f'<div class="reel-pair"><section class="reel-card">{identity}</section><section class="reel-card">{movement}</section></div>')
-        pages.append('<article class="reel-sheet">' + ''.join(pairs) + '</article>')
-    return styles() + ''.join(pages)
+    from vcl_procurement.reel_identity_print import labels_html as render, native_fragment
+    return native_fragment(render(data, 'a4'))
 
 
 def receiving_list_html(data):

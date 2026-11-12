@@ -186,11 +186,11 @@ class ExactLabels(unittest.TestCase):
         self.assertNotIn('STOCK NOT POSTED',html)
         with self.assertRaises(ValueError):container_labels_html([])
 
-    def test_reel_100_square_identity_and_log_reuse_id(self):
+    def test_legacy_reel_print_entry_uses_single_100x70_identity(self):
         r=dict(batch_id='VCL-RL-2026-00442',qr_uri='QR',item_name='Paper',width_mm=610,gsm=48,original_qty=0)
         html=reel_labels100_html(dict(reels=[r],docstatus=0))
-        self.assertIn('@page{size:100mm 100mm',html);self.assertEqual(html.count('VCL-RL-2026-00442'),2)
-        self.assertEqual(html.count('<tr><td>'),6);self.assertNotIn('>0 kg',html)
+        self.assertIn('@page{size:100mm 70mm',html);self.assertEqual(html.count('VCL-RL-2026-00442'),1)
+        self.assertNotIn('<table',html);self.assertNotIn('>0 kg',html)
         with self.assertRaises(ValueError):reel_labels100_html(dict(reels=[r],docstatus=2))
 
     def test_identity_schemas_have_no_direct_write_or_balance_fields(self):

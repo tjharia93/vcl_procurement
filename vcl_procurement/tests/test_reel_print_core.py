@@ -20,19 +20,22 @@ class NativePrintLayouts(unittest.TestCase):
             weight_basis='Supplier label net / gross',verification='Verify on arrival',
             qr_uri='data:image/svg+xml;base64,AA==') for r in self.reels])
 
-    def test_three_pairs_per_sheet_and_six_movement_rows_reuse_all_ids(self):
+    def test_eight_identity_labels_per_sheet_reuse_all_ids_and_keep_recording_fields_off_labels(self):
         html=labels_html(self.labels)
-        self.assertEqual(html.count('<article class="reel-sheet">'),43)
-        self.assertEqual(html.count('<div class="reel-pair">'),127)
-        self.assertEqual(html.count('<tr><td></td>'),762)
+        self.assertEqual(html.count('<article class="label-sheet">'),16)
+        self.assertEqual(html.count('<section class="po-reel-label">'),127)
+        self.assertNotIn('<table',html)
         self.assertNotIn('<script>',html)
         self.assertNotIn('>0 kg',html)
         self.assertNotIn('EXPECTED',html)
-        self.assertIn('RW 610 mm \u00b7 48 GSM',html)
+        self.assertIn('610 <small>mm</small>',html)
+        self.assertIn('48 GSM',html)
         for r in self.reels:
-            self.assertEqual(html.count('<h1>'+r["name"].replace("VCL-RL-", "VCL/").replace("-", "/")+'</h1>'),2)
-        self.assertIn('width:100mm;height:95.666mm',html)
-        self.assertIn('Received on (date)',html)
+            self.assertEqual(html.count('<h1>'+r['name']+'</h1>'),1)
+        self.assertIn('width:100mm;height:70mm',html)
+        self.assertNotIn('Received on',html)
+        self.assertNotIn('Supplier invoice',html)
+        self.assertNotIn('Actual quantity',html)
         self.assertIn('CCLU7308949 / CSNU8648520',html)
 
     def test_full_list_has_nine_pages_and_each_existing_reel_once(self):
