@@ -31,6 +31,21 @@ class IdentityLayout(unittest.TestCase):
             self.assertIn(text,html)
         self.assertNotIn('<span>PO</span>',html)
 
+    def test_brightness_is_a_separate_complete_line_instead_of_a_clipped_title(self):
+        row={**self.row,'item_code':'','item_name':'WOODFREE - 44GSM - 66% BRIGHTNESS','gsm':44,'width_mm':610}
+        original=copy.deepcopy(row)
+        self.assertEqual(layout.material_name(row),'WOODFREE')
+        for format in ('label','a4'):
+            html=layout.labels_html({**self.data,'reels':[row]},format)
+            self.assertIn('<h2 style="font-size:13pt">WOODFREE</h2>',html)
+            self.assertIn('<div class="brightness">66% BRIGHTNESS</div>',html)
+            self.assertIn('data-brightness="true"',html)
+            self.assertIn('44 GSM',html)
+        self.assertEqual(row,original)
+        self.assertEqual(layout.brightness_text({**row,'item_name':'WOODFREE - Brightness: 66.5%'}),'66.5% BRIGHTNESS')
+        self.assertEqual(layout.brightness_text({**row,'item_name':'Woodfree - Reel-610-44-IN-66'}),'')
+        self.assertEqual(layout.material_name({**row,'item_name':'WOODFREE - 44GSM - Coated'}),'WOODFREE - Coated')
+
     def test_existing_reel_purchase_note_is_explicit_and_separate_from_arrival(self):
         row={**self.row,'supplier':None,'purchase_order':None,'existing_stock':True,
             'notes':'Bought on 11/11/2026 - VCL - INDIA\nInspection note stays private',

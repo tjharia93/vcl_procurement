@@ -7,6 +7,11 @@ from html import escape
 import re
 from datetime import datetime
 
+BRIGHTNESS = re.compile(
+    r'\b(?:(\d+(?:\.\d+)?)\s*%\s*brightness\b|brightness\s*[:=-]?\s*(\d+(?:\.\d+)?)\s*%)',
+    re.I,
+)
+
 
 def e(value):
     return escape(str(value or ''), quote=True)
@@ -43,8 +48,16 @@ def material_name(row):
     text = re.sub(r'\s*-\s*\d+(?:\.\d+)?\s*mm\s*$', '', text, flags=re.I)
     if row.get('gsm'):
         text = re.sub(r'\b\d+(?:\.\d+)?\s*gsm\b', '', text, flags=re.I)
+    text = BRIGHTNESS.sub('', text)
     text = re.sub(r'\(\s*Yellow\s+Back\s*\)', '', text, flags=re.I)
-    return ' '.join(text.split())
+    # Removing specifications must not leave empty dash-separated title parts.
+    return ' - '.join(' '.join(part.split()) for part in re.split(r'\s+-', text) if part.strip())
+
+
+def brightness_text(row):
+    """Only print an explicitly stated percentage; item-code suffixes are ambiguous."""
+    match = BRIGHTNESS.search(str(row.get('item_name') or ''))
+    return f'{n(match[1] or match[2])}% BRIGHTNESS' if match else ''
 
 
 def labels_html(data, format='label'):
@@ -59,6 +72,9 @@ def labels_html(data, format='label'):
         raise ValueError('Select distinct registered reel identities before printing.')
     cards = []
     for r in data['reels']:
+        brightness = brightness_text(r)
+        brightness_html = f'<div class="brightness">{e(brightness)}</div>' if brightness else ''
+        brightness_attr = ' data-brightness="true"' if brightness else ''
         gsm = f"<span class='gsm'><i>|</i>{n(r['gsm'])} GSM</span>" if r.get('gsm') else ''
         backing = ' | Yellow back' if 'yellow back' in (r.get('item_name') or '').lower() else ''
         purchase=purchase_reference(r)
@@ -73,10 +89,11 @@ def labels_html(data, format='label'):
             refs.append(('BOUGHT ON', purchase) if purchase else ('SOURCE', 'Existing stock'))
         reference_html = ''.join(f'<div><span>{key}</span><b>{e(value)}</b></div>' for key,value in refs)
         title_size = 13 if len(material_name(r)) <= 18 else 10 if len(material_name(r)) <= 30 else 8
-        cards.append(f'''<section class="po-reel-label">
+        cards.append(f'''<section class="po-reel-label"{brightness_attr}>
         <div class="brand">VIMIT CONVERTERS LIMITED</div>
         <h1>{e(r['batch_id'])}</h1><h2 style="font-size:{title_size}pt">{e(material_name(r))}</h2>
         <div class="material-code">{e(r.get('item_code'))}{backing}</div>
+        {brightness_html}
         <div class="width-caption">REEL WIDTH</div>
         <div class="spec"><strong>{n(r['width_mm']) if r.get('width_mm') else '—'} <small>mm</small></strong>{gsm}</div>
         <img class="qr" alt="Open reel record" src="{e(r['qr_uri'])}">
@@ -99,6 +116,9 @@ def labels_html(data, format='label'):
     .po-reel-label h1{{position:absolute;left:4mm;right:4mm;top:10mm;margin:0;padding:0 0 2mm;border-bottom:.25mm solid #000;font-size:16pt;font-weight:800;line-height:1.05;white-space:nowrap}}
     .po-reel-label h2{{position:absolute;left:4mm;top:22mm;width:54mm;max-height:6.3mm;overflow:hidden;margin:0;font-weight:800;line-height:1.1}}
     .po-reel-label .material-code{{position:absolute;left:4mm;top:29mm;width:54mm;max-height:6mm;overflow:hidden;overflow-wrap:anywhere;font-size:7pt;line-height:1.2}}
+    .po-reel-label .brightness{{position:absolute;left:4mm;top:35mm;width:54mm;height:4mm;font-size:8.5pt;font-weight:bold;line-height:1.1;white-space:nowrap}}
+    .po-reel-label[data-brightness] .width-caption{{top:42mm}}
+    .po-reel-label[data-brightness] .spec{{top:46mm}}
     .po-reel-label .width-caption{{position:absolute;left:4mm;top:37mm;font-size:6pt;font-weight:bold;line-height:1}}
     .po-reel-label .spec{{position:absolute;left:4mm;top:41mm;width:54mm;display:flex;align-items:baseline;gap:4mm;line-height:1}}
     .po-reel-label .spec strong{{font-size:22pt;font-weight:900;white-space:nowrap}}
