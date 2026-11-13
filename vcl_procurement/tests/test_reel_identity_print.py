@@ -60,6 +60,15 @@ class IdentityLayout(unittest.TestCase):
             self.assertEqual(layout.purchase_reference({**row,'notes':notes}),'')
         self.assertEqual(layout.purchase_reference({**row,'existing_stock':False}),'')
 
+    def test_only_known_measured_registration_weight_is_printed_as_net_kg(self):
+        row={**self.row,'existing_stock':True,'weight_known':True,'net_kg':261.5}
+        html=layout.labels_html({**self.data,'reels':[row]})
+        self.assertIn('NET WEIGHT AT REGISTRATION</span> <b>261.5 kg</b>',html)
+        for missing in ({'weight_known':False},{'net_kg':None},{'net_kg':0},{'net_kg':float('nan')},
+                        {'existing_stock':False}):
+            self.assertEqual(layout.registered_net_weight({**row,**missing}),'')
+        self.assertEqual(layout.registered_net_weight({**self.row,'original_qty':261.5,'uom':'Square Meter'}),'')
+
     def test_same_layout_for_mass_and_area_stock_and_a4_uses_eight_labels(self):
         for unit in ('Kg','Tonne','Square Meter','REEL'):
             row={**self.row,'uom':unit,'original_qty':999}

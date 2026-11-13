@@ -5,6 +5,7 @@ No quantity, receiving field, stock mutation or ID allocation belongs here.
 """
 from html import escape
 import re
+import math
 from datetime import datetime
 
 BRIGHTNESS = re.compile(
@@ -60,6 +61,17 @@ def brightness_text(row):
     return f'{n(match[1] or match[2])}% BRIGHTNESS' if match else ''
 
 
+def registered_net_weight(row):
+    """Print a known measured registration weight, never an arbitrary stock quantity."""
+    if not row.get('existing_stock') or not row.get('weight_known'):
+        return ''
+    try:
+        weight = float(row.get('net_kg'))
+    except (TypeError, ValueError):
+        return ''
+    return f'{n(weight)} kg' if math.isfinite(weight) and weight > 0 else ''
+
+
 def labels_html(data, format='label'):
     if format not in ('label', 'a4'):
         raise ValueError('Choose 100 x 70 mm label stock or A4.')
@@ -75,6 +87,8 @@ def labels_html(data, format='label'):
         brightness = brightness_text(r)
         brightness_html = f'<div class="brightness">{e(brightness)}</div>' if brightness else ''
         brightness_attr = ' data-brightness="true"' if brightness else ''
+        weight = registered_net_weight(r)
+        weight_html = f'<div class="net-weight"><span>NET WEIGHT AT REGISTRATION</span> <b>{e(weight)}</b></div>' if weight else ''
         gsm = f"<span class='gsm'><i>|</i>{n(r['gsm'])} GSM</span>" if r.get('gsm') else ''
         backing = ' | Yellow back' if 'yellow back' in (r.get('item_name') or '').lower() else ''
         purchase=purchase_reference(r)
@@ -96,6 +110,7 @@ def labels_html(data, format='label'):
         {brightness_html}
         <div class="width-caption">REEL WIDTH</div>
         <div class="spec"><strong>{n(r['width_mm']) if r.get('width_mm') else '—'} <small>mm</small></strong>{gsm}</div>
+        {weight_html}
         <img class="qr" alt="Open reel record" src="{e(r['qr_uri'])}">
         <div class="scan-caption">SCAN REEL RECORD</div>
         <div class="refs{' compact' if len(refs)>2 else ''}">{reference_html}</div></section>''')
@@ -117,8 +132,11 @@ def labels_html(data, format='label'):
     .po-reel-label h2{{position:absolute;left:4mm;top:22mm;width:54mm;max-height:6.3mm;overflow:hidden;margin:0;font-weight:800;line-height:1.1}}
     .po-reel-label .material-code{{position:absolute;left:4mm;top:29mm;width:54mm;max-height:6mm;overflow:hidden;overflow-wrap:anywhere;font-size:7pt;line-height:1.2}}
     .po-reel-label .brightness{{position:absolute;left:4mm;top:35mm;width:54mm;height:4mm;font-size:8.5pt;font-weight:bold;line-height:1.1;white-space:nowrap}}
-    .po-reel-label[data-brightness] .width-caption{{top:42mm}}
-    .po-reel-label[data-brightness] .spec{{top:46mm}}
+    .po-reel-label[data-brightness] .width-caption{{top:40mm}}
+    .po-reel-label[data-brightness] .spec{{top:44mm}}
+    .po-reel-label .net-weight{{position:absolute;left:4mm;top:54mm;width:54mm;height:3.5mm;display:flex;align-items:baseline;gap:2mm;line-height:1;white-space:nowrap}}
+    .po-reel-label .net-weight span{{font-size:6pt;font-weight:bold}}
+    .po-reel-label .net-weight b{{font-size:10pt}}
     .po-reel-label .width-caption{{position:absolute;left:4mm;top:37mm;font-size:6pt;font-weight:bold;line-height:1}}
     .po-reel-label .spec{{position:absolute;left:4mm;top:41mm;width:54mm;display:flex;align-items:baseline;gap:4mm;line-height:1}}
     .po-reel-label .spec strong{{font-size:22pt;font-weight:900;white-space:nowrap}}
