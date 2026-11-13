@@ -1,0 +1,63 @@
+<!-- VCL_REEL_BULK_PAGE_VERSION: 1 -->
+<style>
+#reel-bulk{--ink:#152d38;--line:#d7e1e6;--accent:#166b66;max-width:1180px;margin:24px auto 64px;padding:0 16px;color:var(--ink);font:15px/1.5 Arial,sans-serif}
+#reel-bulk *{box-sizing:border-box}#reel-bulk h1{font-size:30px;margin:8px 0}#reel-bulk h2{font-size:20px;margin:0 0 14px}#reel-bulk p{margin:8px 0 16px}#reel-bulk .eyebrow{font-size:12px;letter-spacing:.08em;font-weight:700;color:var(--accent)}
+#reel-bulk .panel{border:1px solid var(--line);border-radius:12px;background:#fff;padding:22px;margin:18px 0}#reel-bulk .notice{background:#edf5f4;padding:14px 18px;border-radius:8px}#reel-bulk .error{background:#fff0ee;color:#922d21;padding:14px;border-radius:8px;white-space:pre-wrap}#reel-bulk [hidden]{display:none!important}
+#reel-bulk .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}#reel-bulk label{display:block;font-weight:600;font-size:13px}#reel-bulk input,#reel-bulk select,#reel-bulk textarea{display:block;width:100%;padding:10px;border:1px solid #b9cbd3;border-radius:6px;background:white;color:var(--ink);font:15px Arial;margin-top:5px}#reel-bulk input:focus,#reel-bulk select:focus,#reel-bulk textarea:focus{outline:2px solid #7cbbb5;outline-offset:1px}#reel-bulk input[type=checkbox]{display:inline-block;width:18px;height:18px;margin:0 8px 0 0;vertical-align:middle}#reel-bulk fieldset{border:0;margin:0;padding:0;min-width:0}#reel-bulk :disabled{opacity:.65;cursor:default}
+#reel-bulk .bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}#reel-bulk button,#reel-bulk .button{border:1px solid var(--accent);border-radius:6px;background:var(--accent);color:white;padding:10px 16px;font:600 14px Arial;cursor:pointer;text-decoration:none}#reel-bulk button.secondary,#reel-bulk .button.secondary{background:white;color:var(--ink);border-color:var(--line)}#reel-bulk button.small{font-size:12px;padding:7px 10px}#reel-bulk small{display:block;font-size:12px;font-weight:400;color:#526772;margin-top:5px}#reel-bulk .wide{grid-column:1/-1}#reel-bulk .table-scroll{overflow-x:auto}#reel-bulk table{width:100%;border-collapse:collapse;min-width:650px}#reel-bulk th,#reel-bulk td{text-align:left;padding:10px;border-bottom:1px solid var(--line);vertical-align:top}#reel-bulk th{font-size:12px;background:#f2f6f8}#reel-bulk td input{margin:0}#reel-bulk .weight-cell{width:165px}#reel-bulk .status-cell{min-width:210px;font-size:13px}#reel-bulk .saved{color:#126244}#reel-bulk a{color:#176e86}#reel-bulk #rb-status{white-space:pre-wrap}#reel-bulk .check{font-weight:500;font-size:14px;margin:18px 0}
+#reel-bulk #rb-preview{position:fixed;inset:0;z-index:1050;background:#10232dc9;padding:20px;display:flex;align-items:center;justify-content:center}#reel-bulk .preview-panel{background:white;width:min(1080px,100%);height:92vh;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px}#reel-bulk .preview-panel h2{margin:0}#reel-bulk iframe{width:100%;flex:1;min-height:100px;border:1px solid var(--line)}
+@media(max-width:720px){#reel-bulk .grid{grid-template-columns:1fr}#reel-bulk .panel{padding:16px}#reel-bulk h1{font-size:25px}#reel-bulk #rb-preview{padding:8px}}
+</style>
+<main id="reel-bulk">
+  <a href="/compass/stock-register">← Find existing tags in Compass</a>
+  <div class="eyebrow" style="margin-top:20px">VIMIT CONVERTERS · STORES · DEV PAGE</div>
+  <h1>Register existing reels in bulk</h1>
+  <p>One row per physical reel, with its own measured net weight and permanent QR label.</p>
+  <p class="notice">Use this for existing stock that has no VCL tag yet. Check for old labels first. This records physical custody; opening stock, stock transfers and valuation are handled separately.</p>
+  <div id="rb-error" class="error" role="alert" hidden></div>
+  <p id="rb-status" role="status" aria-live="polite">Checking access…</p>
+  <a id="rb-login" class="button" href="/login?redirect-to=%2Freel-stock-bulk-dev" hidden>Sign in to ERPNext</a>
+  <div id="rb-app" hidden>
+    <small id="rb-batch"></small>
+    <section class="panel"><h2>1. Shared reel details</h2>
+      <fieldset id="rb-common"><div class="grid">
+        <label>Company<select id="rb-company" data-shared="company"><option value="">Choose company</option></select></label>
+        <label>Actual warehouse<select id="rb-warehouse" data-shared="warehouse"><option value="">Choose warehouse</option></select></label>
+        <label>Physical registration date<input id="rb-date" data-shared="observed_on" type="date"></label>
+        <label>Material<input id="rb-material" data-shared="material" maxlength="80" placeholder="e.g. WOODFREE"><small>Enter the material name. GSM and brightness have their own fields.</small></label>
+        <label>GSM<input id="rb-gsm" data-shared="gsm" inputmode="decimal" placeholder="e.g. 44"></label>
+        <label>Brightness % — if known<input id="rb-brightness" data-shared="brightness" inputmode="decimal" placeholder="e.g. 66"></label>
+        <label>Reel width (mm)<input id="rb-width" data-shared="width_mm" inputmode="decimal" placeholder="e.g. 610"></label>
+        <label>Colour — if relevant<input id="rb-colour" data-shared="colour" maxlength="30"></label>
+        <label class="wide">Shared notes — optional<textarea id="rb-notes" data-shared="notes" rows="2" maxlength="1600" placeholder="Purchase provenance or other known details"></textarea></label>
+      </div></fieldset>
+    </section>
+    <section class="panel"><h2>2. Individual reels</h2>
+      <fieldset id="rb-entry"><label>Paste net weights from Excel — one weight per line<textarea id="rb-paste" rows="4" placeholder="261.5&#10;248.0&#10;273.5"></textarea><small>Use kg and a decimal point. Enter ? for a reel whose weight is unknown. Empty lines are ignored.</small></label>
+        <div class="bar"><button id="rb-add-paste" type="button">Add pasted weights</button><button id="rb-add" class="secondary" type="button">Add one reel</button></div>
+      </fieldset>
+      <p id="rb-totals"></p>
+      <div class="table-scroll"><table><thead><tr><th>Print</th><th>Row</th><th class="weight-cell">Measured net kg</th><th>Reel note — optional</th><th>Status / permanent ID</th><th></th></tr></thead><tbody id="rb-rows"></tbody></table></div>
+      <div class="bar"><button id="rb-review" type="button">Review reels</button><button id="rb-edit" class="secondary" type="button" hidden>Edit before saving</button></div>
+    </section>
+    <section id="rb-review-panel" class="panel" hidden><h2>3. Review and register</h2>
+      <p id="rb-summary"></p>
+      <p>Each row saves separately. If a row needs attention, completed reels stay saved. Retry unfinished rows using this same batch to keep their original references.</p>
+      <label class="check"><input id="rb-verified" type="checkbox">I physically checked these reels at the stated warehouse and confirmed they do not already have VCL tags.</label>
+      <div class="bar"><button id="rb-save" type="button" disabled>Register reviewed reels</button></div>
+    </section>
+    <section class="panel"><h2>Saved labels and batch recovery</h2>
+      <p>Your current batch is saved in this browser for your ERPNext user. Reopen this page to resume. Download and restore a batch record when moving to another device.</p>
+      <div class="bar"><button id="rb-print" type="button" disabled>Preview selected labels · 100 × 70 mm</button><button id="rb-select" class="secondary" type="button">Select all saved reels</button><button id="rb-backup" class="secondary" type="button">Download batch record</button><button id="rb-new" class="secondary" type="button">Start a new batch</button></div>
+      <label style="margin-top:16px">Restore a downloaded batch record<input id="rb-restore" type="file" accept=".json,application/json"><small>Restoring loads the review and saved IDs. It does not register any reels.</small></label>
+      <small>QR codes open the same permanent reel records in Compass.</small>
+    </section>
+  </div>
+  <div id="rb-preview" role="dialog" aria-modal="true" aria-label="Reel label print preview" hidden>
+    <section class="preview-panel"><div class="bar" style="margin:0;justify-content:space-between"><h2>Reel label print preview</h2><button id="rb-close" class="secondary" type="button">Close preview</button></div>
+      <p style="margin:0">Use Print inside the preview. Choose 100 × 70 mm, Actual size / 100%, with headers and footers off.</p>
+      <a id="rb-download-labels" class="button secondary" download="VCL-reel-labels-100x70.html" style="align-self:flex-start">Download labels</a>
+      <iframe id="rb-frame" title="Printable reel labels" sandbox="allow-scripts allow-modals"></iframe>
+    </section>
+  </div>
+</main>
