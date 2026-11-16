@@ -1,6 +1,6 @@
 # MEMORY — read this first
 
-Last updated: **2026-10-31**
+Last updated: **2026-11-16**
 
 ## State
 - Version in `__init__.py`: 1.1.2.
@@ -15,6 +15,13 @@ Last updated: **2026-10-31**
 - Open branches on origin: `claude/purchasing-defects`, `feat/raise-po`, `po-price-guard`,
   `drop-import-local-filter`, `fix/po-order-date-type`, `qbo-push-page-export-20260616`,
   `store-qbo-last-updated`. Whether any hold unmerged work: unknown.
+
+## Existing stock into the books, Phase S writes — 2026-11-16 (pushed to main, NOT deployed)
+- New `existing_stock.py` (+ pure `existing_stock_core.py`, tests `tests/test_existing_stock.py`, 14 pass). Spec: `C:\Second_Brain\output	agged-stock-workflow	agged-stock-build-plan.md`, Phase S; Tanuj's decisions 16/11.
+- **Needs deploy + migrate**: 9 new fields on Physical Stock Unit; new DocTypes `Tagging Sheet Return`, `Existing Stock Draft`; doc_events on Stock Reconciliation / Stock Entry (submit, cancel, trash) keep linked units' `stock_draft_status` true.
+- Whitelisted: `permissions`, `tagging_sheet` (A4, tick boxes + signature), `draft_preview` (GET, read only); POST `set_item`, `record_sheet`, `prepare_draft`.
+- `set_item` and `prepare_draft` are Tanuj-only: `frappe.conf.tagged_stock_item_approvers`, default `tanuj.haria@vimit.com` (+ Administrator).
+- Opening = draft Stock Reconciliation, purpose Opening Stock, expense = `get_difference_account` (1910 Temporary Opening), refused if the warehouse already holds the item. Batched item: one row per unit, batch = tag ID. Transfer = draft Material Transfer from the book warehouse; batched items refused (pick batches in Desk). m² items never map per reel. Nothing submits.
 
 ## Purchase Invoice change requests — 2026-10-31 (branch `claude/pi-change-requests`, NOT merged)
 - Server half of vcl_compass's same-named branch; deploy this app first. No DocType, no patch, no migrate.

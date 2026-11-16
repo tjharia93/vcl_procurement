@@ -27,6 +27,18 @@ doc_events = {
     "Purchase Order": {
         "validate": "vcl_procurement.api.po_price_guard.normalise_line_prices",
     },
+    # Existing tagged stock (Phase S): a unit linked to a draft opening or transfer
+    # follows that voucher's submit, cancel or deletion, whoever does it in Desk.
+    "Stock Reconciliation": {
+        "on_submit": "vcl_procurement.existing_stock.on_voucher_change",
+        "on_cancel": "vcl_procurement.existing_stock.on_voucher_change",
+        "on_trash": "vcl_procurement.existing_stock.on_voucher_change",
+    },
+    "Stock Entry": {
+        "on_submit": "vcl_procurement.existing_stock.on_voucher_change",
+        "on_cancel": "vcl_procurement.existing_stock.on_voucher_change",
+        "on_trash": "vcl_procurement.existing_stock.on_voucher_change",
+    },
 }
 
 # Fixtures

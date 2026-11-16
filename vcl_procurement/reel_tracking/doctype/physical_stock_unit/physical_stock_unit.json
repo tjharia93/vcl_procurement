@@ -37,7 +37,16 @@
     "supplier_name",
     "supplier_lot",
     "expiry_date",
-    "ledger_status"
+    "ledger_status",
+    "item_set_by",
+    "item_set_at",
+    "count_outcome",
+    "counted_on",
+    "count_signed_by",
+    "count_sheet",
+    "stock_draft_doctype",
+    "stock_draft",
+    "stock_draft_status"
   ],
   "fields": [
     {
@@ -219,6 +228,66 @@
       "label": "Ledger Status",
       "fieldtype": "Select",
       "options": "Already recorded\nOpening review needed\nNot sure"
+    },
+    {
+      "fieldname": "item_set_by",
+      "label": "Item Set By",
+      "fieldtype": "Link",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "item_set_at",
+      "label": "Item Set At",
+      "fieldtype": "Datetime",
+      "read_only": 1
+    },
+    {
+      "fieldname": "count_outcome",
+      "label": "Count Outcome",
+      "fieldtype": "Select",
+      "options": "\nPresent\nNot found\nHeld",
+      "read_only": 1
+    },
+    {
+      "fieldname": "counted_on",
+      "label": "Counted On",
+      "fieldtype": "Date",
+      "read_only": 1
+    },
+    {
+      "fieldname": "count_signed_by",
+      "label": "Count Signed By",
+      "fieldtype": "Data",
+      "read_only": 1
+    },
+    {
+      "fieldname": "count_sheet",
+      "label": "Count Sheet",
+      "fieldtype": "Link",
+      "options": "Tagging Sheet Return",
+      "read_only": 1
+    },
+    {
+      "fieldname": "stock_draft_doctype",
+      "label": "Stock Draft Type",
+      "fieldtype": "Link",
+      "options": "DocType",
+      "read_only": 1
+    },
+    {
+      "fieldname": "stock_draft",
+      "label": "Stock Draft",
+      "fieldtype": "Dynamic Link",
+      "options": "stock_draft_doctype",
+      "read_only": 1
+    },
+    {
+      "fieldname": "stock_draft_status",
+      "label": "Stock Draft Status",
+      "fieldtype": "Select",
+      "options": "\nDraft\nSubmitted\nCancelled",
+      "read_only": 1
     }
   ],
   "sort_field": "creation",
