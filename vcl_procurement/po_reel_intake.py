@@ -130,6 +130,14 @@ def label_data(po, name=None):
         registered=[r for r in registered if r.name==name]
     if not registered:
         frappe.throw('Prepare the reel identities before printing their labels.')
+    # A PO can also contain physical tags assigned from a receipt. Reprinting
+    # through the PO must retain that receipt's permission/cancellation checks.
+    receipt_sources={r.purchase_receipt for r in registered if r.purchase_receipt
+        and (r.notes or '').startswith('Receipt tag preparation v1: ')}
+    if receipt_sources:
+        from vcl_procurement.receipt_reel_tags import label_data as receipt_labels
+        for receipt in sorted(receipt_sources):
+            receipt_labels(receipt)
     return dict(receipt=doc.name,docstatus=doc.docstatus,source_type='Purchase Order',source_name=doc.name,
         reels=[dict(batch_id=r.name,item_code=r.item_code,item_name=r.material_description,
             supplier=doc.supplier_name or doc.supplier,purchase_order=doc.name,

@@ -128,5 +128,13 @@ class ReceiptTags(unittest.TestCase):
             with self.assertRaises(_Thrown):self.prepare()
         self.assertEqual(self.allocations,[])
 
+    def test_po_reprint_cannot_bypass_receipt_permissions_or_cancellation(self):
+        from vcl_procurement import po_reel_intake
+        self.prepare()
+        with patch.object(po_reel_intake,'source',return_value=self.po),patch.object(po_reel_intake,'rows',return_value=self.tags), \
+                patch.object(api,'label_data',side_effect=PermissionError('Receipt not readable')) as labels:
+            with self.assertRaises(PermissionError):po_reel_intake.label_data('PO',name=self.tags[0].name)
+            labels.assert_called_once_with('PR')
+
 
 if __name__=='__main__':unittest.main()
