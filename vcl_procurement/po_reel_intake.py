@@ -108,6 +108,9 @@ def register(po):
 
 def record_page(reel):
     """Read-only Step 2 view; the invoice receiving API must not edit PO-only tags."""
+    if reel.purchase_receipt and (reel.notes or '').startswith('Receipt tag preparation v1: '):
+        from vcl_procurement.receipt_reel_tags import record_page as receipt_record
+        return receipt_record(reel)
     doc = source(reel.purchase_order)
     if reel.company != doc.company or reel.supplier != doc.supplier:
         frappe.throw(_('The reel and source Purchase Order do not match.'))

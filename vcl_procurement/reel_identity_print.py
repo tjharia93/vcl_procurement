@@ -179,6 +179,9 @@ def source_labels(source_type, name):
         return receipt_labels(name)
     if source_type == 'Reel Intake':
         row = reel_page(name)['reel']
+        if row.get('purchase_receipt') and str(row.get('notes') or '').startswith('Receipt tag preparation v1: '):
+            from vcl_procurement.receipt_reel_tags import label_data as receipt_tag_labels
+            return receipt_tag_labels(row['purchase_receipt'],selected=name)
         return intake_labels(row['purchase_invoice'], name=name) if row.get('purchase_invoice') else label_data(row['purchase_order'], name=name)
     if source_type == 'Batch':
         batch = frappe.get_doc('Batch', name)

@@ -416,6 +416,9 @@ def receipt_labels(name):
     pr.check_permission('read')
     if pr.docstatus == 2:
         frappe.throw(_('Cancelled receipts cannot print active reel labels.'))
+    if frappe.db.exists('DocType','Reel Intake') and frappe.db.exists('Reel Intake',{'purchase_receipt':name,'notes':['like','Receipt tag preparation v1: %']}):
+        from vcl_procurement.receipt_reel_tags import label_data
+        return label_data(name)
     result = []
     for row in pr.items:
         batch_id = _row_batch(row)
