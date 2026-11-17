@@ -39,7 +39,7 @@ class Rules(unittest.TestCase):
 
     def test_default_recipients(self):
         self.assertEqual(rules.KRA_RECHECK_RECIPIENTS, ["account@vimit.com", "tanuj.haria@vimit.com"])
-        self.assertEqual(rules.KRA_DEADLINE_SECONDS, 15)
+        self.assertEqual(rules.KRA_DEADLINE_SECONDS, 5)
 
 
 class Job(unittest.TestCase):

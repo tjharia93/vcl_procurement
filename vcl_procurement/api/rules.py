@@ -1064,7 +1064,7 @@ def buying_price(rows, supplier):
 
 # --- KRA lookups that fail, and the daily re-check (Tanuj, 09/11/2026) ---------------------
 
-KRA_DEADLINE_SECONDS = 15   # one live lookup gets this long (several short attempts), then the invoice waits for the daily check
+KRA_DEADLINE_SECONDS = 5    # one live lookup gets this long (several short attempts), then the invoice waits for the daily check
 RECHECK_MAX_TRIES = 3       # daily passes before an invoice that KRA still does not answer is reported
 KRA_RECHECK_RECIPIENTS = ["account@vimit.com", "tanuj.haria@vimit.com"]
 
