@@ -4,7 +4,7 @@ Last updated: **2026-11-17**
 
 ## State
 - Version in `__init__.py`: 1.1.2.
-- What is live on the site: unknown. No commit records a deploy.
+- What is live on the site (Frappe Cloud Apps tab, 17/11/2026): main at `db59a0a`. Earlier commits on main are therefore live too.
 - Migrate pending: unknown. `add_40hc_container_size` (27/10) needs a migrate, per
   `PURCHASING_PORT.md` and commit 5d32ede. Whether it has run is unknown.
 - Merged to main 28/10, deploy unknown: PO lines link to their open Material Request
@@ -19,7 +19,7 @@ Last updated: **2026-11-17**
 ## Existing stock into the books, Phase S writes — 2026-11-16 (deployed 17/11/2026)
 - New `existing_stock.py` (+ pure `existing_stock_core.py`, tests `tests/test_existing_stock.py`, 14 pass). Spec: `C:\Second_Brain\output/tagged-stock-workflow/tagged-stock-build-plan.md`, Phase S; Tanuj's decisions 16/11.
 - Phase S is now B.1 (tagging sheets, item links) and B.2 (opening and transfer drafts) in the renumbered plan; B.3 is the first real use. Tracker: https://claude.ai/artifact/LuSLRTPUTB2yt86KoAobEw
-- **Deployed 17/11/2026** (Tanuj said the push was done). The migrate was not confirmed in this session; if the tagging sheet or draft screens error on a missing field or table, run it. B.1 and B.2 stay in review until one real registration has been through them.
+- **Deployed 17/11/2026**: Frappe Cloud (Apps tab) shows vcl_procurement at main `db59a0a`, which includes `15d584e` and `eea7cb4`. The migrate was not confirmed (see the site's Migrations tab); if the tagging sheet or draft screens error on a missing field or table, run it. B.1 and B.2 stay in review until one real registration has been through them.
 - 17/11 (eea7cb4): tagging sheets key on the bulk batch (`EXIST-BULK-<batch>-<row>`), one sheet per batch. No schema change.
 - The migrate adds: 9 new fields on Physical Stock Unit; new DocTypes `Tagging Sheet Return`, `Existing Stock Draft`; doc_events on Stock Reconciliation / Stock Entry (submit, cancel, trash) keep linked units' `stock_draft_status` true.
 - Whitelisted: `permissions`, `tagging_sheet` (A4, tick boxes + signature), `draft_preview` (GET, read only); POST `set_item`, `record_sheet`, `prepare_draft`.
