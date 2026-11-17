@@ -1,6 +1,7 @@
 # Existing stock into the books: Web Page (B.1, B.2)
 
-Live route (once created): https://vimitconverters.frappe.cloud/existing-stock-dev
+Live route: https://vimitconverters.frappe.cloud/existing-stock-dev (Web Page
+`existing-stock-into-the-books`, created 17/11/2026)
 
 The screen for Phase B of the tagged-stock plan. It works through each **tagging sheet**
 (one registration, or one whole bulk batch from `/reel-stock-bulk-dev`):
@@ -17,7 +18,7 @@ The screen for Phase B of the tagged-stock plan. It works through each **tagging
 ## Server
 Uses `vcl_procurement.existing_stock`:
 - deployed 17/11/2026: `tagging_sheet`, `record_sheet`, `set_item`, `draft_preview`, `prepare_draft`;
-- **added with this page (needs a deploy, no migrate)**: `worklist`, `sheet_page`, `item_search`, all read only.
+- added with this page, deployed 17/11/2026 (`e85085b`): `worklist`, `sheet_page`, `item_search`, all read only.
 
 Every rule, permission and version check stays on the server. Writes send each unit's `modified`;
 a changed record is refused and the page reloads the sheet. Sheet and draft requests carry a

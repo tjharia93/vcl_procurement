@@ -4,9 +4,11 @@ Last updated: **2026-11-17**
 
 ## State
 - Version in `__init__.py`: 1.1.2.
-- What is live on the site (Frappe Cloud Apps tab, 17/11/2026): main at `db59a0a`. Earlier commits on main are therefore live too.
-- Migrate pending: unknown. `add_40hc_container_size` (27/10) needs a migrate, per
-  `PURCHASING_PORT.md` and commit 5d32ede. Whether it has run is unknown.
+- What is live on the site (checked by API, 17/11/2026 evening): main at `e85085b`. `worklist`,
+  `sheet_page` and `item_search` answer on live, and they exist only from that commit.
+- Migrate pending: none (17/11/2026). The Phase S DocTypes and Physical Stock Unit fields were
+  synced at 06:22 on 17/11. Every patch in `patches.txt` is in the live Patch Log, including
+  `add_40hc_container_size` (27/10).
 - Merged to main 28/10, deploy unknown: PO lines link to their open Material Request
   (8cea57d); import taxes due the earlier of landing+N days and 30 days from invoice date (f7c35a0).
 - The Compass purchasing screens call `pi.tax_preview`, `pi.pi_set_ship` and the new `pi_page`
@@ -16,14 +18,20 @@ Last updated: **2026-11-17**
   `drop-import-local-filter`, `fix/po-order-date-type`, `qbo-push-page-export-20260616`,
   `store-qbo-last-updated`. Whether any hold unmerged work: unknown.
 
-## Existing stock worklist Web Page — 2026-11-17 (not deployed)
+## Existing stock worklist Web Page — 2026-11-17 (LIVE 17/11/2026)
 - `dev_pages/existing-stock/` (route `existing-stock-dev`): the screen for B.1/B.2. Per tagging sheet: print, record signed ticks, link items (Tanuj), preview and create drafts (Tanuj). README says how to create the Web Page.
-- New read-only methods in `existing_stock.py`: `worklist`, `sheet_page`, `item_search` (+ pure `sheet_summary`, `group_sheets`, `item_fits` in `existing_stock_core.py`). Needs a deploy, no migrate. 21 tests pass; `check.cjs` passes offline.
+- New read-only methods in `existing_stock.py`: `worklist`, `sheet_page`, `item_search` (+ pure `sheet_summary`, `group_sheets`, `item_fits` in `existing_stock_core.py`). Deployed with `e85085b`, no migrate needed. 21 tests pass; `check.cjs` passes offline.
+- **Web Page created 17/11/2026** by REST: name `existing-stock-into-the-books`, route
+  `existing-stock-dev`, published, `dynamic_template` 0. Keep it at 0: the CSS uses `{#...`
+  selectors, which Jinja reads as a comment. Later edits go to the `main_section_html` and
+  `javascript` fields, and browsers may cache the page for 5 minutes.
+- Checked live as Tanuj: 11 sheets, 10 at Tag and sign. `EXIST-BULK-1610717d…` (11 newsprint reels, Warehouse 5, signed by PARAG 17/11) waits at Link items.
+- `check.cjs` on Windows: no Playwright browsers are downloaded. Run it with `PLAYWRIGHT` pointed at an installed playwright module and launch `channel: 'chrome'`.
 
 ## Existing stock into the books, Phase S writes — 2026-11-16 (deployed 17/11/2026)
 - New `existing_stock.py` (+ pure `existing_stock_core.py`, tests `tests/test_existing_stock.py`, 14 pass). Spec: `C:\Second_Brain\output/tagged-stock-workflow/tagged-stock-build-plan.md`, Phase S; Tanuj's decisions 16/11.
 - Phase S is now B.1 (tagging sheets, item links) and B.2 (opening and transfer drafts) in the renumbered plan; B.3 is the first real use. Tracker: https://claude.ai/artifact/LuSLRTPUTB2yt86KoAobEw
-- **Deployed 17/11/2026**: Frappe Cloud (Apps tab) shows vcl_procurement at main `db59a0a`, which includes `15d584e` and `eea7cb4`. The migrate was not confirmed (see the site's Migrations tab); if the tagging sheet or draft screens error on a missing field or table, run it. B.1 and B.2 stay in review until one real registration has been through them.
+- **Deployed 17/11/2026**: Frappe Cloud (Apps tab) shows vcl_procurement at main `db59a0a`, which includes `15d584e` and `eea7cb4`. The migrate has run: both DocTypes and the unit fields were checked by API on 17/11. B.1 and B.2 stay in review until one real registration has been through them.
 - 17/11 (eea7cb4): tagging sheets key on the bulk batch (`EXIST-BULK-<batch>-<row>`), one sheet per batch. No schema change.
 - The migrate adds: 9 new fields on Physical Stock Unit; new DocTypes `Tagging Sheet Return`, `Existing Stock Draft`; doc_events on Stock Reconciliation / Stock Entry (submit, cancel, trash) keep linked units' `stock_draft_status` true.
 - Whitelisted: `permissions`, `tagging_sheet` (A4, tick boxes + signature), `draft_preview` (GET, read only); POST `set_item`, `record_sheet`, `prepare_draft`.
