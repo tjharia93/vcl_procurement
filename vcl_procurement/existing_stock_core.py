@@ -189,3 +189,96 @@ def draft_blockers(unit, kind):
     if unit.get('ledger_status') != want:
         out.append(f'{name} is not marked {"Missing from books" if kind == "Opening" else "In books"}.')
     return out
+
+
+# ---------------------------------------------------------------- worklist (read only)
+
+STAGES = ('Tag and sign', 'Link items', 'Ready to draft', 'In draft', 'Done')
+
+
+def sheet_summary(units):
+    """Counts and the next step for one tagging sheet.
+
+    units: dicts with count_outcome, item_code, ledger_status, stock_draft_status.
+    A unit is finished once it is not found, held, already in the books where it is,
+    or its draft was submitted. Done is never claimed for a sheet with no units.
+    """
+    s = {'units': len(units), 'present': 0, 'not_found': 0, 'held': 0, 'unchecked': 0,
+         'need_item': 0, 'linked': 0, 'in_draft': 0, 'submitted': 0}
+    for u in units:
+        outcome = u.get('count_outcome') or ''
+        if outcome == 'Present':
+            s['present'] += 1
+        elif outcome == 'Not found':
+            s['not_found'] += 1
+        elif outcome == 'Held':
+            s['held'] += 1
+        else:
+            s['unchecked'] += 1
+        if outcome != 'Present':
+            continue
+        if not u.get('item_code'):
+            s['need_item'] += 1
+            continue
+        s['linked'] += 1
+        status = u.get('stock_draft_status') or ''
+        if status == 'Draft':
+            s['in_draft'] += 1
+        elif status == 'Submitted':
+            s['submitted'] += 1
+    if not units or s['unchecked']:
+        stage = 'Tag and sign'
+    elif s['need_item']:
+        stage = 'Link items'
+    elif s['in_draft']:
+        stage = 'In draft'
+    elif s['linked'] > s['submitted']:
+        stage = 'Ready to draft'
+    else:
+        stage = 'Done'
+    s['stage'] = stage
+    return s
+
+
+def group_sheets(registrations, units):
+    """One row per tagging sheet (a registration, or a whole bulk batch), newest first.
+
+    registrations: dicts with name, company, warehouse, kind, observed_on.
+    units: dicts with registration plus the sheet_summary fields.
+    """
+    by_reg = {}
+    for u in units:
+        by_reg.setdefault(u.get('registration'), []).append(u)
+    sheets = {}
+    for r in registrations:
+        key = sheet_key(r['name'])
+        s = sheets.setdefault(key, {'reference': key, 'company': r.get('company'), 'kinds': set(), 'warehouses': set(),
+                                    'first_on': str(r.get('observed_on') or ''), 'last_on': str(r.get('observed_on') or ''),
+                                    'registrations': 0, '_units': []})
+        s['registrations'] += 1
+        if r.get('kind'):
+            s['kinds'].add(r['kind'])
+        on = str(r.get('observed_on') or '')
+        s['first_on'] = min(s['first_on'], on) if s['first_on'] else on
+        s['last_on'] = max(s['last_on'], on)
+        for u in by_reg.get(r['name'], []):
+            s['_units'].append(u)
+            if u.get('warehouse'):
+                s['warehouses'].add(u['warehouse'])
+        if r.get('warehouse') and not by_reg.get(r['name']):
+            s['warehouses'].add(r['warehouse'])
+    out = []
+    for s in sheets.values():
+        s.update(sheet_summary(s.pop('_units')))
+        s['kinds'] = sorted(s['kinds'])
+        s['warehouses'] = sorted(s['warehouses'])
+        out.append(s)
+    return sorted(out, key=lambda s: (s['last_on'], s['reference']), reverse=True)
+
+
+def item_fits(kinds, item_uom):
+    """True when every kind of unit on the sheet can be expressed in this item's stock unit."""
+    try:
+        return bool(kinds) and all(uom_fits(k, item_uom) for k in kinds)
+    except ValueError:
+        return False

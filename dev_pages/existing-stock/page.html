@@ -1,0 +1,129 @@
+<!-- VCL_EXISTING_STOCK_PAGE_VERSION: 1 -->
+<style>
+#existing-stock{--ink:#1f2433;--muted:#5a6272;--line:#d9dce6;--brand:#2b3990;--brand-tint:#e8ebf7;--ok:#2f6340;--ok-tint:#e1eee4;--warn:#8a5a00;--warn-tint:#f7ecd4;--bad:#922d21;--bad-tint:#fbeceA;max-width:1180px;margin:20px auto 64px;padding:0 16px;color:var(--ink);font:15px/1.5 Arial,sans-serif}
+#existing-stock *{box-sizing:border-box}#existing-stock [hidden]{display:none!important}
+#existing-stock h1{font-size:28px;margin:6px 0}#existing-stock h2{font-size:19px;margin:0 0 6px}#existing-stock h3{font-size:16px;margin:0}#existing-stock p{margin:6px 0 12px}
+#existing-stock .eyebrow{font-size:12px;letter-spacing:.08em;font-weight:700;color:var(--brand)}
+#existing-stock .notice{background:var(--brand-tint);padding:12px 16px;border-radius:8px}
+#existing-stock .error{background:var(--bad-tint);color:var(--bad);padding:12px 16px;border-radius:8px;white-space:pre-wrap}
+#existing-stock .ok-msg{background:var(--ok-tint);color:var(--ok);padding:12px 16px;border-radius:8px}
+#existing-stock .panel{border:1px solid var(--line);border-radius:10px;background:#fff;padding:18px;margin:14px 0}
+#existing-stock .panel.locked{background:#f7f8fb}
+#existing-stock label{display:block;font-weight:600;font-size:13px}
+#existing-stock input,#existing-stock select,#existing-stock textarea{display:block;width:100%;padding:9px 10px;border:1px solid #b8bfd0;border-radius:6px;background:#fff;color:var(--ink);font:15px Arial;margin-top:4px;min-height:40px}
+#existing-stock input[type=checkbox],#existing-stock input[type=radio]{display:inline-block;width:18px;height:18px;min-height:0;margin:0 8px 0 0;vertical-align:middle}
+#existing-stock :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+#existing-stock button,#existing-stock .button{border:1px solid var(--brand);border-radius:6px;background:var(--brand);color:#fff;padding:9px 14px;font:600 14px Arial;cursor:pointer;text-decoration:none;min-height:40px;display:inline-block}
+#existing-stock button.secondary,#existing-stock .button.secondary{background:#fff;color:var(--ink);border-color:#b8bfd0}
+#existing-stock button.small{font-size:13px;padding:6px 10px;min-height:34px}
+#existing-stock button:disabled{opacity:.55;cursor:default}
+#existing-stock .bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+#existing-stock .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+#existing-stock small{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:3px}
+#existing-stock .muted{color:var(--muted)}
+#existing-stock .mono{font-family:"Courier New",monospace}
+#existing-stock .pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:3px;white-space:nowrap}
+#existing-stock .s-tag{background:#eceef3;color:#3d4350}#existing-stock .s-link{background:var(--warn-tint);color:var(--warn)}#existing-stock .s-ready{background:var(--brand-tint);color:var(--brand)}#existing-stock .s-draft{background:#dfeef2;color:#14606f}#existing-stock .s-done{background:var(--ok-tint);color:var(--ok)}
+#existing-stock .chips{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+#existing-stock .chip{background:#fff;color:var(--ink);border:1px solid #b8bfd0;font-weight:400;font-size:13px;padding:6px 10px;min-height:34px}
+#existing-stock .chip[aria-pressed=true]{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:700}
+#existing-stock .sheets{display:flex;flex-direction:column;gap:8px}
+#existing-stock .sheet{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 150px auto;gap:6px 16px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:#fff;text-align:left;width:100%;color:var(--ink);font:inherit;cursor:pointer}
+#existing-stock .sheet:hover{border-color:var(--brand)}
+#existing-stock .meter{display:flex;height:8px;border-radius:2px;overflow:hidden;background:#eceef3;margin-top:4px}
+#existing-stock .meter i{display:block;height:100%}
+#existing-stock .table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+#existing-stock table{width:100%;border-collapse:collapse;min-width:640px}
+#existing-stock th,#existing-stock td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14px}
+#existing-stock th{font-size:12px;background:#f3f4f8;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+#existing-stock tr:last-child td{border-bottom:0}
+#existing-stock .seg{display:inline-flex;border:1px solid #b8bfd0;border-radius:6px;overflow:hidden}
+#existing-stock .seg button{border:0;border-right:1px solid #b8bfd0;border-radius:0;background:#fff;color:var(--ink);font-weight:400;font-size:13px;padding:6px 9px;min-height:36px}
+#existing-stock .seg button:last-child{border-right:0}
+#existing-stock .seg button[aria-pressed=true].o-present{background:var(--ok);color:#fff;font-weight:700}
+#existing-stock .seg button[aria-pressed=true].o-notfound{background:var(--bad);color:#fff;font-weight:700}
+#existing-stock .seg button[aria-pressed=true].o-held{background:var(--warn);color:#fff;font-weight:700}
+#existing-stock .steps{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+#existing-stock .step{flex:1;min-width:180px;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#fff}
+#existing-stock .step.now{border-color:var(--brand);background:var(--brand-tint)}
+#existing-stock .step.done{background:var(--ok-tint);border-color:#b9d6c0}
+#existing-stock .items{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:340px;overflow:auto}
+#existing-stock .item{display:block;text-align:left;width:100%;background:#fff;color:var(--ink);border:1px solid var(--line);font-weight:400;padding:9px 12px}
+#existing-stock .item[aria-pressed=true]{border:2px solid var(--brand);background:var(--brand-tint)}
+#existing-stock .blockers{background:var(--warn-tint);color:#5c3c00;border-radius:8px;padding:10px 14px 10px 30px;margin:10px 0}
+#existing-stock #es-preview{position:fixed;inset:0;z-index:1050;background:#141a2cc9;padding:16px;display:flex;align-items:center;justify-content:center}
+#existing-stock .preview-panel{background:#fff;width:min(1080px,100%);height:92vh;border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px}
+#existing-stock iframe{width:100%;flex:1;min-height:100px;border:1px solid var(--line)}
+@media(max-width:760px){#existing-stock .grid{grid-template-columns:1fr}#existing-stock .sheet{grid-template-columns:minmax(0,1fr) auto}#existing-stock .sheet .hide-sm{display:none}#existing-stock h1{font-size:24px}#existing-stock .panel{padding:14px}}
+</style>
+<main id="existing-stock">
+  <div class="eyebrow">VIMIT CONVERTERS · STORES · DEV PAGE</div>
+  <h1>Existing stock into the books</h1>
+  <p class="notice">Work through each tagging sheet: print it, record the signed ticks, link each unit to the ERPNext item that holds it, then prepare a draft. <b>Drafts only:</b> nothing here submits stock; Tanuj submits in ERPNext.</p>
+  <div id="es-error" class="error" role="alert" hidden></div>
+  <p id="es-status" role="status" aria-live="polite">Checking access…</p>
+  <a id="es-login" class="button" href="/login?redirect-to=%2Fexisting-stock-dev" hidden>Sign in to ERPNext</a>
+
+  <section id="es-list" hidden>
+    <div class="grid">
+      <label>Company<select id="es-company"></select></label>
+      <label>Store<select id="es-store"><option value="">All stores</option></select></label>
+      <label>Find a sheet or tag<input id="es-find" placeholder="e.g. EXIST- or Warehouse 7"></label>
+    </div>
+    <div class="chips" id="es-stages" role="group" aria-label="Show sheets at this step"></div>
+    <p id="es-count" class="muted"></p>
+    <div class="sheets" id="es-sheets"></div>
+  </section>
+
+  <section id="es-sheet" hidden>
+    <div class="bar" style="margin:0 0 6px"><button id="es-back" class="secondary small" type="button">← All sheets</button><button id="es-reload" class="secondary small" type="button">Reload</button></div>
+    <h2 id="es-title"></h2>
+    <p id="es-sub" class="muted"></p>
+    <div class="steps" id="es-steps"></div>
+    <div id="es-ok" class="ok-msg" role="status" hidden></div>
+
+    <section class="panel" id="es-p1">
+      <h2>1 · Tag and sign</h2>
+      <p>Print the sheet, stick a label on each unit, tick one box per row, sign it, then record the ticks here exactly as signed.</p>
+      <div class="bar" style="margin-top:0"><button id="es-print" class="secondary" type="button">Preview tagging sheet</button></div>
+      <div id="es-record">
+        <div class="table-scroll" style="margin-top:12px"><table><thead><tr><th>Tag</th><th>Material</th><th>Store</th><th>On the signed sheet</th><th>Note</th></tr></thead><tbody id="es-rows"></tbody></table></div>
+        <div class="bar"><button id="es-allpresent" class="secondary small" type="button">Tick all remaining as present</button><span id="es-ticked" class="muted"></span></div>
+        <div class="grid" style="margin-top:12px">
+          <label>Signed by<input id="es-signedby" maxlength="140" placeholder="Name on the sheet"></label>
+          <label>Signed on<input id="es-signedon" type="date"></label>
+        </div>
+        <div class="bar"><button id="es-save-sheet" type="button" disabled>Record signed sheet</button></div>
+      </div>
+      <p id="es-recorded" class="muted" hidden></p>
+    </section>
+
+    <section class="panel" id="es-p2">
+      <h2>2 · Link items</h2>
+      <p id="es-p2-help">Choose which ERPNext item holds each unit's balance, and whether the books already hold it.</p>
+      <div class="table-scroll"><table><thead><tr><th><input type="checkbox" id="es-link-all" aria-label="Select all"></th><th>Tag</th><th>Material</th><th>Item now</th><th>Books</th></tr></thead><tbody id="es-link-rows"></tbody></table></div>
+      <div id="es-link-form">
+        <label style="margin-top:12px">Find the item<input id="es-item-q" placeholder="Item code or name, e.g. semi gloss"><small>Only items whose stock unit fits the selected units are shown, with where the books hold them today.</small></label>
+        <div class="items" id="es-items"></div>
+        <fieldset style="border:0;padding:0;margin:12px 0 0"><legend style="font-weight:600;font-size:13px">Do the books already hold this stock?</legend>
+          <label style="font-weight:400"><input type="radio" name="es-treat" value="In books">Yes, in books: the balance is already recorded under this item (a transfer may be needed)</label>
+          <label style="font-weight:400"><input type="radio" name="es-treat" value="Missing from books">No, missing from books: it needs an opening entry</label>
+        </fieldset>
+        <div class="bar"><button id="es-link" type="button" disabled>Link selected units</button><span id="es-link-sum" class="muted"></span></div>
+      </div>
+    </section>
+
+    <section class="panel" id="es-p3">
+      <h2>3 · Prepare drafts</h2>
+      <p id="es-p3-help">Units that are present, linked and not yet on a draft. Preview first; the draft is created in ERPNext for Tanuj to review and submit.</p>
+      <div id="es-drafts"></div>
+    </section>
+  </section>
+
+  <div id="es-preview" role="dialog" aria-modal="true" aria-label="Tagging sheet preview" hidden>
+    <section class="preview-panel"><div class="bar" style="margin:0;justify-content:space-between"><h2 style="margin:0">Tagging sheet</h2><button id="es-close" class="secondary" type="button">Close</button></div>
+      <p style="margin:0">Use Print inside the preview. A4, Actual size, headers and footers off.</p>
+      <iframe id="es-frame" title="Printable tagging sheet" sandbox="allow-scripts allow-modals"></iframe>
+    </section>
+  </div>
+</main>

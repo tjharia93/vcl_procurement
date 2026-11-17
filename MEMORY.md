@@ -16,6 +16,10 @@ Last updated: **2026-11-17**
   `drop-import-local-filter`, `fix/po-order-date-type`, `qbo-push-page-export-20260616`,
   `store-qbo-last-updated`. Whether any hold unmerged work: unknown.
 
+## Existing stock worklist Web Page — 2026-11-17 (not deployed)
+- `dev_pages/existing-stock/` (route `existing-stock-dev`): the screen for B.1/B.2. Per tagging sheet: print, record signed ticks, link items (Tanuj), preview and create drafts (Tanuj). README says how to create the Web Page.
+- New read-only methods in `existing_stock.py`: `worklist`, `sheet_page`, `item_search` (+ pure `sheet_summary`, `group_sheets`, `item_fits` in `existing_stock_core.py`). Needs a deploy, no migrate. 21 tests pass; `check.cjs` passes offline.
+
 ## Existing stock into the books, Phase S writes — 2026-11-16 (deployed 17/11/2026)
 - New `existing_stock.py` (+ pure `existing_stock_core.py`, tests `tests/test_existing_stock.py`, 14 pass). Spec: `C:\Second_Brain\output/tagged-stock-workflow/tagged-stock-build-plan.md`, Phase S; Tanuj's decisions 16/11.
 - Phase S is now B.1 (tagging sheets, item links) and B.2 (opening and transfer drafts) in the renumbered plan; B.3 is the first real use. Tracker: https://claude.ai/artifact/LuSLRTPUTB2yt86KoAobEw

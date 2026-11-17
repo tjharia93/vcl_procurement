@@ -59,6 +59,94 @@ class Rules(unittest.TestCase):
             with self.assertRaises(ValueError): rules.draft_request(*args)
 
 
+class Worklist(unittest.TestCase):
+    def u(self, **kw):
+        d = dict(registration='R1', warehouse='W7', count_outcome='', item_code='', ledger_status='', stock_draft_status='')
+        d.update(kw); return d
+
+    def test_stage_moves_through_tag_link_draft_done(self):
+        S = rules.sheet_summary
+        self.assertEqual(S([])['stage'], 'Tag and sign')
+        self.assertEqual(S([self.u(), self.u(count_outcome='Present')])['stage'], 'Tag and sign')
+        self.assertEqual(S([self.u(count_outcome='Present'), self.u(count_outcome='Not found')])['stage'], 'Link items')
+        self.assertEqual(S([self.u(count_outcome='Present', item_code='P')])['stage'], 'Ready to draft')
+        self.assertEqual(S([self.u(count_outcome='Present', item_code='P', stock_draft_status='Draft')])['stage'], 'In draft')
+        self.assertEqual(S([self.u(count_outcome='Present', item_code='P', stock_draft_status='Submitted'),
+                            self.u(count_outcome='Held')])['stage'], 'Done')
+        self.assertEqual(S([self.u(count_outcome='Present', item_code='P', stock_draft_status='Cancelled')])['stage'], 'Ready to draft')
+
+    def test_counts(self):
+        s = rules.sheet_summary([self.u(count_outcome='Present'), self.u(count_outcome='Present', item_code='P'),
+                                 self.u(count_outcome='Held'), self.u(count_outcome='Not found'), self.u()])
+        self.assertEqual((s['units'], s['present'], s['held'], s['not_found'], s['unchecked'], s['need_item'], s['linked']),
+                         (5, 2, 1, 1, 1, 1, 1))
+
+    def test_bulk_batch_is_one_sheet_and_newest_first(self):
+        batch = 'EXIST-BULK-' + '1' * 8 + '-1111-1111-1111-' + '1' * 12
+        regs = [dict(name=batch + '-' + '2' * 8 + '-2222-2222-2222-' + '2' * 12, company='VCL', warehouse='W5', kind='Reel', observed_on='2026-11-13'),
+                dict(name=batch + '-' + '3' * 8 + '-3333-3333-3333-' + '3' * 12, company='VCL', warehouse='W5', kind='Reel', observed_on='2026-11-14'),
+                dict(name='EXIST-OLD', company='VCL', warehouse='Soykimau', kind='Bundle', observed_on='2026-11-10')]
+        units = [self.u(registration=regs[0]['name'], warehouse='W5', count_outcome='Present'),
+                 self.u(registration=regs[1]['name'], warehouse='W5'),
+                 self.u(registration='EXIST-OLD', warehouse='Soykimau')]
+        sheets = rules.group_sheets(regs, units)
+        self.assertEqual([s['reference'] for s in sheets], [batch, 'EXIST-OLD'])
+        self.assertEqual((sheets[0]['units'], sheets[0]['registrations'], sheets[0]['first_on'], sheets[0]['last_on'],
+                          sheets[0]['warehouses'], sheets[0]['kinds']), (2, 2, '2026-11-13', '2026-11-14', ['W5'], ['Reel']))
+
+    def test_item_fits_every_kind_on_the_sheet(self):
+        self.assertTrue(rules.item_fits(['Reel'], 'Kg'))
+        self.assertTrue(rules.item_fits(['Reel'], 'Tonne'))
+        self.assertFalse(rules.item_fits(['Reel'], 'Square Meter'))
+        self.assertTrue(rules.item_fits(['Bundle'], 'Ream'))
+        self.assertFalse(rules.item_fits(['Bundle', 'Reel'], 'Ream'))
+        self.assertFalse(rules.item_fits([], 'Kg'))
+
+
+class _D(dict):
+    """frappe._dict: a dict with attribute access, as get_list returns."""
+    __getattr__ = dict.__getitem__
+
+
+class WorklistApi(unittest.TestCase):
+    """Wiring of the read-only worklist methods (no bench)."""
+    def setUp(self):
+        db = types.SimpleNamespace(exists=lambda dt, name=None: dt == 'DocType')
+        self.p = [patch.object(frappe, 'db', db, create=True), patch.object(frappe, 'get_roles', return_value=['Stock Manager']),
+                  patch.object(frappe, 'session', types.SimpleNamespace(user='clerk@example.test'), create=True),
+                  patch.object(api, '_company', lambda c: None), patch.object(frappe, 'conf', {}, create=True)]
+        for x in self.p: x.start()
+
+    def tearDown(self):
+        for x in reversed(self.p): x.stop()
+
+    def test_worklist_groups_and_never_offers_item_links_to_others(self):
+        R = _D
+        def get_list(dt, **kw):
+            return {'Stock Tag Registration': [R(name='EXIST-1', company='VCL', warehouse='W7', kind='Reel', observed_on='2026-11-12')],
+                    'Physical Stock Unit': [R(name='VCL-RL-2026-00625', registration='EXIST-1', warehouse='W7', kind='Reel', status='Available',
+                                              item_code='', ledger_status='', count_outcome='Present', stock_draft_status='')],
+                    'Company': ['VCL'], 'Warehouse': []}[dt]
+        with patch.object(frappe, 'get_list', side_effect=get_list, create=True):
+            out = api.worklist('VCL')
+        self.assertFalse(out['can_set_item'])
+        self.assertEqual((out['sheets'][0]['reference'], out['sheets'][0]['stage'], out['sheets'][0]['need_item']), ('EXIST-1', 'Link items', 1))
+
+    def test_item_search_keeps_only_items_that_fit_and_adds_balances(self):
+        R = _D
+        def get_list(dt, **kw):
+            if dt == 'Item':
+                return [R(name='SG-KG', item_name='Semi gloss', stock_uom='Kg', has_batch_no=0),
+                        R(name='AVERY', item_name='Avery', stock_uom='Square Meter', has_batch_no=0)]
+            return [R(item_code='SG-KG', warehouse='Stores', actual_qty=1200.0)]
+        with patch.object(frappe, 'get_list', side_effect=get_list, create=True):
+            out = api.item_search('["Reel"]', 'semi')
+        self.assertEqual([i['name'] for i in out['items']], ['SG-KG'])
+        self.assertEqual(out['items'][0]['balances'], [dict(warehouse='Stores', qty=1200.0)])
+        with self.assertRaises(_Thrown): api.item_search('[]')
+        with self.assertRaises(_Thrown): api.item_search('["Pallet"]')
+
+
 class Workflow(unittest.TestCase):
     def setUp(self):
         tts.Workflow.setUp(self)

@@ -10,6 +10,7 @@ Decisions behind this module (Tanuj, 16 November 2026):
 Every write takes role + company permission, row locks and the unit's `modified`
 version. Every request carries a caller-made ID; repeating it returns the first result.
 """
+import json
 from html import escape
 
 import frappe
@@ -92,6 +93,67 @@ def set_item(units, item_code, treatment):
         unit.save(ignore_permissions=True)
         done.append(_unit_dict(unit))
     return dict(units=done, stock_posted=False)
+
+
+# ---------------------------------------------------------------- worklist (read only)
+
+WORK_FIELDS = ['name', 'registration', 'warehouse', 'kind', 'status', 'item_code', 'ledger_status',
+               'count_outcome', 'stock_draft_status']
+
+
+@frappe.whitelist()
+def worklist(company=None):
+    """Every tagging sheet with its counts and next step. Read only."""
+    _gate()
+    filters = {}
+    if company:
+        _company(company); filters['company'] = company
+    regs = frappe.get_list(REG, filters=filters, fields=['name', 'company', 'warehouse', 'kind', 'observed_on'],
+                           order_by='creation desc', limit_page_length=1000)
+    units = frappe.get_list(UNIT, filters={'registration': ['in', [r.name for r in regs]]} if regs else {'name': ''},
+                            fields=WORK_FIELDS, limit_page_length=0)
+    return dict(sheets=rules.group_sheets([dict(r) for r in regs], [dict(u) for u in units]),
+                companies=frappe.get_list('Company', pluck='name', limit_page_length=0),
+                warehouses=frappe.get_list('Warehouse', filters={'disabled': 0, 'is_group': 0},
+                                           fields=['name', 'company'], limit_page_length=0),
+                can_set_item=frappe.session.user in _approvers(), notice=NOTICE)
+
+
+@frappe.whitelist()
+def sheet_page(reference):
+    """One tagging sheet: its units with their versions, saved sheet records and drafts. Read only."""
+    _gate()
+    regs = _sheet_regs(reference)
+    units = _sheet_units(regs)
+    for u in units:
+        u['spec'] = _spec(u)
+    names = [r.name for r in regs]
+    returns = frappe.get_list(SHEET, filters={'registration': ['in', names]},
+                              fields=['name', 'signed_by', 'signed_on', 'recorded_by', 'recorded_at'],
+                              order_by='creation desc', limit_page_length=50)
+    return dict(reference=reference, company=regs[0].company, summary=rules.sheet_summary(units), units=units,
+                returns=returns, can_set_item=frappe.session.user in _approvers(), notice=NOTICE)
+
+
+@frappe.whitelist()
+def item_search(kinds, query=''):
+    """Stock items whose unit fits these kinds of unit, with where the books hold them now. Read only."""
+    _gate()
+    kinds = json.loads(kinds) if isinstance(kinds, str) else kinds
+    if not isinstance(kinds, list) or not kinds or any(k not in ('Reel', 'Bundle', 'Container') for k in kinds):
+        frappe.throw('Choose the units to link first.')
+    query = str(query or '').strip()[:80]
+    or_filters = [['name', 'like', f'%{query}%'], ['item_name', 'like', f'%{query}%']] if query else None
+    found = frappe.get_list('Item', filters={'disabled': 0, 'is_stock_item': 1}, or_filters=or_filters,
+                            fields=['name', 'item_name', 'stock_uom', 'has_batch_no'], order_by='modified desc',
+                            limit_page_length=200)
+    items = [dict(i) for i in found if rules.item_fits(kinds, i.stock_uom)][:25]
+    if items:
+        bins = frappe.get_list('Bin', filters={'item_code': ['in', [i['name'] for i in items]], 'actual_qty': ['!=', 0]},
+                               fields=['item_code', 'warehouse', 'actual_qty'], limit_page_length=0)
+        for i in items:
+            i['balances'] = [dict(warehouse=b.warehouse, qty=b.actual_qty) for b in bins if b.item_code == i['name']]
+    return dict(items=items)
 
 
 # ---------------------------------------------------------------- tagging sheet
