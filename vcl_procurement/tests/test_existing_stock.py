@@ -80,7 +80,11 @@ class Workflow(unittest.TestCase):
             return base_get_doc(dt, name)
 
         def get_all(dt, filters=None, fields=None, pluck=None, **kw):
-            rows = [d for (kind, _), d in self.docs.items() if kind == dt and all(d.get(k) == v for k, v in (filters or {}).items())]
+            def ok(val, want):
+                if isinstance(want, list) and want[0] == 'like': return str(val or '').startswith(want[1].rstrip('%'))
+                if isinstance(want, list) and want[0] == 'in': return val in want[1]
+                return val == want
+            rows = [d for (kind, _), d in self.docs.items() if kind == dt and all(ok(d.get(k), v) for k, v in (filters or {}).items())]
             if pluck: return [d.get(pluck) for d in rows]
             return [Doc({k: d.get(k) for k in fields}) for d in rows]
 
@@ -150,6 +154,21 @@ class Workflow(unittest.TestCase):
         rows[1].update(outcome='Present', note='')
         with self.assertRaises(_Thrown): api.record_sheet('SHEET-1', 'REG-3', 'Juma', '2026-11-16', rows)
         self.assertIs(self.docs[(api.SHEET, 'SHEET-1')], sheet)
+
+    def test_bulk_batch_is_one_sheet(self):
+        batch = 'EXIST-BULK-097324a3-6950-4002-8d4c-271955b15262'
+        rows = ['042c39a5-deda-442e-9e32-6e5ac1b2a183', '0fd67d78-8eff-4671-bc61-f989ada9cfe9']
+        for i, row in enumerate(rows):
+            tagged_stock.register(batch + '-' + row, plan(count=1, net_kg=100 + i), physically_verified=1)
+        self.assertEqual(rules.sheet_key(batch + '-' + rows[0]), batch)
+        self.assertEqual(rules.sheet_key('REG-1'), 'REG-1')
+        with patch('vcl_procurement.print_brand.logo_uri', return_value='data:,'):
+            html = api.tagging_sheet(batch)['html']
+        self.assertIn('VCL-RL-2026-00005', html); self.assertIn('VCL-RL-2026-00006', html); self.assertNotIn('VCL-RL-2026-00001', html)
+        out = self.sheet(batch, {'VCL-RL-2026-00005': 'Present', 'VCL-RL-2026-00006': 'Present'}, 'SB')
+        self.assertEqual(len(out['units']), 2)
+        with self.assertRaises(_Thrown): self.sheet(batch, {'VCL-RL-2026-00001': 'Present'}, 'SC')
+        with self.assertRaises(_Thrown): api.tagging_sheet('EXIST-BULK-unknown')
 
     def test_sheet_refuses_units_from_another_registration(self):
         with self.assertRaises(_Thrown): self.sheet('REG-1', {'VCL-RL-2026-00003': 'Present'})

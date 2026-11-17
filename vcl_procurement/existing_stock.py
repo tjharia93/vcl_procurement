@@ -96,9 +96,25 @@ def set_item(units, item_code, treatment):
 
 # ---------------------------------------------------------------- tagging sheet
 
-def _sheet_units(reference):
+def _sheet_regs(key):
+    """Registrations on one tagging sheet, oldest first. Refuses an unknown or mixed-company sheet."""
+    if key and frappe.db.exists(REG, key):
+        names = [key]
+    else:
+        names = [r.name for r in frappe.get_all(REG, filters={'name': ['like', str(key) + '-%']}, fields=['name'], limit_page_length=0)
+                 if rules.sheet_key(r.name) == key]
+    if not key or not names:
+        frappe.throw('This tagging sheet was not found. Reload the page.')
+    regs = sorted((_doc(REG, n) for n in names), key=lambda r: (str(r.observed_on), r.name))
+    if len({r.company for r in regs}) > 1:
+        frappe.throw('This sheet mixes companies. Review its registrations.')
+    return regs
+
+
+def _sheet_units(regs):
+    names = [r.name for r in regs]
     return [_unit_dict(frappe.get_doc(UNIT, r.name)) for r in
-            frappe.get_all(UNIT, filters={'registration': reference}, fields=['name'], order_by='name asc', limit_page_length=0)]
+            frappe.get_all(UNIT, filters={'registration': ['in', names]}, fields=['name'], order_by='name asc', limit_page_length=0)]
 
 
 def _spec(u):
@@ -117,17 +133,20 @@ def _spec(u):
 
 @frappe.whitelist()
 def tagging_sheet(reference):
-    """Printable A4 sheet: every unit of one registration, with tick boxes and a signature line."""
+    """Printable A4 sheet: every unit of one registration or bulk batch, with tick boxes and a signature line."""
     _gate()
-    reg = _doc(REG, reference)
+    regs = _sheet_regs(reference)
+    units = _sheet_units(regs)
+    stores = sorted({u.get('warehouse') or '' for u in units} - {''}) or [regs[0].warehouse]
+    dates = sorted({str(r.observed_on) for r in regs})
     from vcl_procurement.print_brand import logo_uri
     e = lambda x: escape(str(x if x is not None else ''), quote=True)
     rows = ''.join(
         '<tr><td class="id">' + e(u['name']) + '</td><td>' + e(u['material']) + (' · ' + e(u['colour']) if u.get('colour') else '') +
         '<br><small>' + e(_spec(u)) + '</small></td><td>' + e(u.get('item_code') or '—') + '</td><td>' + e(u.get('warehouse') or '') +
         '</td><td class="box"></td><td class="box"></td><td class="box"></td><td class="note"></td></tr>'
-        for u in _sheet_units(reference))
-    html = ('<!doctype html><html><head><meta charset="utf-8"><title>Tagging sheet ' + e(reg.name) + '</title><style>'
+        for u in units)
+    html = ('<!doctype html><html><head><meta charset="utf-8"><title>Tagging sheet ' + e(reference) + '</title><style>'
         '@page{size:A4;margin:12mm}body{font:12px Arial;color:#111}table{border-collapse:collapse;width:100%}'
         'td,th{border:1px solid #888;padding:7px;text-align:left;vertical-align:top;overflow-wrap:anywhere}tr{break-inside:avoid}'
         'th{background:#eaf0ff;color:#2b3990}.id{font-family:monospace;white-space:nowrap}.box{width:46px}.note{width:22%}'
@@ -135,7 +154,8 @@ def tagging_sheet(reference):
         '.vcl-letterhead img{width:220px;height:auto}.sign{display:flex;gap:40px;margin-top:28px}.sign div{flex:1;border-top:1px solid #111;padding-top:4px}'
         '@media print{button{display:none}}</style></head><body><button onclick="window.print()">Print</button>'
         '<header class="vcl-letterhead"><img alt="Vimit Converters Limited" src="' + logo_uri(True) + '"><b>STORES<br>Existing stock tagging sheet</b></header>'
-        '<p><b>Sheet:</b> ' + e(reg.name) + ' · <b>Store:</b> ' + e(reg.warehouse) + ' · <b>Registered:</b> ' + e(reg.observed_on) + '</p>'
+        '<p><b>Store:</b> ' + e(', '.join(stores)) + ' · <b>Registered:</b> ' + e(' to '.join([dates[0], dates[-1]] if len(dates) > 1 else dates)) +
+        ' · <b>Units:</b> ' + e(len(units)) + '<br><small>Sheet ' + e(reference) + '</small></p>'
         '<p>Stick each label on its unit. Tick one box per row. A unit not found or held needs a note. Sign and return this sheet to the office.</p>'
         '<table><thead><tr><th>Tag</th><th>Material</th><th>Item code</th><th>Store</th><th>Tagged, present</th><th>Not found</th><th>Held</th><th>Note</th></tr></thead><tbody>'
         + rows + '</tbody></table><div class="sign"><div>Tagged by (name)</div><div>Signature</div><div>Date</div></div>'
@@ -149,27 +169,29 @@ def record_sheet(sheet_id, reference, signed_by, signed_on, rows):
     _gate()
     sheet_id = _validate(tag_rules.text, sheet_id, 'Sheet record ID')
     signed_by = _validate(tag_rules.text, signed_by, 'Name of the person who signed')
-    reg = _doc(REG, reference)
-    signed_on = _validate(tag_rules.event_date, signed_on, nowdate(), reg.observed_on)
+    regs = _sheet_regs(reference)
+    reg_names = {r.name for r in regs}
+    signed_on = _validate(tag_rules.event_date, signed_on, nowdate(), max(str(r.observed_on) for r in regs))
     sheet = _validate(rules.sheet_rows, rows)
     request = tag_rules.canonical(dict(reference=reference, signed_by=signed_by, signed_on=signed_on,
         rows=[{k: r[k] for k in ('name', 'outcome', 'note')} for r in sheet]))
-    frappe.db.sql('select name from `tabStock Tag Registration` where name=%s for update', (reference,))
+    for r in regs:
+        frappe.db.sql('select name from `tabStock Tag Registration` where name=%s for update', (r.name,))
     if frappe.db.exists(SHEET, sheet_id):
         saved = _doc(SHEET, sheet_id)
         if saved.request_json != request:
             frappe.throw('This sheet record already holds different ticks. Open it rather than recording again.')
-        return dict(name=sheet_id, reused=True, units=_sheet_units(reference), stock_posted=False)
+        return dict(name=sheet_id, reused=True, units=_sheet_units(regs), stock_posted=False)
     units = []
     for row in sheet:
         unit = _doc(UNIT, row['name'], lock=True)
         _stale(unit, row['modified'])
-        if unit.registration != reference:
+        if unit.registration not in reg_names:
             frappe.throw(f'{unit.name} is not on sheet {reference}.')
         if unit.status == 'In transit' or unit.active_movement:
             frappe.throw(f'{unit.name} is in transit. Receive it before recording this sheet.')
         units.append((unit, row))
-    frappe.get_doc(dict(doctype=SHEET, sheet_id=sheet_id, registration=reference, company=reg.company,
+    frappe.get_doc(dict(doctype=SHEET, sheet_id=sheet_id, registration=regs[0].name, company=regs[0].company,
         signed_by=signed_by, signed_on=signed_on, recorded_by=frappe.session.user,
         recorded_at=now_datetime(), request_json=request)).insert(ignore_permissions=True)
     for unit, row in units:
@@ -185,7 +207,7 @@ def record_sheet(sheet_id, reference, signed_by, signed_on, rows):
         unit.last_checked_by = frappe.session.user
         unit.last_checked_at = now_datetime()
         unit.save(ignore_permissions=True)
-    return dict(name=sheet_id, reused=False, units=_sheet_units(reference), stock_posted=False)
+    return dict(name=sheet_id, reused=False, units=_sheet_units(regs), stock_posted=False)
 
 
 # ---------------------------------------------------------------- drafts

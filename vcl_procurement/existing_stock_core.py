@@ -6,6 +6,7 @@ or a conversion that the item does not state.
 """
 import json
 import math
+import re
 
 from vcl_procurement.tagged_stock_core import text, number, event_date
 
@@ -82,6 +83,16 @@ def ledger_qty(unit, item_uom):
     if not unit.get('quantity_known') or not unit.get('observed_qty'):
         raise ValueError(f'{name} has no known quantity.')
     return float(unit['observed_qty'])
+
+
+_BULK = re.compile(r'^(EXIST-BULK-[0-9a-fA-F-]{36})-[0-9a-fA-F-]{36}$')
+
+
+def sheet_key(registration):
+    """One tagging sheet per bulk batch. The bulk page saves one registration per reel
+    (EXIST-BULK-<batch>-<row>); every other registration is its own sheet."""
+    m = _BULK.match(str(registration or ''))
+    return m.group(1) if m else str(registration or '')
 
 
 def _rows(value, label):
