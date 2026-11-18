@@ -139,7 +139,8 @@ def label_data(po, name=None):
     from vcl_procurement.reel_intake import _qr
     _gate()
     doc=source(po)
-    registered=rows(doc.name)
+    # A voided reel ID (count changed after allocation) never gets a label.
+    registered=[r for r in rows(doc.name) if r.get('status')!='Voided']
     if name:
         registered=[r for r in registered if r.name==name]
     if not registered:
