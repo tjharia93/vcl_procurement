@@ -506,5 +506,39 @@ class BillFromPo(unittest.TestCase):
         self.assertIsNone(self.bill()["invoice_type"])
 
 
+class PoLineReelCount(PoPageAndSave):
+    """"No. of Reels" on the PO page and in an edit save. Information only, 0 = none given."""
+
+    def test_page_shows_the_count_and_zero_when_none(self):
+        self.assertEqual(po.po_page("PO-1")["lines"][0]["no_of_reels"], 0)
+        self.doc["items"][0]["custom_no_of_reels"] = 4
+        self.assertEqual(po.po_page("PO-1")["lines"][0]["no_of_reels"], 4)
+
+    def test_a_count_is_saved_on_the_line(self):
+        po.po_save("PO-1", {"lines": [self.line(no_of_reels=5)]})
+        self.assertEqual(self.saved_row()["custom_no_of_reels"], 5)
+
+    def test_a_blank_box_clears_the_count_to_zero(self):
+        self.doc["items"][0]["custom_no_of_reels"] = 4
+        po.po_save("PO-1", {"lines": [self.line(no_of_reels="")]})
+        self.assertEqual(self.saved_row()["custom_no_of_reels"], 0)
+
+    def test_a_line_that_sends_no_count_keeps_the_one_it_has(self):
+        self.doc["items"][0]["custom_no_of_reels"] = 4
+        po.po_save("PO-1", {"lines": [self.line()]})
+        self.assertEqual(self.saved_row()["custom_no_of_reels"], 4)
+
+    def test_a_bad_count_is_refused_and_the_order_is_not_saved(self):
+        for bad in (-2, 1.5, "abc", True):
+            self.doc.saved = False
+            with self.assertRaises(_Thrown):
+                po.po_save("PO-1", {"lines": [self.line(no_of_reels=bad)]})
+            self.assertFalse(getattr(self.doc, "saved", False), repr(bad))
+
+    def test_a_new_line_can_carry_a_count(self):
+        po.po_save("PO-1", {"lines": [self.line(), self.line(name=None, no_of_reels=3)]})
+        self.assertEqual(self.doc["items"][1]["custom_no_of_reels"], 3)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

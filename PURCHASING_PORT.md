@@ -110,3 +110,10 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - A silent KRA marks the invoice `custom_kra_recheck = Pending` (new read-only Select on Purchase Invoice, allow-on-submit, plus `custom_kra_recheck_tries`). The date rule is unchanged: "unverified" means only a Purchase Manager or Accounts Manager may push it. `kra_check` returns one new key, `recheck`, and prefixes `date.text` when KRA was silent.
 - `api/kra_recheck.run` (cron `30 6 * * *`) looks again at every Pending invoice (30 s budget each): Verified / Mismatch / Failed, comment on the invoice. After 3 silent mornings it becomes Failed. One email lists Failed and Mismatch to site config `kra_recheck_recipients` (default account@vimit.com, tanuj.haria@vimit.com).
 - Migrate needed (patch `add_kra_recheck_fields`). Deploy `vcl_kra_validation` first or together; deploying this app alone is safe.
+
+## Added 18/11/2026: "No. of Reels" on the PO line (information only)
+- `raise_po.create_purchase_order` accepts `no_of_reels` per line and `po.po_save` accepts it per line; both write `custom_no_of_reels` on the Purchase Order Item. `po.po_page` returns `no_of_reels` on every line (0 = none given).
+- Rule: `rules.clean_reel_count` - blank is left alone (create) or cleared to 0 (edit save); otherwise a whole number from 0 to 100,000; anything else is refused. A line that sends no `no_of_reels` key keeps the count it has.
+- The count is for information. It changes no quantity and creates nothing. `po_reel_intake.register` is switched off (`PO_TAG_RESERVATION = False`) so a count can never reserve Reel Intake tags from a PO; the module is kept intact.
+- No schema or patch change. The custom field itself was created by hand on the site on 10/08/2026 and is NOT in `setup_fields.py` (a fresh site would not have it).
+

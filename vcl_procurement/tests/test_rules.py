@@ -339,6 +339,29 @@ class TestPortAdditions(unittest.TestCase):
         self.assertEqual(rules.rate_after_lookup(128, None), 128.0)
 
 
+class ReelCount(unittest.TestCase):
+    """The PO line "No. of Reels" is information only: a whole number, 0 or more."""
+
+    def test_whole_numbers_are_kept(self):
+        self.assertEqual(rules.clean_reel_count(0), 0)
+        self.assertEqual(rules.clean_reel_count(12), 12)
+        self.assertEqual(rules.clean_reel_count("12"), 12)
+        self.assertEqual(rules.clean_reel_count(" 7 "), 7)
+        self.assertEqual(rules.clean_reel_count(12.0), 12)
+        self.assertEqual(rules.clean_reel_count(rules.MAX_REEL_COUNT), rules.MAX_REEL_COUNT)
+
+    def test_blank_means_leave_the_field_alone(self):
+        self.assertIsNone(rules.clean_reel_count(None))
+        self.assertIsNone(rules.clean_reel_count(""))
+        self.assertIsNone(rules.clean_reel_count("   "))
+
+    def test_anything_else_is_refused(self):
+        for bad in (-1, "-3", 1.5, "2.5", "abc", "nan", "inf", float("nan"), float("inf"), True, False,
+                    rules.MAX_REEL_COUNT + 1, [3], {"a": 1}):
+            with self.assertRaises(rules.RuleError, msg=repr(bad)):
+                rules.clean_reel_count(bad)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
 

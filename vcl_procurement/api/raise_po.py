@@ -295,6 +295,16 @@ def create_purchase_order(supplier, lines, schedule_date=None, currency=None,
         if (raw.get("description") or "").strip():
             row.description = rules.html_from_text(raw["description"].strip())
 
+        # Information only: the reel count the buyer asked for. Blank leaves the field alone.
+        # Nothing is created or reserved from it (see rules.clean_reel_count).
+        if "no_of_reels" in raw:
+            try:
+                reels = rules.clean_reel_count(raw["no_of_reels"])
+            except rules.RuleError as e:
+                frappe.throw(str(e))
+            if reels is not None:
+                row.custom_no_of_reels = reels
+
         # The only price field. po_price_guard clears anything that could
         # re-derive it, so what is typed here is what gets ordered.
         row.rate = flt(raw.get("rate"))

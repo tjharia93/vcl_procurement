@@ -590,6 +590,31 @@ def check_order_date(order_date, required_by):
         raise RuleError("The order date cannot be after the required-by date.")
 
 
+MAX_REEL_COUNT = 100000
+
+
+def clean_reel_count(value):
+    """The "No. of Reels" on a PO line, which is INFORMATION ONLY (Tanuj, 18/11/2026).
+
+    It records how many reels the buyer asked the supplier for. Reel weights vary and the real
+    count is known only when the delivery is counted, so nothing is created, reserved or
+    checked from this number. Returns a whole number >= 0, or None when the value is blank
+    (the caller then leaves the field alone). Anything else raises RuleError.
+    """
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    msg = "No. of Reels must be a whole number, 0 or more (up to %d)." % MAX_REEL_COUNT
+    if isinstance(value, bool):
+        raise RuleError(msg)
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        raise RuleError(msg)
+    if math.isnan(n) or math.isinf(n) or n < 0 or n != int(n) or n > MAX_REEL_COUNT:
+        raise RuleError(msg)
+    return int(n)
+
+
 def first_line_text(item_name, description):
     """What a list row shows as the first thing ordered: the description when it says more than
     the item name, else the name. Whitespace is collapsed to single spaces."""

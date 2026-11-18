@@ -13,6 +13,13 @@ from vcl_procurement.reels import allocate_reel_ids
 from vcl_procurement.reels_core import number
 
 
+# Tanuj, 18/11/2026: NO reel tags are generated when a PO is released. "No. of Reels" on a PO line
+# is information only (reel weights vary and the real count is known at delivery), so entering a
+# count must never reserve identities. Reservation stays in this module, switched off. Tags are
+# made at the Purchase Receipt (receipt_reel_tags.py). Set True only by a deliberate decision.
+PO_TAG_RESERVATION = False
+
+
 def source(po, preparing=False):
     doc = frappe.get_doc('Purchase Order', po)
     doc.check_permission('read')
@@ -66,7 +73,7 @@ def order_page(po):
     doc = source(po)
     return dict(po=doc.name, supplier=doc.supplier_name or doc.supplier, company=doc.company,
         items=plan(doc), reels=rows(doc.name),
-        can_register=doc.status != 'Closed' and bool({'Purchase Manager', 'Purchase User', 'System Manager'}.intersection(frappe.get_roles())),
+        can_register=PO_TAG_RESERVATION and doc.status != 'Closed' and bool({'Purchase Manager', 'Purchase User', 'System Manager'}.intersection(frappe.get_roles())),
         stock_notice='Expected reel identities only. Arrival details and stock posting remain separate.')
 
 
@@ -74,6 +81,8 @@ def order_page(po):
 def register(po):
     _assert_purchasing_role()
     _gate()
+    if not PO_TAG_RESERVATION:
+        frappe.throw(_('Reel tags are not made from a Purchase Order. The reel count on a PO line is for information only. Tags are made when the goods are received, on the Purchase Receipt.'))
     doc = source(po, preparing=True)
     # Invoice preparation takes this same lock, so both routes cannot reserve
     # a different identity set for the same order concurrently.

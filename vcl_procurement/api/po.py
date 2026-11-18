@@ -123,6 +123,8 @@ def po_page(name):
         "material_request": i.material_request, "cost_center": i.get("cost_center"), "expense_account": i.get("expense_account"),
         # The row's description is HTML; the screen edits plain text.
         "description": rules.plain_text(i.description),
+        # Information only: the reel count asked of the supplier. 0 means none was given.
+        "no_of_reels": int(flt(i.get("custom_no_of_reels"))),
     } for i in doc.items]
 
     taxes = [_tax_row(t, rate, cur) for t in doc.get("taxes") or []]
@@ -310,6 +312,14 @@ def po_save(name, payload):
                 # Only a real change is written, so an untouched line keeps its original HTML.
                 if new != old and (new or old):
                     row["description"] = rules.html_from_text(new) if new else None
+            # Information only: a blank box clears the count to 0; a row that never sent the key
+            # keeps whatever it already holds (the copy of the existing row above carries it).
+            if "no_of_reels" in ln:
+                try:
+                    reels = rules.clean_reel_count(ln["no_of_reels"])
+                except rules.RuleError as e:
+                    frappe.throw(str(e))
+                row["custom_no_of_reels"] = reels or 0
             rows.append(row)
         data["items"] = rows
 

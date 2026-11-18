@@ -1,5 +1,13 @@
 # Step 2: expected reel preparation from a Purchase Order
 
+> **Switched off on 18/11/2026.** Tanuj decided that no reel tags are made when a PO is
+> released. "No. of Reels" on a PO line is information only (reel weights vary and the real count
+> is known at delivery). `register(po)` now refuses unless `po_reel_intake.PO_TAG_RESERVATION` is
+> set to True, and `order_page(po)` returns `can_register: false`. Nothing below is deleted; it
+> describes what the module does when the switch is on. Tags are made at the Purchase Receipt
+> (`receipt_reel_tags.py`). Saving a count through `raise_po.create_purchase_order` or
+> `po.po_save` never reaches this module.
+
 For an open submitted PO, `vcl_procurement.po_reel_intake.order_page(po)` reads
 the existing `custom_no_of_reels` fields. `register(po)` reserves one permanent
 Reel Intake ID for each documented reel and links it to the exact PO child row.

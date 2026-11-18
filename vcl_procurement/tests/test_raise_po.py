@@ -217,5 +217,60 @@ class MatchingLinesToRequests(unittest.TestCase):
         self.assertEqual(self.match([{"item_code": "Hot Melt", "stock_qty": 5}], [self.row("a")]), [])
 
 
+class ReelCountOnTheLine(unittest.TestCase):
+    """"No. of Reels" is carried onto the PO line as information, and creates nothing else."""
+
+    def setUp(self):
+        self.doc = Doc()
+        frappe.new_doc = lambda _dt: self.doc
+        frappe.get_all = lambda dt, filters=None, fields=None, pluck=None, **k: []
+
+    def call(self, **line):
+        ln = {"item_code": "BROWN TEST LINER-1200-150", "qty": 3569, "rate": 83}
+        ln.update(line)
+        return raise_po.create_purchase_order(supplier="CHENTAI", lines=[ln])
+
+    def test_a_count_is_written_to_the_custom_field(self):
+        self.call(no_of_reels=4)
+        self.assertEqual(self.doc.items[0].custom_no_of_reels, 4)
+
+    def test_zero_is_written_as_zero(self):
+        self.call(no_of_reels=0)
+        self.assertEqual(self.doc.items[0].custom_no_of_reels, 0)
+
+    def test_a_count_arriving_as_text_is_a_whole_number(self):
+        self.call(no_of_reels="6")
+        self.assertEqual(self.doc.items[0].custom_no_of_reels, 6)
+
+    def test_blank_or_missing_leaves_the_field_unset(self):
+        self.call()
+        self.call(no_of_reels="")
+        self.call(no_of_reels=None)
+        for row in self.doc.items:
+            self.assertNotIn("custom_no_of_reels", row)
+
+    def test_a_bad_count_is_refused_and_nothing_is_created(self):
+        for bad in (-1, 2.5, "x", True):
+            self.doc.inserted = False
+            with self.assertRaises(_Thrown):
+                self.call(no_of_reels=bad)
+            self.assertFalse(self.doc.inserted, "nothing should be created for %r" % (bad,))
+
+    def test_the_count_does_not_touch_quantity_or_rate(self):
+        self.call(no_of_reels=4)
+        row = self.doc.items[0]
+        self.assertEqual((row.qty, row.rate), (3569, 83))
+
+    def test_neither_save_path_can_reach_tag_reservation(self):
+        """18/11/2026: no reel tags are made at PO release. Entering a count must never reach the
+        module that reserves identities, so these files must not import or call it."""
+        import os
+        base = os.path.dirname(raise_po.__file__)
+        for name in ("raise_po.py", "po.py"):
+            text = open(os.path.join(base, name), encoding="utf-8").read()
+            for banned in ("po_reel_intake", "allocate_reel_ids", "Reel Intake"):
+                self.assertNotIn(banned, text, "%s must not reference %s" % (name, banned))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

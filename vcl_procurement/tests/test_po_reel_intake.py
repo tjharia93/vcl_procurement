@@ -51,8 +51,24 @@ class PoPreparation(unittest.TestCase):
         patches = [patch.object(frappe,'get_doc',side_effect=get_doc,create=True),
             patch.object(frappe,'get_all',side_effect=get_all,create=True),
             patch.object(frappe,'get_roles',return_value=['Purchase Manager']),
-            patch.object(frappe,'db',db,create=True), patch.object(api,'allocate_reel_ids',side_effect=allocate)]
+            patch.object(frappe,'db',db,create=True), patch.object(api,'allocate_reel_ids',side_effect=allocate),
+            # The module's own behaviour is tested with reservation switched on; the default is off (below).
+            patch.object(api,'PO_TAG_RESERVATION',True)]
         for p in patches: p.start(); self.addCleanup(p.stop)
+
+    def test_with_reservation_off_a_count_creates_and_reserves_nothing(self):
+        """18/11/2026: the PO line count is information only. Off is the live default."""
+        with patch.object(api,'PO_TAG_RESERVATION',False):
+            with self.assertRaises(_Thrown): api.register(self.po.name)
+            page = api.order_page(self.po.name)
+            self.assertFalse(page['can_register'])
+            self.assertEqual(page['reels'],[])
+            # Even a retry of an earlier-looking call allocates and writes nothing.
+            with self.assertRaises(_Thrown): api.register(self.po.name)
+        self.assertEqual(self.allocations,[])
+        self.assertEqual(self.tags,[])
+        self.assertEqual(self.locks,[])
+        self.assertEqual(sum(l.custom_no_of_reels for l in self.po.items),56)
 
     def test_56_expected_tags_keep_exact_po_line_and_unknowns_blank(self):
         original = copy.deepcopy(self.po.items)
@@ -147,6 +163,11 @@ class PoPreparation(unittest.TestCase):
         self.assertEqual(self.allocations,[56])
         self.denied=True
         with self.assertRaises(PermissionError):api.label_data(self.po.name)
+
+
+class ReservationDefaultsOff(unittest.TestCase):
+    def test_switch_is_off_as_shipped(self):
+        self.assertIs(api.PO_TAG_RESERVATION, False)
 
 
 if __name__ == '__main__': unittest.main()
