@@ -17,7 +17,12 @@ from vcl_procurement.reels_core import number
 # is information only (reel weights vary and the real count is known at delivery), so entering a
 # count must never reserve identities. Reservation stays in this module, switched off. Tags are
 # made at the Purchase Receipt (receipt_reel_tags.py). Set True only by a deliberate decision.
-PO_TAG_RESERVATION = False
+#
+# Tanuj, later on 18/11/2026 (after the receiving review): switched ON. Reel IDs are allocated from
+# a submitted PO that carries a reel count, only by the deliberate "Allocate reel IDs" action
+# (register below). Saving a count on a PO line still reserves nothing by itself. With no count on
+# the PO, tags are made at the Purchase Receipt as before.
+PO_TAG_RESERVATION = True
 
 
 def source(po, preparing=False):

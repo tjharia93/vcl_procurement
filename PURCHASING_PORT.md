@@ -115,5 +115,6 @@ Additive; no key removed. One patch (`add_40hc_container_size`): **migrate neede
 - `raise_po.create_purchase_order` accepts `no_of_reels` per line and `po.po_save` accepts it per line; both write `custom_no_of_reels` on the Purchase Order Item. `po.po_page` returns `no_of_reels` on every line (0 = none given).
 - Rule: `rules.clean_reel_count` - blank is left alone (create) or cleared to 0 (edit save); otherwise a whole number from 0 to 100,000; anything else is refused. A line that sends no `no_of_reels` key keeps the count it has.
 - The count is for information. It changes no quantity and creates nothing. `po_reel_intake.register` is switched off (`PO_TAG_RESERVATION = False`) so a count can never reserve Reel Intake tags from a PO; the module is kept intact.
+- Later on 18/11/2026 (Tanuj, after the receiving review): `PO_TAG_RESERVATION = True`. Reel IDs are allocated from a submitted PO with a reel count, only by calling `po_reel_intake.register` (a Desk "Allocate reel IDs" button is being built). Saving a count still creates nothing.
 - No schema or patch change. The custom field itself was created by hand on the site on 10/08/2026 and is NOT in `setup_fields.py` (a fresh site would not have it).
 

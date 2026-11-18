@@ -52,12 +52,12 @@ class PoPreparation(unittest.TestCase):
             patch.object(frappe,'get_all',side_effect=get_all,create=True),
             patch.object(frappe,'get_roles',return_value=['Purchase Manager']),
             patch.object(frappe,'db',db,create=True), patch.object(api,'allocate_reel_ids',side_effect=allocate),
-            # The module's own behaviour is tested with reservation switched on; the default is off (below).
+            # The module's own behaviour is tested with reservation switched on, pinned here so the tests do not depend on the shipped default (checked below).
             patch.object(api,'PO_TAG_RESERVATION',True)]
         for p in patches: p.start(); self.addCleanup(p.stop)
 
     def test_with_reservation_off_a_count_creates_and_reserves_nothing(self):
-        """18/11/2026: the PO line count is information only. Off is the live default."""
+        """With the switch off, the PO line count is information only and nothing is reserved."""
         with patch.object(api,'PO_TAG_RESERVATION',False):
             with self.assertRaises(_Thrown): api.register(self.po.name)
             page = api.order_page(self.po.name)
@@ -165,9 +165,10 @@ class PoPreparation(unittest.TestCase):
         with self.assertRaises(PermissionError):api.label_data(self.po.name)
 
 
-class ReservationDefaultsOff(unittest.TestCase):
-    def test_switch_is_off_as_shipped(self):
-        self.assertIs(api.PO_TAG_RESERVATION, False)
+class ReservationDefaultsOn(unittest.TestCase):
+    def test_switch_is_on_as_shipped(self):
+        """Tanuj, 18/11/2026: reel IDs are allocated from a submitted PO with a reel count."""
+        self.assertIs(api.PO_TAG_RESERVATION, True)
 
 
 if __name__ == '__main__': unittest.main()

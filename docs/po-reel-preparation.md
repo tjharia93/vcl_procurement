@@ -1,6 +1,11 @@
 # Step 2: expected reel preparation from a Purchase Order
 
-> **Switched off on 18/11/2026.** Tanuj decided that no reel tags are made when a PO is
+> **Switched back ON later on 18/11/2026** (Tanuj, after the receiving review). Reel IDs are
+> allocated from a submitted PO that has a reel count, only by the deliberate "Allocate reel IDs"
+> action (`PO_TAG_RESERVATION = True`). Saving a count still reserves nothing by itself. The note
+> below records the earlier decision of the same day, now superseded.
+>
+> **Earlier on 18/11/2026: switched off.** Tanuj decided that no reel tags are made when a PO is
 > released. "No. of Reels" on a PO line is information only (reel weights vary and the real count
 > is known at delivery). `register(po)` now refuses unless `po_reel_intake.PO_TAG_RESERVATION` is
 > set to True, and `order_page(po)` returns `can_register: false`. Nothing below is deleted; it
