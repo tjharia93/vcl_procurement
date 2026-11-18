@@ -72,6 +72,31 @@ def registered_net_weight(row):
     return f'{n(weight)} kg' if math.isfinite(weight) and weight > 0 else ''
 
 
+def _positive(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0
+    return number if math.isfinite(number) and number > 0 else 0
+
+
+def quantity_box(row):
+    """Caption and text for the quantity box (Tanuj, 18/11/2026).
+
+    The quantity is printed only when that reel's own quantity is on record: a measured
+    registration weight, or the kg / metres known in advance for that reel. Otherwise the box
+    is left blank for receiving to write in by hand. A stock or order quantity is never used.
+    """
+    registered = registered_net_weight(row)
+    if registered:
+        return 'NET WEIGHT AT REGISTRATION', registered
+    if row.get('qty_unit') == 'm':
+        length = _positive(row.get('known_m'))
+        return ('LENGTH', f'{n(length)} m') if length else ('LENGTH (m)', '')
+    weight = _positive(row.get('known_kg'))
+    return ('WEIGHT', f'{n(weight)} kg') if weight else ('WEIGHT (kg)', '')
+
+
 def labels_html(data, format='label'):
     if format not in ('label', 'a4'):
         raise ValueError('Choose 100 x 70 mm label stock or A4.')
@@ -87,8 +112,8 @@ def labels_html(data, format='label'):
         brightness = brightness_text(r)
         brightness_html = f'<div class="brightness">{e(brightness)}</div>' if brightness else ''
         brightness_attr = ' data-brightness="true"' if brightness else ''
-        weight = registered_net_weight(r)
-        weight_html = f'<div class="net-weight"><span>NET WEIGHT AT REGISTRATION</span> <b>{e(weight)}</b></div>' if weight else ''
+        caption, quantity = quantity_box(r)
+        weight_html = f'<div class="qty-box"><span>{e(caption)}</span> <b>{e(quantity)}</b></div>'
         gsm = f"<span class='gsm'><i>|</i>{n(r['gsm'])} GSM</span>" if r.get('gsm') else ''
         backing = ' | Yellow back' if 'yellow back' in (r.get('item_name') or '').lower() else ''
         purchase=purchase_reference(r)
@@ -134,9 +159,11 @@ def labels_html(data, format='label'):
     .po-reel-label .brightness{{position:absolute;left:4mm;top:35mm;width:54mm;height:4mm;font-size:8.5pt;font-weight:bold;line-height:1.1;white-space:nowrap}}
     .po-reel-label[data-brightness] .width-caption{{top:40mm}}
     .po-reel-label[data-brightness] .spec{{top:44mm}}
-    .po-reel-label .net-weight{{position:absolute;left:4mm;top:54mm;width:54mm;height:3.5mm;display:flex;align-items:baseline;gap:2mm;line-height:1;white-space:nowrap}}
-    .po-reel-label .net-weight span{{font-size:6pt;font-weight:bold}}
-    .po-reel-label .net-weight b{{font-size:10pt}}
+    .po-reel-label[data-brightness] .spec strong{{font-size:17pt}}
+    .po-reel-label[data-brightness] .spec small{{font-size:9pt}}
+    .po-reel-label .qty-box{{position:absolute;left:4mm;top:50.2mm;width:54mm;height:7mm;border:.3mm solid #000;padding:0 1.5mm;display:flex;align-items:center;justify-content:space-between;gap:2mm;line-height:1;white-space:nowrap}}
+    .po-reel-label .qty-box span{{font-size:5.5pt;font-weight:bold}}
+    .po-reel-label .qty-box b{{font-size:11pt}}
     .po-reel-label .width-caption{{position:absolute;left:4mm;top:37mm;font-size:6pt;font-weight:bold;line-height:1}}
     .po-reel-label .spec{{position:absolute;left:4mm;top:41mm;width:54mm;display:flex;align-items:baseline;gap:4mm;line-height:1}}
     .po-reel-label .spec strong{{font-size:22pt;font-weight:900;white-space:nowrap}}
@@ -164,7 +191,43 @@ def native_fragment(html):
     return html[html.index('<style>'):html.index('</style>')+8]+html[html.index('<article'):html.index('</body>')]
 
 
+def add_known_quantities(data):
+    """Attach each reel's own known quantity from its Reel Intake record, for the quantity box.
+
+    Kg comes from the supplier net kg entered for that reel. Material stocked in Square Meter
+    uses the known length in metres (a site custom field, so it is read only when it exists).
+    """
+    import frappe
+    rows = [r for r in (data or {}).get('reels') or [] if r.get('batch_id')]
+    if not rows or not frappe.db.exists('DocType', 'Reel Intake'):
+        return data
+    fields = ['name', 'item_code', 'declared_net_kg']
+    has_length = bool(frappe.get_meta('Reel Intake').has_field('custom_length_m'))
+    if has_length:
+        fields.append('custom_length_m')
+    known = {r.name: r for r in frappe.get_all('Reel Intake', filters={'name': ['in', [r['batch_id'] for r in rows]]},
+        fields=fields, limit_page_length=0)}
+    units = {}
+    for row in rows:
+        reel = known.get(row['batch_id'])
+        if not reel:
+            continue
+        code = reel.get('item_code') or row.get('item_code')
+        if code and code not in units:
+            units[code] = frappe.db.get_value('Item', code, 'stock_uom')
+        if units.get(code) == 'Square Meter':
+            row['qty_unit'] = 'm'
+            row['known_m'] = reel.get('custom_length_m') if has_length else 0
+        else:
+            row['known_kg'] = reel.get('declared_net_kg')
+    return data
+
+
 def source_labels(source_type, name):
+    return add_known_quantities(_source_labels(source_type, name))
+
+
+def _source_labels(source_type, name):
     import frappe
     from vcl_procurement.reel_intake import _gate, intake_labels, reel_page, _qr
     from vcl_procurement.reels import receipt_labels

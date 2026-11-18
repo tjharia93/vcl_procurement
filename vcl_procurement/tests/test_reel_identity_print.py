@@ -69,6 +69,38 @@ class IdentityLayout(unittest.TestCase):
             self.assertEqual(layout.registered_net_weight({**row,**missing}),'')
         self.assertEqual(layout.registered_net_weight({**self.row,'original_qty':261.5,'uom':'Square Meter'}),'')
 
+    def test_quantity_box_prints_a_reels_own_known_quantity_or_stays_blank_for_handwriting(self):
+        """Tanuj, 18/11/2026: weight (or length) when known for that reel, otherwise a blank box."""
+        self.assertEqual(layout.quantity_box(self.row),('WEIGHT (kg)',''))
+        self.assertEqual(layout.quantity_box({**self.row,'known_kg':1150.5}),('WEIGHT','1150.5 kg'))
+        self.assertEqual(layout.quantity_box({**self.row,'qty_unit':'m'}),('LENGTH (m)',''))
+        self.assertEqual(layout.quantity_box({**self.row,'qty_unit':'m','known_m':1000}),('LENGTH','1000 m'))
+        # A kg figure never fills a metres box, and bad values leave the box blank.
+        self.assertEqual(layout.quantity_box({**self.row,'qty_unit':'m','known_kg':500}),('LENGTH (m)',''))
+        for bad in (0,None,'',-5,float('nan'),'abc'):
+            self.assertEqual(layout.quantity_box({**self.row,'known_kg':bad}),('WEIGHT (kg)',''))
+        for format in ('label','a4'):
+            blank=layout.labels_html(self.data,format)
+            self.assertIn('<div class="qty-box"><span>WEIGHT (kg)</span> <b></b></div>',blank)
+            self.assertNotIn('999',blank)
+            known=layout.labels_html({**self.data,'reels':[{**self.row,'known_kg':1150.5}]},format)
+            self.assertIn('<div class="qty-box"><span>WEIGHT</span> <b>1150.5 kg</b></div>',known)
+
+    def test_known_quantities_come_from_the_reel_record_by_the_items_stock_unit(self):
+        paper={**self.row,'batch_id':'R1','item_code':'PAPER'};film={**self.row,'batch_id':'R2','item_code':'FILM'}
+        other={**self.row,'batch_id':'R3'}
+        reels=[Doc(name='R1',item_code='PAPER',declared_net_kg=1150.5,custom_length_m=0),
+               Doc(name='R2',item_code='FILM',declared_net_kg=77,custom_length_m=1000)]
+        meta=types.SimpleNamespace(has_field=lambda f:f=='custom_length_m')
+        db=types.SimpleNamespace(exists=lambda *a:True,
+            get_value=lambda dt,name,field:{'PAPER':'Kg','FILM':'Square Meter'}[name])
+        with patch.object(frappe,'db',db,create=True),patch.object(frappe,'get_meta',return_value=meta,create=True), \
+             patch.object(frappe,'get_all',return_value=reels,create=True):
+            data=layout.add_known_quantities({'reels':[paper,film,other]})
+        self.assertEqual((data['reels'][0].get('known_kg'),data['reels'][0].get('qty_unit')),(1150.5,None))
+        self.assertEqual((data['reels'][1].get('known_m'),data['reels'][1].get('qty_unit'),data['reels'][1].get('known_kg')),(1000,'m',None))
+        self.assertNotIn('known_kg',data['reels'][2])
+
     def test_same_layout_for_mass_and_area_stock_and_a4_uses_eight_labels(self):
         for unit in ('Kg','Tonne','Square Meter','REEL'):
             row={**self.row,'uom':unit,'original_qty':999}
@@ -93,6 +125,7 @@ class IdentityLayout(unittest.TestCase):
     def test_native_sources_delegate_to_existing_permission_checked_readers(self):
         from vcl_procurement import reel_intake, reels
         with patch.object(reel_intake,'_gate'),patch.object(reel_intake,'intake_labels',return_value=self.data) as invoice, \
+             patch.object(frappe,'db',types.SimpleNamespace(exists=lambda *a:False),create=True), \
              patch.object(reels,'receipt_labels',return_value=self.data) as receipt, \
              patch.object(po_reel_intake,'label_data',return_value=self.data) as order:
             for kind,name in [('Purchase Invoice','PI'),('Purchase Receipt','PR'),('Purchase Order','PO')]:
