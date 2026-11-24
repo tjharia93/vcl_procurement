@@ -118,7 +118,11 @@ def create_request(lines, schedule_date=None, title=None):
     needed = getdate(schedule_date) if schedule_date else getdate(today())
     company = (frappe.defaults.get_user_default("Company")
                or frappe.db.get_single_value("Global Defaults", "default_company"))
-    fallback = frappe.db.get_single_value("Stock Settings", "default_warehouse")
+    # Newer ERPNext versions removed this field. Item defaults and an explicit
+    # line warehouse must still work; do not query a missing singleton field.
+    fallback = frappe.defaults.get_user_default("Warehouse")
+    if not fallback and frappe.get_meta("Stock Settings").has_field("default_warehouse"):
+        fallback = frappe.db.get_single_value("Stock Settings", "default_warehouse")
     doc = frappe.new_doc("Material Request")
     doc.material_request_type = "Purchase"
     doc.company = company
