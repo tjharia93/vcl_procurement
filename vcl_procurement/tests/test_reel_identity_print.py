@@ -13,23 +13,39 @@ class IdentityLayout(unittest.TestCase):
             original_qty=999,supplier_invoice='SI-1',supplier_reel_no='MILL-1',received_on='2026-11-12')
         self.data=dict(receipt='PO-1',docstatus=1,reels=[self.row])
 
-    def test_standard_identity_never_prints_quantity_receiving_fields_or_movements(self):
-        html=layout.labels_html(self.data)
-        for absent in ('999','SI-1','MILL-1','2026-11-12','Actual quantity','Received on','MOVEMENT','<table','<script>'):
+    def qr_text(self, html):
+        import base64, re
+        sources=re.findall(r'<img class="qr" alt="Reel ID" src="data:image/svg\+xml;base64,([^"]+)"',html)
+        return [base64.b64decode(s).decode() for s in sources]
+
+    def test_label_prints_no_supplier_po_or_invoice_and_its_qr_holds_only_the_reel_id(self):
+        """Tanuj, 25/11/2026: the label leaves with the reel, so nothing commercial and no ERP address."""
+        full=layout.labels_html(self.data)
+        self.assertIn('@page{size:100mm 70mm',full)
+        html=full[full.index('<section'):]  # the label itself; the source name stays in the screen toolbar
+        for absent in ('999','SI-1','Avery','PO-1','<span>SUPPLIER</span>','<span>PO</span>','http','/compass/',
+                       'SCAN REEL RECORD','MOVEMENT','<table','<script>'):
             self.assertNotIn(absent,html)
-        for text in ('@page{size:100mm 70mm','<h2 style="font-size:13pt">PP White</h2>',self.row['batch_id'],'Avery &lt;script&gt;','PO-1'):
+        for text in ('<h2 style="font-size:13pt">PP White</h2>',self.row['batch_id'],
+                     'SCAN IN COMPASS','<span>MILL REEL NO.</span><b>MILL-1</b>','<span>RECEIVED</span><b>12/11/2026</b>'):
             self.assertIn(text,html)
+        self.assertEqual(self.qr_text(html),[self.row['batch_id']])
         self.assertEqual(html.count('<h1>'+self.row['batch_id']+'</h1>'),1)
         self.assertNotIn('0 GSM',html)
 
-    def test_imports_keep_bl_and_container_and_remove_item_specification_suffix(self):
+    def test_import_label_drops_bl_and_container_and_leaves_a_received_line_before_arrival(self):
         row={**self.row,'item_name':'Wood Free / Bank Paper - Reel-610-48-IN-80','item_code':'WF/BP - Reel-610-48-IN-80',
-            'width_mm':610,'gsm':48,'order_type':'Import','bl_number':'BL-1','container':'CCLU7308949 / CSNU8648520'}
+            'width_mm':610,'gsm':48,'order_type':'Import','bl_number':'BL-1','container':'CCLU7308949 / CSNU8648520',
+            'supplier_reel_no':'1342542903011563','received_on':''}
         self.assertEqual(layout.material_name(row),'Wood Free / Bank Paper')
         html=layout.labels_html({**self.data,'reels':[row]})
-        for text in ('BL-1','CCLU7308949 / CSNU8648520','48 GSM','refs compact'):
+        for absent in ('BL-1','CCLU7308949','<span>BL</span>','<span>CONTAINER</span>','Avery'):
+            self.assertNotIn(absent,html)
+        for text in ('48 GSM','<span>MILL REEL NO.</span><b>1342542903011563</b>','<span>RECEIVED</span><b class="write-in"></b>'):
             self.assertIn(text,html)
-        self.assertNotIn('<span>PO</span>',html)
+        no_mill=layout.labels_html({**self.data,'reels':[{**row,'supplier_reel_no':None}]})
+        self.assertNotIn('MILL REEL NO.',no_mill)
+        self.assertEqual(layout.label_date('2026-13-40'),'')
 
     def test_brightness_is_a_separate_complete_line_instead_of_a_clipped_title(self):
         row={**self.row,'item_code':'','item_name':'WOODFREE - 44GSM - 66% BRIGHTNESS','gsm':44,'width_mm':610}
@@ -52,9 +68,11 @@ class IdentityLayout(unittest.TestCase):
             'received_on':'2026-11-12'}
         before=copy.deepcopy(row)
         html=layout.labels_html({**self.data,'reels':[row]})
-        self.assertIn('<span>BOUGHT ON</span><b>11/11/2026 - VCL - INDIA</b>',html)
+        # The purchase date stays; the source after it (a supplier or place) is left off the label.
+        self.assertIn('<span>BOUGHT ON</span><b>11/11/2026</b>',html)
+        self.assertNotIn('INDIA',html)
         self.assertNotIn('Inspection note stays private',html)
-        self.assertNotIn('2026-11-12',html)
+        self.assertNotIn('12/11/2026',html)
         self.assertEqual(row,before)
         for notes in ('Bought on 31/02/2026 - VCL - INDIA','Inspection note only'):
             self.assertEqual(layout.purchase_reference({**row,'notes':notes}),'')

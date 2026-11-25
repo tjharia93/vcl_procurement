@@ -218,7 +218,8 @@ class Workflow(unittest.TestCase):
             html=api.print_labels(name=tag)['html']
             qr.assert_called_once_with('/compass/stock-tags/'+tag)
         self.assertIn('100mm 70mm',html);self.assertNotIn('Weight not yet measured',html)
-        self.assertIn('Existing stock',html);self.assertNotIn('<span>PO</span>',html)
+        self.assertNotIn('<span>SUPPLIER</span>',html);self.assertNotIn('<span>PO</span>',html)
+        self.assertNotIn('/compass/',html);self.assertIn('<span>RECEIVED</span><b class="write-in"></b>',html)
         self.assertNotIn('0 kg',html);self.assertEqual(len(self.docs),before)
 
     def test_guest_roles_cannot_register_and_schemas_have_no_direct_write(self):
@@ -236,7 +237,7 @@ class Workflow(unittest.TestCase):
         before=len(self.docs)
         with patch('vcl_procurement.reel_intake._qr',return_value='data:test'):
             html=api.print_labels(name=tag)['html']
-        self.assertIn('11/11/2026 - VCL - INDIA',html)
+        self.assertIn('<span>BOUGHT ON</span><b>11/11/2026</b>',html);self.assertNotIn('INDIA',html)
         self.assertNotIn('Later inspection details',html)
         self.assertEqual(unit.notes,'Later inspection details')
         self.assertEqual(len(self.docs),before)

@@ -36,7 +36,8 @@ class NativePrintLayouts(unittest.TestCase):
         self.assertNotIn('Received on',html)
         self.assertNotIn('Supplier invoice',html)
         self.assertNotIn('Actual quantity',html)
-        self.assertIn('CCLU7308949 / CSNU8648520',html)
+        # Containers and BL stay in the ERP and on the receiving list, not on the label (25/11/2026).
+        self.assertNotIn('CCLU7308949',html)
 
     def test_full_list_has_nine_pages_and_each_existing_reel_once(self):
         html=receiving_list_html(self.delivery)

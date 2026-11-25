@@ -1,9 +1,16 @@
 """Standard identity-only 100 x 70 mm reel labels, independent of stock UOM.
 
 Every print path reads authorized source records and reuses their permanent IDs.
-No quantity, receiving field, stock mutation or ID allocation belongs here.
+No stock mutation or ID allocation belongs here.
+
+Privacy (Tanuj, 25/11/2026): the label goes out with the reel, so it carries no supplier,
+PO, BL or container, and its QR holds only the reel ID (no web address). The bottom strip
+shows the mill's own reel number (already on the reel's mill tag, used to match the label to
+the reel at offloading) and the received date, or a blank line to write it in.
 """
 from html import escape
+import base64
+import io
 import re
 import math
 from datetime import datetime
@@ -97,6 +104,32 @@ def quantity_box(row):
     return ('WEIGHT', f'{n(weight)} kg') if weight else ('WEIGHT (kg)', '')
 
 
+def id_qr(value):
+    """QR holding only the ID text, so a phone that scans it shows the ID and nothing else."""
+    from pyqrcode import create
+    stream = io.BytesIO()
+    create(str(value), error='M').svg(stream, scale=4, quiet_zone=4)
+    return 'data:image/svg+xml;base64,' + base64.b64encode(stream.getvalue()).decode()
+
+
+def label_date(value):
+    try:
+        return datetime.strptime(str(value or '')[:10], '%Y-%m-%d').strftime('%d/%m/%Y')
+    except ValueError:
+        return ''
+
+
+def bottom_refs(row):
+    """Mill reel number, then the received date (blank for writing in) or, for existing stock, the purchase date."""
+    refs = [('MILL REEL NO.', str(row['supplier_reel_no']))] if row.get('supplier_reel_no') else []
+    bought = purchase_reference(row).split(' - ', 1)[0]
+    if bought:
+        refs.append(('BOUGHT ON', bought))
+    else:
+        refs.append(('RECEIVED', label_date(row.get('received_on'))))
+    return refs
+
+
 def labels_html(data, format='label'):
     if format not in ('label', 'a4'):
         raise ValueError('Choose 100 x 70 mm label stock or A4.')
@@ -116,17 +149,9 @@ def labels_html(data, format='label'):
         weight_html = f'<div class="qty-box"><span>{e(caption)}</span> <b>{e(quantity)}</b></div>'
         gsm = f"<span class='gsm'><i>|</i>{n(r['gsm'])} GSM</span>" if r.get('gsm') else ''
         backing = ' | Yellow back' if 'yellow back' in (r.get('item_name') or '').lower() else ''
-        purchase=purchase_reference(r)
-        refs = [('SUPPLIER', r.get('supplier') or '—')] if r.get('supplier') or not purchase else []
-        if r.get('order_type') == 'Import' and r.get('bl_number'):
-            refs.append(('BL', r['bl_number']))
-            if r.get('container'):
-                refs.append(('CONTAINER', r['container']))
-        elif r.get('purchase_order'):
-            refs.append(('PO', r['purchase_order']))
-        elif r.get('existing_stock'):
-            refs.append(('BOUGHT ON', purchase) if purchase else ('SOURCE', 'Existing stock'))
-        reference_html = ''.join(f'<div><span>{key}</span><b>{e(value)}</b></div>' for key,value in refs)
+        refs = bottom_refs(r)
+        reference_html = ''.join(f'<div><span>{key}</span><b>{e(value)}</b></div>' if value
+            else f'<div><span>{key}</span><b class="write-in"></b></div>' for key,value in refs)
         title_size = 13 if len(material_name(r)) <= 18 else 10 if len(material_name(r)) <= 30 else 8
         cards.append(f'''<section class="po-reel-label"{brightness_attr}>
         <div class="brand">VIMIT CONVERTERS LIMITED</div>
@@ -136,8 +161,8 @@ def labels_html(data, format='label'):
         <div class="width-caption">REEL WIDTH</div>
         <div class="spec"><strong>{n(r['width_mm']) if r.get('width_mm') else '—'} <small>mm</small></strong>{gsm}</div>
         {weight_html}
-        <img class="qr" alt="Open reel record" src="{e(r['qr_uri'])}">
-        <div class="scan-caption">SCAN REEL RECORD</div>
+        <img class="qr" alt="Reel ID" src="{e(id_qr(r['batch_id']))}">
+        <div class="scan-caption">SCAN IN COMPASS</div>
         <div class="refs{' compact' if len(refs)>2 else ''}">{reference_html}</div></section>''')
     if format == 'label':
         pages = ''.join('<article class="label-sheet">'+card+'</article>' for card in cards)
@@ -174,7 +199,8 @@ def labels_html(data, format='label'):
     .po-reel-label .scan-caption{{position:absolute;right:4mm;top:55.3mm;width:32mm;text-align:center;font-size:5pt;font-weight:bold;line-height:1}}
     .po-reel-label .refs{{position:absolute;left:4mm;right:4mm;top:58mm;border-top:.15mm solid #000;padding-top:1.8mm;font-size:7pt;line-height:1.15}}
     .po-reel-label .refs div{{height:4.2mm;display:flex;align-items:baseline;gap:2mm;white-space:nowrap}}
-    .po-reel-label .refs span{{width:13mm;flex:none;font-size:5.5pt;font-weight:bold}}
+    .po-reel-label .refs span{{width:17mm;flex:none;font-size:5.5pt;font-weight:bold}}
+    .po-reel-label .refs b.write-in{{width:32mm;height:3.4mm;border-bottom:.15mm solid #000}}
     .po-reel-label .refs b{{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:7pt;font-weight:normal}}
     .po-reel-label .refs.compact{{padding-top:1.2mm}}
     .po-reel-label .refs.compact div{{height:3.1mm}}

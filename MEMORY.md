@@ -18,6 +18,13 @@ Last updated: **2026-11-17**
   `drop-import-local-filter`, `fix/po-order-date-type`, `qbo-push-page-export-20260616`,
   `store-qbo-last-updated`. Whether any hold unmerged work: unknown.
 
+## Reel label privacy — 2026-11-25 (on main, not deployed)
+- Tanuj, 25/11/2026: the 100 x 70 reel label (`reel_identity_print.labels_html`, every reel print path) no longer prints supplier, PO, BL, container or the "Bought on" source text. Its QR holds only the reel ID (`id_qr`), not an ERP URL; caption "SCAN IN COMPASS".
+- Bottom strip: MILL REEL NO. (supplier reel no., when known; used to match labels to reels at offloading) and RECEIVED (dd/mm/yyyy, or a blank write-in line). Existing stock with a "Bought on" note shows the date only.
+- Builders still pass `qr_uri` (URL QRs); the reel label ignores it. Bundle, container and stock-tag labels are unchanged.
+- Scanning a new reel label with a phone camera shows only the ID; nothing opens the record until the Compass scan screen is built. Old URL labels keep working.
+- `tests/__init__.py` installs a fake `pyqrcode` (writes the QR text) when the real one is missing, so tests can decode the QR.
+
 ## Existing stock worklist Web Page — 2026-11-17 (LIVE 17/11/2026)
 - `dev_pages/existing-stock/` (route `existing-stock-dev`): the screen for B.1/B.2. Per tagging sheet: print, record signed ticks, link items (Tanuj), preview and create drafts (Tanuj). README says how to create the Web Page.
 - New read-only methods in `existing_stock.py`: `worklist`, `sheet_page`, `item_search` (+ pure `sheet_summary`, `group_sheets`, `item_fits` in `existing_stock_core.py`). Deployed with `e85085b`, no migrate needed. 21 tests pass; `check.cjs` passes offline.
