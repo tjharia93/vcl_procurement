@@ -154,7 +154,7 @@ def labels_html(data, format='label'):
             else f'<div><span>{key}</span><b class="write-in"></b></div>' for key,value in refs)
         title_size = 13 if len(material_name(r)) <= 18 else 10 if len(material_name(r)) <= 30 else 8
         cards.append(f'''<section class="po-reel-label"{brightness_attr}>
-        <div class="brand">VIMIT CONVERTERS LIMITED</div>
+        <div class="brand">REEL</div>
         <h1>{e(r['batch_id'])}</h1><h2 style="font-size:{title_size}pt">{e(material_name(r))}</h2>
         <div class="material-code">{e(r.get('item_code'))}{backing}</div>
         {brightness_html}

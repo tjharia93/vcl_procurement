@@ -23,7 +23,7 @@ class IdentityLayout(unittest.TestCase):
         full=layout.labels_html(self.data)
         self.assertIn('@page{size:100mm 70mm',full)
         html=full[full.index('<section'):]  # the label itself; the source name stays in the screen toolbar
-        for absent in ('999','SI-1','Avery','PO-1','<span>SUPPLIER</span>','<span>PO</span>','http','/compass/',
+        for absent in ('999','SI-1','Avery','PO-1','VIMIT','Vimit','<span>SUPPLIER</span>','<span>PO</span>','http','/compass/',
                        'SCAN REEL RECORD','MOVEMENT','<table','<script>'):
             self.assertNotIn(absent,html)
         for text in ('<h2 style="font-size:13pt">PP White</h2>',self.row['batch_id'],

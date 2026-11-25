@@ -27,6 +27,7 @@ Last updated: **2026-11-17**
 ## Reel label privacy — 2026-11-25
 - Tanuj, 25/11/2026: the 100 x 70 reel label (`reel_identity_print.labels_html`, every reel print path) no longer prints supplier, PO, BL, container or the "Bought on" source text. Its QR holds only the reel ID (`id_qr`), not an ERP URL; caption "SCAN IN COMPASS".
 - Bottom strip: MILL REEL NO. (supplier reel no., when known; used to match labels to reels at offloading) and RECEIVED (dd/mm/yyyy, or a blank write-in line). Existing stock with a "Bought on" note shows the date only.
+- Tanuj, 25/11/2026: "Remove vimit name". The reel label's top line is now "REEL", both bundle labels say "BUNDLE", no logo mark. The ink/chemical container label (stays in-house) and internal A4 sheets keep the name.
 - Builders still pass `qr_uri` (URL QRs); the reel label ignores it. Bundle, container and stock-tag labels are unchanged.
 - Scanning a new reel label with a phone camera shows only the ID; nothing opens the record until the Compass scan screen is built. Old URL labels keep working.
 - `tests/__init__.py` installs a fake `pyqrcode` (writes the QR text) when the real one is missing, so tests can decode the QR.

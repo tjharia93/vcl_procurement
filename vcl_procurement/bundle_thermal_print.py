@@ -1,7 +1,7 @@
 """Approved 100 x 30 mm bundle design, with a 15 mm rightward text offset."""
 from html import escape
 import re
-from vcl_procurement.print_brand import brand_icon, label_brand_css
+from vcl_procurement.print_brand import label_brand_css
 
 
 def number(value):
@@ -31,7 +31,7 @@ def thermal_labels_html(rows):
         # Long saved descriptions wrap inside their own area, never across the QR.
         size = 11.5 if len(title) <= 23 else 9 if len(title) <= 30 else 7.5 if len(title) <= 40 else 5.5
         cards.append(f'''<article class="bundle-sheet"><section class="bundle-label">
-        <div class="brand">{brand_icon()}VIMIT CONVERTERS LIMITED</div>
+        <div class="brand">BUNDLE</div>
         <h2 style="font-size:{size}pt">{e(title)}</h2>
         <div class="spec">{e(number(row['width_mm']))} × {e(number(row['length_mm']))} mm · {e(number(row['gsm']))} GSM</div>
         <div class="contents">{e(number(row['reams_per_bundle']))} REAMS / {e(number(row['total_sheets']))} SHEETS</div>
