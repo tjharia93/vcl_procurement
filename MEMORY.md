@@ -18,7 +18,13 @@ Last updated: **2026-11-17**
   `drop-import-local-filter`, `fix/po-order-date-type`, `qbo-push-page-export-20260616`,
   `store-qbo-last-updated`. Whether any hold unmerged work: unknown.
 
-## Reel label privacy — 2026-11-25 (on main, not deployed)
+## Scan screen /scan — 2026-11-25
+- `www/scan.html` + `www/scan.py` (route `/scan`, signed-in only; Guest → /login?redirect-to=/scan). Lives in this app, not Compass, because Compass deploys from `asset-transfer-note-live-20261118`, which holds other undeployed work. Move it into the Compass SPA later if wanted.
+- `scan.resolve(code)` (POST): `scan_core.normalize` reads ID-only and old link QRs; looks in Reel Intake, then Physical Stock Unit, then Batch (VCL-RL); Stock Bundle then unit (VCL-BND); Stock Container then unit (VCL-IC). Shown only if `frappe.has_permission(doctype,'read',doc)`; otherwise the same "Not found or not yours to see". No supplier or price fields are read. Logged to `frappe.logger('vcl_scan')`; 120 look-ups a minute per user. LOC- codes answer "not built yet".
+- Those doctypes are readable only by Stock Manager, Purchase User/Manager, System Manager. A store user with only Stock User sees "Not found" until given a role or read permission.
+- Camera: native BarcodeDetector where the browser has it, else the bundled `public/js/jsQR-1.4.0.js` (Apache-2.0, from npm jsqr@1.4.0). No outside service.
+
+## Reel label privacy — 2026-11-25
 - Tanuj, 25/11/2026: the 100 x 70 reel label (`reel_identity_print.labels_html`, every reel print path) no longer prints supplier, PO, BL, container or the "Bought on" source text. Its QR holds only the reel ID (`id_qr`), not an ERP URL; caption "SCAN IN COMPASS".
 - Bottom strip: MILL REEL NO. (supplier reel no., when known; used to match labels to reels at offloading) and RECEIVED (dd/mm/yyyy, or a blank write-in line). Existing stock with a "Bought on" note shows the date only.
 - Builders still pass `qr_uri` (URL QRs); the reel label ignores it. Bundle, container and stock-tag labels are unchanged.

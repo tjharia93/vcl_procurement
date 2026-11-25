@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2B3990">
+<meta name="robots" content="noindex">
+<title>VCL Scan</title>
+<link rel="icon" href="/assets/vcl_procurement/images/vc_icon.png">
+<script>window.csrf_token = "{{ csrf_token }}";</script>
+<style>
+:root{--blue:#2B3990;--ink:#1C1E2E;--muted:#5A5F7A;--line:#DDE0F0;--soft:#EDEEF3;--bg:#F4F6FA;--red:#C0392B;--green:#2E7D32;--amber:#9A6700}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+header{background:var(--blue);color:#fff;padding:12px 16px calc(12px);padding-top:calc(12px + env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between}
+header b{font-size:18px;letter-spacing:.2px}
+header a{color:#fff;opacity:.85;font-size:14px;text-decoration:none}
+main{max-width:560px;margin:0 auto;padding:16px}
+.box{display:flex;gap:8px}
+#code{flex:1;min-width:0;font-size:18px;padding:12px 14px;border:2px solid var(--blue);border-radius:10px;background:#fff;color:var(--ink);text-transform:uppercase}
+#code::placeholder{text-transform:none;color:#9096B8}
+button{font:inherit;border:0;border-radius:10px;cursor:pointer}
+.go{background:var(--blue);color:#fff;font-weight:600;padding:0 18px}
+.cam{width:100%;margin-top:10px;background:#fff;color:var(--blue);border:2px solid var(--blue);padding:12px;font-weight:600}
+.hint{color:var(--muted);font-size:13px;margin:8px 2px 0}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;margin-top:16px;padding:16px;box-shadow:0 1px 3px rgba(28,30,46,.06)}
+.card.miss{border-color:#E8B4AE;background:#FFF6F5}
+.card.miss .msg{color:var(--red);font-weight:600}
+.kind{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--blue);background:var(--soft);border-radius:6px;padding:2px 8px}
+.uid{font-size:24px;font-weight:800;margin:8px 0 2px;word-break:break-all}
+.title{font-size:16px;font-weight:600;color:var(--muted)}
+.status{display:inline-block;margin-top:8px;font-size:13px;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--soft);color:var(--ink)}
+.status.ok{background:#E4F4E6;color:var(--green)}.status.warn{background:#FFF1D6;color:var(--amber)}.status.bad{background:#FDE7E4;color:var(--red)}
+table{width:100%;border-collapse:collapse;margin-top:12px}
+td{padding:8px 0;border-top:1px solid var(--soft);vertical-align:top;font-size:15px}
+td:first-child{color:var(--muted);width:40%;padding-right:8px}
+td:last-child{font-weight:600;word-break:break-word}
+.open{display:block;text-align:center;margin-top:14px;background:var(--blue);color:#fff;text-decoration:none;font-weight:600;padding:12px;border-radius:10px}
+h2{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:24px 2px 6px}
+#recent{list-style:none;margin:0;padding:0}
+#recent li{background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;padding:10px 12px;display:flex;justify-content:space-between;gap:8px;cursor:pointer;font-size:14px}
+#recent li span:first-child{white-space:nowrap;font-weight:600}
+#recent li span:last-child{color:var(--muted);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#viewer{position:fixed;inset:0;background:#000;display:none;flex-direction:column;z-index:10}
+#viewer.on{display:flex}
+#viewer video{flex:1;width:100%;object-fit:cover;min-height:0}
+#viewer .frame{position:absolute;left:50%;top:45%;width:64vmin;height:64vmin;transform:translate(-50%,-50%);border:3px solid rgba(255,255,255,.9);border-radius:16px;box-shadow:0 0 0 100vmax rgba(0,0,0,.35);pointer-events:none}
+#viewer .bar{display:flex;justify-content:space-between;align-items:center;padding:14px 16px calc(14px + env(safe-area-inset-bottom));background:#000;color:#fff;font-size:14px}
+#viewer .bar button{background:#fff;color:var(--ink);padding:10px 18px;font-weight:600}
+.busy{opacity:.6}
+</style>
+</head>
+<body>
+<header><b>VCL Scan</b><a href="/compass/">Compass</a></header>
+<main>
+  <form class="box" id="form" autocomplete="off">
+    <input id="code" name="code" autofocus enterkeyhint="search" autocapitalize="characters" spellcheck="false"
+           placeholder="Scan or type an ID" aria-label="Scan or type an ID" maxlength="300">
+    <button class="go" type="submit">Find</button>
+  </form>
+  <button class="cam" id="camera" type="button">Use the camera</button>
+  <p class="hint">A handheld scanner types straight into the box. Reels VCL-RL, bundles VCL-BND, containers VCL-IC.</p>
+  <div id="result" aria-live="polite"></div>
+  <h2 id="recentHead" hidden>This session</h2>
+  <ul id="recent"></ul>
+</main>
+<div id="viewer" role="dialog" aria-label="Camera">
+  <video id="video" playsinline muted></video>
+  <div class="frame"></div>
+  <div class="bar"><span id="camMsg">Point at the QR code</span><button type="button" id="stop">Close</button></div>
+</div>
+<script src="/assets/vcl_procurement/js/jsQR-1.4.0.js" defer></script>
+<script>
+(function () {
+  var form = document.getElementById('form'), input = document.getElementById('code');
+  var out = document.getElementById('result'), recent = document.getElementById('recent');
+  var viewer = document.getElementById('viewer'), video = document.getElementById('video');
+  var camMsg = document.getElementById('camMsg');
+  var stream = null, timer = null, busy = false, detector = null;
+
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function statusClass(s) {
+    s = (s || '').toLowerCase();
+    if (/hold|replaced|cancel/.test(s)) return 'status bad';
+    if (/transit|expected|registered/.test(s)) return 'status warn';
+    return s ? 'status ok' : 'status';
+  }
+  function show(r, code) {
+    out.textContent = '';
+    var card = el('div', 'card' + (r.found ? '' : ' miss'));
+    if (!r.found) {
+      card.appendChild(el('div', 'msg', r.message || 'Not found or not yours to see.'));
+      card.appendChild(el('div', 'title', r.location || code));
+      out.appendChild(card); return;
+    }
+    card.appendChild(el('span', 'kind', r.kind));
+    card.appendChild(el('div', 'uid', r.id));
+    card.appendChild(el('div', 'title', r.title));
+    if (r.status) card.appendChild(el('span', statusClass(r.status), r.status));
+    var t = el('table');
+    (r.facts || []).forEach(function (f) { var tr = el('tr'); tr.appendChild(el('td', '', f[0])); tr.appendChild(el('td', '', f[1])); t.appendChild(tr); });
+    card.appendChild(t);
+    (r.open || []).forEach(function (o) {
+      if (!/^\/(compass|app)\//.test(o.url)) return;
+      var a = el('a', 'open', o.label); a.href = o.url; card.appendChild(a);
+    });
+    out.appendChild(card);
+  }
+  function remember(r, code) {
+    document.getElementById('recentHead').hidden = false;
+    var li = el('li'); li.appendChild(el('span', '', r.found ? r.id : code));
+    li.appendChild(el('span', '', r.found ? (r.title || r.kind) : 'Not found'));
+    li.onclick = function () { lookup(r.found ? r.id : code); };
+    recent.insertBefore(li, recent.firstChild);
+    while (recent.children.length > 15) recent.removeChild(recent.lastChild);
+  }
+  function lookup(code) {
+    code = (code || '').trim();
+    if (!code || busy) return;
+    busy = true; form.classList.add('busy');
+    var body = new URLSearchParams(); body.set('code', code);
+    fetch('/api/method/vcl_procurement.scan.resolve', {
+      method: 'POST', credentials: 'same-origin', body: body,
+      headers: { 'X-Frappe-CSRF-Token': window.csrf_token, 'Accept': 'application/json' }
+    }).then(function (res) {
+      return res.json().then(function (j) { return { ok: res.ok, status: res.status, j: j }; });
+    }).then(function (x) {
+      if (x.status === 401 || x.status === 403) { location.href = '/login?redirect-to=/scan'; return; }
+      var r = x.ok && x.j.message ? x.j.message : { found: false, message: x.status === 429 ? 'Too many look-ups. Wait a minute and scan again.' : 'Could not look that up. Try again.' };
+      show(r, code); remember(r, code);
+      if (r.found && navigator.vibrate) navigator.vibrate(60);
+    }).catch(function () {
+      show({ found: false, message: 'No connection. Try again.' }, code);
+    }).then(function () {
+      busy = false; form.classList.remove('busy');
+      input.value = ''; input.focus();
+    });
+  }
+  form.addEventListener('submit', function (e) { e.preventDefault(); lookup(input.value); });
+
+  function stopCamera() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    viewer.classList.remove('on'); input.focus();
+  }
+  function found(text) { stopCamera(); lookup(text); }
+  var canvas = document.createElement('canvas'), ctx = canvas.getContext('2d', { willReadFrequently: true });
+  function tick() {
+    if (!stream) return;
+    if (video.readyState >= 2) {
+      if (detector) {
+        detector.detect(video).then(function (codes) {
+          if (codes && codes.length) found(codes[0].rawValue); else timer = setTimeout(tick, 150);
+        }).catch(function () { detector = null; timer = setTimeout(tick, 150); });
+        return;
+      }
+      if (window.jsQR) {
+        var w = video.videoWidth, h = video.videoHeight, s = Math.min(1, 720 / Math.max(w, h));
+        canvas.width = Math.round(w * s); canvas.height = Math.round(h * s);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var hit = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+        if (hit && hit.data) { found(hit.data); return; }
+      }
+    }
+    timer = setTimeout(tick, 200);
+  }
+  document.getElementById('camera').addEventListener('click', function () {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      show({ found: false, message: 'This browser cannot open the camera. Type the ID instead.' }, ''); return;
+    }
+    detector = null;
+    if ('BarcodeDetector' in window) { try { detector = new window.BarcodeDetector({ formats: ['qr_code', 'data_matrix'] }); } catch (e) { detector = null; } }
+    camMsg.textContent = 'Point at the QR code';
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }).then(function (s) {
+      stream = s; video.srcObject = s; viewer.classList.add('on');
+      return video.play();
+    }).then(tick).catch(function () {
+      stopCamera(); show({ found: false, message: 'Camera not allowed. Allow it in the browser settings, or type the ID.' }, '');
+    });
+  });
+  document.getElementById('stop').addEventListener('click', stopCamera);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) stopCamera(); });
+  var q = new URLSearchParams(location.search).get('code'); if (q) lookup(q);
+})();
+</script>
+</body>
+</html>
