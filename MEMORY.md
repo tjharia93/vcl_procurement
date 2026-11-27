@@ -18,6 +18,17 @@ Last updated: **2026-11-17**
   `drop-import-local-filter`, `fix/po-order-date-type`, `qbo-push-page-export-20260616`,
   `store-qbo-last-updated`. Whether any hold unmerged work: unknown.
 
+## Import costs: customs entry, landed cost, deposit — 2026-11-27 (branch `claude/import-customs-landed-cost`, NOT merged, NOT deployed; MIGRATE needed)
+- New `api/import_costs.py` (+ pure `api/import_rules.py`; tests `tests/test_import_rules.py` 37, `tests/test_import_costs.py` 14). Screen: vcl_compass `ImportCostsPanel` on the import invoice (same branch name; also a small vcl_imports branch).
+- Tanuj, 26/11/2026: the import invoice stays a draft until the KRA customs entry gives the rate; KRA charges go by Journal Entry, not the invoice's taxes table; VAT never into stock; levies and CFS / clearing / shipping line charges into stock by Landed Cost Voucher, spread by quantity; a deposit is a receivable.
+- **Off by default.** Site config `vcl_import_customs_entry`: absent/0 off, "draft" = drafts only, 1 = posts. `vcl_import_post_for` (list of invoice names) may post while the site is in "draft". `vcl_import_vat_account` has no default and must be set before a customs entry with VAT can be saved.
+- Whitelisted: `import_page` (read), `customs_save` (draft JE + customs rate, entry no. and date on the DRAFT invoice; refuses if the invoice still has taxes), `customs_post` (JE then invoice, one savepoint), `landed_create` (draft LCV over the order's submitted receipts, distribute by Qty), `landed_post`, `deposit_recover`, `gate_check`. Writes are Finance only (Accounts Manager / Accounts User / System Manager).
+- Receiving lock: `assert_can_receive(po)` in `purchasing.create_receipt` and `reels.receive_reels`, and `lock_before_submit` on Purchase Receipt. Active only when the switch is 1 and the order's `custom_order_type` is Import.
+- Migrate adds (patch `add_import_cost_fields`): Journal Entry `custom_import_invoice`, `custom_import_entry_kind`, `custom_customs_entry_no`; Purchase Invoice `custom_customs_exchange_rate`, `custom_customs_journal_entry`.
+- Landed cost "already booked" is read per expense account from vouchers on the same receipts. A voucher that mixes two shipments' receipts would confuse it.
+- A deposit held in a foreign-currency account (1652 is USD) is not recovered here; the screen says to use ERPNext.
+- Never run on a bench. Unknown until it is: that `Landed Cost Voucher.get_items_from_purchase_receipts` and the Journal Entry rows save as written on ERPNext v16, and that EIV / 5113 are the right accounts to credit. Not built: QBO mapping for the capitalised charges; seal numbers at the gate (no field holds them).
+
 ## Scan screen /scan — 2026-11-25
 - `www/scan.html` + `www/scan.py` (route `/scan`, signed-in only; Guest → /login?redirect-to=/scan). Lives in this app, not Compass, because Compass deploys from `asset-transfer-note-live-20261118`, which holds other undeployed work. Move it into the Compass SPA later if wanted.
 - `scan.resolve(code)` (POST): `scan_core.normalize` reads ID-only and old link QRs; looks in Reel Intake, then Physical Stock Unit, then Batch (VCL-RL); Stock Bundle then unit (VCL-BND); Stock Container then unit (VCL-IC). Shown only if `frappe.has_permission(doctype,'read',doc)`; otherwise the same "Not found or not yours to see". No supplier or price fields are read. Logged to `frappe.logger('vcl_scan')`; 120 look-ups a minute per user. LOC- codes answer "not built yet".

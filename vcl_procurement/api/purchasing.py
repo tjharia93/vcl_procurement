@@ -367,6 +367,8 @@ def create_receipt(po, lines=None, posting_date=None, supplier_delivery_note=Non
     from erpnext.buying.doctype.purchase_order.purchase_order import make_purchase_receipt
 
     po_doc = frappe.get_doc("Purchase Order", po)
+    from vcl_procurement.api.import_costs import assert_can_receive
+    assert_can_receive(po)
     _glob, limits = _receipt_limits(po_doc)
     pr = make_purchase_receipt(po)
     if lines:

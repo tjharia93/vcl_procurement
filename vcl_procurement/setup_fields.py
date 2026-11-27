@@ -89,6 +89,24 @@ FIELDS += [
     {"dt": _Q, "fieldname": "vat_line_amount", "label": "VAT amount (KES)", "fieldtype": "Currency", "allow_on_submit": 1, "insert_after": "vat_line_account_name"},
 ]
 
+# Import costs (api/import_costs.py): the KRA customs entry and the container deposit recovery are
+# Journal Entries that name their importation invoice, so the screen and the reports can find them.
+FIELDS += [
+    {"dt": "Journal Entry", "fieldname": "custom_import_invoice", "label": "Import Invoice", "fieldtype": "Link",
+     "options": "Purchase Invoice", "read_only": 1, "no_copy": 1, "search_index": 1, "insert_after": "user_remark",
+     "description": "The importation invoice this entry belongs to. Set by the import costs screen."},
+    {"dt": "Journal Entry", "fieldname": "custom_import_entry_kind", "label": "Import Entry Kind", "fieldtype": "Select",
+     "options": "\nCustoms entry\nDeposit recovery", "read_only": 1, "no_copy": 1, "insert_after": "custom_import_invoice"},
+    {"dt": "Journal Entry", "fieldname": "custom_customs_entry_no", "label": "KRA Customs Entry No", "fieldtype": "Data",
+     "read_only": 1, "no_copy": 1, "search_index": 1, "in_standard_filter": 1, "insert_after": "custom_import_entry_kind",
+     "description": "Shown against import VAT in VAT reporting."},
+    {"dt": "Purchase Invoice", "fieldname": "custom_customs_exchange_rate", "label": "Customs Exchange Rate", "fieldtype": "Float",
+     "precision": "6", "read_only": 1, "no_copy": 1, "insert_after": "custom_kra_entry_date",
+     "description": "The exchange rate on the KRA customs entry. The invoice is booked at this rate."},
+    {"dt": "Purchase Invoice", "fieldname": "custom_customs_journal_entry", "label": "Customs Journal Entry", "fieldtype": "Link",
+     "options": "Journal Entry", "read_only": 1, "no_copy": 1, "allow_on_submit": 1, "insert_after": "custom_customs_exchange_rate"},
+]
+
 
 def ensure_fields():
     """Create any missing field. Returns the fieldnames it created."""

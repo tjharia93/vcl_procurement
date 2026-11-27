@@ -27,6 +27,11 @@ doc_events = {
     "Purchase Order": {
         "validate": "vcl_procurement.api.po_price_guard.normalise_line_prices",
     },
+    # An import order's goods are not received until its invoice is submitted on the KRA customs
+    # entry, so stock arrives at the customs rate. Off unless site config vcl_import_customs_entry is 1.
+    "Purchase Receipt": {
+        "before_submit": "vcl_procurement.api.import_costs.lock_before_submit",
+    },
     # Existing tagged stock (Phase S): a unit linked to a draft opening or transfer
     # follows that voucher's submit, cancel or deletion, whoever does it in Desk.
     "Stock Reconciliation": {

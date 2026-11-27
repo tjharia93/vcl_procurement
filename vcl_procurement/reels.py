@@ -250,6 +250,8 @@ def receive_reels(po, lines, posting_date=None, supplier_delivery_note=None,
     po_doc.check_permission('read')
     if po_doc.docstatus != 1:
         frappe.throw(_('Receive against a submitted Purchase Order.'))
+    from vcl_procurement.api.import_costs import assert_can_receive
+    assert_can_receive(po)
     source = _source_context(po_doc, invoice, container)
     by_idx = {str(r.idx): r for r in po_doc.items}
     pr = make_purchase_receipt(po)
